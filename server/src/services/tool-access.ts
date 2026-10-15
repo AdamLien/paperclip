@@ -253,6 +253,7 @@ import {
   profileIdsInBindingOrder,
 } from "./tool-profile-binding-precedence.js";
 import { assertGoogleChatToolArgumentsSupported, googleChatToolDescription, googleChatToolInputSchema } from "./google-chat-tool-policy.js";
+import { gmailArchiveToolDescription, gmailArchiveToolInputSchema } from "./gmail-archive-tool-policy.js";
 import {
   recordToolRuntimeAuditWriteFailure,
   TOOL_RUNTIME_AUDIT_WRITE_FAILURE_METRIC,
@@ -1343,6 +1344,7 @@ export function projectedConnectionToolInputSchema(
   const managed = honchoManagedArguments(connection, inputSchema);
   if (managed) inputSchema = stripManagedToolArgumentSchema(inputSchema, managed);
   inputSchema = googleChatToolInputSchema(connection, toolName, inputSchema);
+  inputSchema = gmailArchiveToolInputSchema(connection, toolName, inputSchema);
   const sourceTemplateKey =
     typeof connection.config.sourceTemplateKey === "string"
       ? connection.config.sourceTemplateKey
@@ -1737,7 +1739,11 @@ function toCatalogEntryForConnection(
       rawCatalogEntry.inputSchema ?? {},
       row.toolName,
     ),
-    description: googleChatToolDescription(connection, row.toolName, rawCatalogEntry.description),
+    description: gmailArchiveToolDescription(
+      connection,
+      row.toolName,
+      googleChatToolDescription(connection, row.toolName, rawCatalogEntry.description),
+    ),
   };
   if (
     connection.transport === "local_stdio" &&
@@ -2409,6 +2415,10 @@ export function classifyRisk(
   // safe. Treat it as write so Ask-first defaults can restrict it.
   if (sourceTemplateKey === "enterpret" && normalizedToolName === "run-graph-query")
     return "write";
+  // Gmail archive removes a system label. Keep it behind the archive method's
+  // destructive Ask-first default even when the preview provider omits hints.
+  if (sourceTemplateKey === "gmail" && normalizedToolName === "unlabel-thread")
+    return "destructive";
   if (sourceTemplateKey === "posthog" && normalizedToolName === "exec")
     return "destructive";
   // Superagent mirrors its REST API, and several mutations use verbs the
@@ -2460,6 +2470,7 @@ export function classifyRisk(
 export function isGmailToolPermanentlyBlocked(
   tool: McpToolDescriptor,
 ): boolean {
+  if (googleWorkspaceToolLeafName(tool.name) === "unlabel-thread") return false;
   const riskLevel = classifyRisk(tool, "gmail");
   return (
     verbMatches(

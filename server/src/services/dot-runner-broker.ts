@@ -204,6 +204,15 @@ function createBroker(db: Db) {
         }
       });
     },
+    async canStartNewWork(companyId: string, agentId: string, bindingId: string): Promise<boolean> {
+      try {
+        await this.snapshot(companyId, agentId, bindingId);
+        return true;
+      } catch (error) {
+        if (error instanceof McpOAuthError) return false;
+        throw error;
+      }
+    },
     async snapshot(companyId: string, agentId: string, bindingId: string): Promise<DotBindingSnapshot> {
       const state = await this.bindingForAgent(companyId, agentId);
       if (!state || !await enabled(state.providerKind)) throw fail("External provider is disabled for new work.");
