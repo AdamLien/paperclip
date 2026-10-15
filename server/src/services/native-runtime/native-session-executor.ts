@@ -11757,6 +11757,7 @@ async function createRunnerdBackendWithinSessionClaim(
         }
       : sourceRuntimeContext;
   let remotePrepared = false;
+  let preinstalledProviderPackRoots: string[] = [];
   let remoteHarnessStatePrepared = false;
   let selectedRemoteMode: "dial_wss" | "listen_ws" | null = null;
   let remoteCaBundleMapping: { sourcePath: string; targetPath: string } | null =
@@ -11902,7 +11903,7 @@ async function createRunnerdBackendWithinSessionClaim(
           () => verifyRemoteProviderPack(stagedRemoteProviderPackRoot),
         ),
         usePreinstalled: async () => useVerifiedPreinstalledRemoteProviderPack({
-          candidates: await measureNativeRunnerSpan(input.trace, "provider_pack.discover", discoverPreinstalledProviderPack),
+          candidates: preinstalledProviderPackRoots = await measureNativeRunnerSpan(input.trace, "provider_pack.discover", discoverPreinstalledProviderPack),
           verifyAndLink: async (preinstalledProviderPack) => {
             await measureNativeRunnerSpan(
               input.trace,
@@ -11975,6 +11976,7 @@ async function createRunnerdBackendWithinSessionClaim(
               archive,
               runner: remoteCommandRunner,
               targetPath: stagedRemoteProviderPackRoot,
+              reuseRoots: preinstalledProviderPackRoots,
               trace: input.trace,
             })) return;
             await stageRemoteRunnerDirectory({
