@@ -89,6 +89,12 @@ remaining operations before qualifying the whole capability.
 Gaps: Revision metadata has an API; pinned execution skill versions and installed latest
 are distinct.
 
+Runtime disk-cache expiration does not delete version records or change access. Normal
+execution rematerializes saved bytes after existing skill authorization; cleanup is an
+internal company-scoped maintenance operation, with no new agent endpoint. Verify pinned
+restoration and active-run protection with `server/src/__tests__/skill-version-cache.test.ts`
+and the assembled heartbeat runtime-skill tests; live acceptance remains separate.
+
 ## `policy`
 
 Review: `baseline`.

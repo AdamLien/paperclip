@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
+import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { and, eq, inArray } from "drizzle-orm";
@@ -112,4 +113,25 @@ it("keeps supplied membership snapshots separate from fresh database snapshots",
   } finally {
     await db.update(companyMemberships).set({ status: "active" }).where(and(eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalId, userId)));
   }
+});
+
+it("batches source retention and duplicate path reads without losing owners", async () => {
+  const sourceIds = Array.from({ length: 501 }, () => randomUUID());
+  await db.insert(executionWorkspaces).values(sourceIds.map(id => ({ id, companyId, projectId, cwd,
+    sourceIssueId: issueId, name: "Shared source", mode: "shared_workspace", strategyType: "operator_directory" })));
+  const queries: string[] = [];
+  const recorded = drizzle(db.$client, { schema: db._.fullSchema, logger: { logQuery: query => queries.push(query) } }) as unknown as typeof db;
+  const paths = vi.spyOn(fs, "realpath");
+  try {
+    await executionWorkspaceRepositoryService(recorded).guardForPublication(input());
+    expect(queries.filter(query => query.startsWith('insert into "execution_workspace_repository_access"')).length).toBeLessThanOrEqual(2);
+    expect(paths.mock.calls.length).toBeLessThanOrEqual(8);
+  } finally {
+    paths.mockRestore();
+  }
+  const retained = await db.select({ scopeId: executionWorkspaceRepositoryAccess.scopeId }).from(executionWorkspaceRepositoryAccess)
+    .where(and(eq(executionWorkspaceRepositoryAccess.companyId, companyId),
+      eq(executionWorkspaceRepositoryAccess.rootKey, createHash("sha256").update(cwd).digest("hex")),
+      eq(executionWorkspaceRepositoryAccess.kind, "source")));
+  expect(new Set(retained.map(row => row.scopeId))).toEqual(new Set([workspaceId, ...sourceIds]));
 });
