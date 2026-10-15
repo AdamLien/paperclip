@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useArgs } from "storybook/preview-api";
 import { Fragment, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, GitBranch } from "lucide-react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
@@ -6,6 +7,7 @@ import type { Issue } from "@paperclipai/shared";
 import { IssueRow } from "@/components/IssueRow";
 import { TaskRowGroup } from "@/components/TaskRowGroup";
 import { TaskList } from "@/components/TaskList";
+import { TaskSummaryList } from "@/components/TaskSummaryList";
 import { allTaskListColumns, defaultTaskListSort, sortTaskListItems, type TaskListSort } from "@/lib/task-list";
 import { buildIssueTree } from "@/lib/issue-tree";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +17,13 @@ import { timeAgo } from "@/lib/timeAgo";
 import { chatTask, columnData, connectorParent, healthTask, longTitle, ownerFor, readTask, recoveryChild, reviewTaskItems, sortValue, treeTasks, unreadTask } from "../../support/design-proposals/task-list-data";
 
 type Density = "comfortable" | "compact";
+type ContainerWidth = "standard" | "narrow" | "smallest";
+type PlaygroundProps = {
+  density: Density;
+  containerWidth: ContainerWidth;
+  onDensityChange?: (density: Density) => void;
+  onWidthChange?: (width: ContainerWidth) => void;
+};
 
 function ReviewFrame({ title, detail, children, wide = false }: { title: string; detail: string; children: ReactNode; wide?: boolean }) {
   const location = useLocation();
@@ -131,7 +140,7 @@ function InteractiveColumns() {
   );
 }
 
-function StateSamples() {
+function StateSamples({ density = "comfortable" }: { density?: Density }) {
   return (
     <section className="flex flex-col gap-4" aria-label="Title states">
       <div className="flex flex-col gap-1">
@@ -141,33 +150,50 @@ function StateSamples() {
       <div className="grid gap-6">
         <div className="flex min-w-0 flex-col gap-2">
           <p className="text-xs text-muted-foreground">Read · Regular</p>
-          <TaskRowGroup><Row issue={readTask} /></TaskRowGroup>
+          <TaskRowGroup><Row issue={readTask} density={density} /></TaskRowGroup>
         </div>
         <div className="flex min-w-0 flex-col gap-2">
           <p className="text-xs text-muted-foreground">Unread · Semibold</p>
-          <TaskRowGroup><Row issue={unreadTask} unread /></TaskRowGroup>
+          <TaskRowGroup><Row issue={unreadTask} density={density} unread /></TaskRowGroup>
         </div>
       </div>
     </section>
   );
 }
 
-function TaskRowSpecimen() {
+function TaskRowSpecimen({ density = "comfortable", containerWidth = "standard", onDensityChange, onWidthChange }: PlaygroundProps) {
+  const widthClass = { standard: "w-full", narrow: "w-96", smallest: "w-64" }[containerWidth];
   return (
     <ReviewFrame
       title="Task rows"
-      detail="Review comfortable rows, title states, and nested tasks. Truncated titles scroll once on hover or keyboard focus, then reset immediately on exit. Expand or collapse a branch to inspect nesting."
+      detail="Change row density and container width to explore title states and nesting. Truncated text reveals on hover or keyboard focus and resets on exit."
     >
-      <section className="flex flex-col gap-4" aria-label="Comfortable density specimen">
-        <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-sm font-medium">Comfortable</h2>
-          <p className="font-mono text-xs text-muted-foreground">44px rows · 24px nesting</p>
+      <div className="flex flex-wrap gap-6" aria-label="Playground controls">
+        <div role="group" aria-label="Row density" className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Row density</span>
+          {(["comfortable", "compact"] as const).map(value => <Button key={value} size="sm" variant={density === value ? "secondary" : "outline"} aria-pressed={density === value} onClick={() => onDensityChange?.(value)}>
+            {value === "comfortable" ? "Comfortable (44px)" : "Compact (32px)"}
+          </Button>)}
         </div>
-        <TaskTree />
-        <p className="text-xs leading-relaxed text-muted-foreground">Vertical guides connect nested tasks. One boundary encloses each parent and all its visible descendants; child rows have no horizontal separators.</p>
-      </section>
-      <StateSamples />
-      <footer className="text-xs leading-relaxed text-muted-foreground">This specimen uses the production task-row component with fixture data. Review the full composition under Design proposals → Pages → Tasks. Compact density is available as a separate preview; the app’s density setting follows app adoption.</footer>
+        <div role="group" aria-label="Container width" className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Container width</span>
+          {(["standard", "narrow", "smallest"] as const).map(value => <Button key={value} size="sm" variant={containerWidth === value ? "secondary" : "outline"} aria-pressed={containerWidth === value} onClick={() => onWidthChange?.(value)}>
+            {value === "standard" ? "Standard" : value === "narrow" ? "Narrow" : "Smallest"}
+          </Button>)}
+        </div>
+      </div>
+      <div data-testid="task-row-playground-container" className={`task-row-responsive-container flex max-w-full flex-col gap-8 ${widthClass}`}>
+        <section className="flex flex-col gap-4" aria-label={`${density === "comfortable" ? "Comfortable" : "Compact"} density specimen`}>
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-sm font-medium">{density === "comfortable" ? "Comfortable" : "Compact"}</h2>
+            <p className="font-mono text-xs text-muted-foreground">{density === "comfortable" ? "44px" : "32px"} rows · 24px nesting</p>
+          </div>
+          <TaskTree density={density} />
+          <p className="text-xs leading-relaxed text-muted-foreground">Vertical guides connect nested tasks. One boundary encloses each parent and all its visible descendants; child rows have no horizontal separators.</p>
+        </section>
+        <StateSamples density={density} />
+      </div>
+      <footer className="text-xs leading-relaxed text-muted-foreground">This playground uses the shared task-row component with fixture data. Narrow containers show status, title and timestamp; the smallest containers show status and title. Fixed stories remain available as review references. Review the full composition under Design proposals → Pages → Tasks.</footer>
     </ReviewFrame>
   );
 }
@@ -176,9 +202,17 @@ const meta = {
   id: "tasks-row-design",
   title: "Design proposals/Components/Task list",
   component: TaskRowSpecimen,
+  args: { density: "comfortable", containerWidth: "standard" },
+  argTypes: {
+    density: { control: "inline-radio", options: ["comfortable", "compact"] },
+    containerWidth: { control: "inline-radio", options: ["standard", "narrow", "smallest"] },
+    onDensityChange: { control: false, table: { disable: true } },
+    onWidthChange: { control: false, table: { disable: true } },
+  },
   globals: { theme: "dark" },
   parameters: {
     layout: "fullscreen",
+    controls: { include: [] },
     docs: {
       description: {
         component: "Proposed task-row design using production IssueRow and TaskRowGroup. Comfortable and compact share one component. Read/unread typography is independent of hover; nested guides and group boundaries follow the parent hierarchy. Use real pointer hover to inspect the four visual combinations. Play assertions cover typography, disclosure, and full-title access; fixtures do not establish production navigation or persistence.",
@@ -199,11 +233,44 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Passive entry point so design review always starts with the full expanded tree. */
-export const Specimen: Story = {};
+/** Keep the export stable so existing specimen links continue to work. */
+export const Specimen: Story = {
+  name: "Playground",
+  parameters: { controls: { include: ["density", "containerWidth"] } },
+  render: function Playground(args) {
+    const [, updateArgs] = useArgs<PlaygroundProps>();
+    return <TaskRowSpecimen {...args} onDensityChange={density => updateArgs({ density })} onWidthChange={containerWidth => updateArgs({ containerWidth })} />;
+  },
+};
 
 export const AllColumns: Story = {
   render: () => <InteractiveColumns />,
+};
+
+export const Summary: Story = {
+  name: "Narrow",
+  parameters: {
+    paperclip: {
+      capabilities: ["tasks/organize", "activity/overview"],
+      status: "proposed", home: "design-proposals", implementation: "production", boundary: "fixtures",
+      exception: "Reusable narrow summary staged with the task-list proposal; Dashboard opts in only in the local integration sandbox.",
+      notes: "TaskSummaryList renders the same refreshed IssueRow in a flat, read-style list. It preserves 44px density, sm typography, hover, status tooltip, cell-local marquee and full task navigation. Task ID hides below a 28rem container; time hides below 20rem. Rendering does not mark tasks read. The caller owns ordering and data; no table headers, column controls, query controller or hierarchy are introduced. The normal Dashboard remains unchanged when the design sandbox is off.",
+    },
+  },
+  render: () => <ReviewFrame title="Task summaries" detail="The same read-style task row in smaller containers. Row height and text size stay fixed; optional metadata yields space to the title.">
+    <section aria-label="Standard task summary" className="max-w-2xl space-y-3">
+      <h2 className="text-sm font-medium">Standard · Status, title, task ID, last updated</h2>
+      <TaskRowGroup><TaskSummaryList label="Standard task summary" issues={[recoveryChild, healthTask, chatTask]} /></TaskRowGroup>
+    </section>
+    <section aria-label="Narrow task summary" className="w-96 max-w-full space-y-3">
+      <h2 className="text-sm font-medium">Narrow · Status, title, timestamp</h2>
+      <TaskRowGroup><TaskSummaryList label="Narrow task summary" issues={[recoveryChild, healthTask, chatTask]} /></TaskRowGroup>
+    </section>
+    <section aria-label="Smallest task summary" className="w-64 max-w-full space-y-3">
+      <h2 className="text-sm font-medium">Smallest · Status and title</h2>
+      <TaskRowGroup><TaskSummaryList label="Smallest task summary" issues={[recoveryChild, healthTask, chatTask]} /></TaskRowGroup>
+    </section>
+  </ReviewFrame>,
 };
 
 export const Comfortable: Story = {

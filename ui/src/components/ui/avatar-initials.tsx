@@ -4,8 +4,8 @@ const SingleInitialContext = createContext(false);
 
 /** Proposed fallback policy; shared avatars keep their existing default until
  * a surface explicitly adopts the single-initial design. */
-export function AvatarInitialProvider({ children }: { children: ReactNode }) {
-  return <SingleInitialContext.Provider value>{children}</SingleInitialContext.Provider>;
+export function AvatarInitialProvider({ children, singleInitial = true }: { children: ReactNode; singleInitial?: boolean }) {
+  return <SingleInitialContext.Provider value={singleInitial}>{children}</SingleInitialContext.Provider>;
 }
 
 export function useAvatarInitials(initials: string) {

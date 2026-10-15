@@ -29,11 +29,11 @@ function TokenReference() {
       <table className="w-full min-w-2xl text-left text-sm">
         <caption className="pb-6 text-left text-muted-foreground">Dark-mode values come directly from the active CSS token layer. Swatches are shown over the dark background surface.</caption>
         <thead className="border-b border-border text-foreground"><tr>
-          {["Swatch", "Paper / code token", "CSS value", "Use"].map(label => <th key={label} scope="col" className="px-3 py-3 font-semibold">{label}</th>)}
+          {["Swatch", "Code token", "CSS value", "Use"].map(label => <th key={label} scope="col" className="px-3 py-3 font-semibold">{label}</th>)}
         </tr></thead>
         <tbody>{colors.map(({ name, usage }) => <tr key={name} data-token={name} className="border-b border-border align-top">
           <td className="px-3 py-4"><div aria-hidden className="h-12 w-16 overflow-hidden rounded-md border border-border bg-background"><div className="h-full w-full" style={{ backgroundColor: `var(--${name})` }} /></div></td>
-          <th scope="row" className="px-3 py-4 font-normal"><span className="block whitespace-nowrap text-foreground">dark-color-{name}</span><code className="mt-1 block whitespace-nowrap text-xs text-muted-foreground">--{name}</code></th>
+          <th scope="row" className="px-3 py-4 font-normal"><code className="block whitespace-nowrap text-foreground">--{name}</code><span className="mt-1 block whitespace-nowrap text-xs text-muted-foreground">Paper reference: dark-color-{name}</span></th>
           <td className="whitespace-nowrap px-3 py-4"><code data-token-value>{values[name] ?? "…"}</code></td>
           <td className="px-3 py-4 leading-relaxed">{usage}</td>
         </tr>)}</tbody>

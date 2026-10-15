@@ -21,6 +21,91 @@ async function titleOverflows(title: Locator) {
   return title.evaluate(element => element.querySelector('[data-slot="task-row-title-text"]')!.scrollWidth > element.clientWidth);
 }
 
+test("playground changes density and width independently without losing hierarchy or title states", async ({ page }, testInfo) => {
+  await openStory(page);
+  const preview = page.getByTestId("task-row-playground-container");
+  const row = preview.locator('[data-slot="task-row"]').first();
+  const widths = page.getByRole("group", { name: "Container width", exact: true });
+  const densities = page.getByRole("group", { name: "Row density", exact: true });
+  for (const { label, height } of [{ label: "Comfortable (44px)", height: "44px" }, { label: "Compact (32px)", height: "32px" }]) {
+    await densities.getByRole("button", { name: label, exact: true }).click();
+    await expect(densities.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-pressed", "true");
+    for (const width of ["Standard", "Narrow", "Smallest"]) {
+      await widths.getByRole("button", { name: width, exact: true }).click();
+      await expect(widths.getByRole("button", { name: width, exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(preview.locator('[data-slot="task-row"]')).toHaveCount(9);
+      await expect(row).toHaveCSS("height", height);
+      await expect(row.locator('[data-slot="task-row-identifier"]')).toBeVisible({ visible: width === "Standard" });
+      await expect(row.locator('[data-slot="task-row-metadata"]')).toBeVisible({ visible: width === "Standard" });
+      await expect(row.locator('[data-slot="task-row-timestamp"]')).toBeVisible({ visible: width !== "Smallest" });
+      await expect(rowFor(page, 431).locator('[data-slot="task-row-tree-guide"]')).toHaveCount(2);
+      for (const { number, weight } of [{ number: 456, weight: "400" }, { number: 457, weight: "600" }]) {
+        const title = rowFor(page, number).locator('[data-slot="task-row-title"]');
+        await expect(title).toHaveCSS("font-size", "14px");
+        await expect(title).toHaveCSS("line-height", "16px");
+        await expect(title).toHaveCSS("font-weight", weight);
+      }
+      const fit = await preview.evaluate(element => element.scrollWidth <= element.clientWidth);
+      expect(fit).toBe(true);
+    }
+  }
+  await page.getByRole("button", { name: "Collapse Improve connector reliability", exact: true }).click();
+  await widths.getByRole("button", { name: "Narrow", exact: true }).click();
+  await expect(preview.locator('[data-slot="task-row"]')).toHaveCount(5);
+  await page.getByRole("button", { name: "Expand Improve connector reliability", exact: true }).click();
+  await expect(preview.locator('[data-slot="task-row"]')).toHaveCount(9);
+  await page.mouse.move(0, 0);
+  await page.screenshot({ path: testInfo.outputPath("task-row-playground.png"), fullPage: true });
+});
+
+test("summary rows fit narrow containers without changing density or read typography", async ({ page }, testInfo) => {
+  await openStory(page, "summary");
+  for (const { label, identifier, timestamp } of [
+    { label: "Standard task summary", identifier: true, timestamp: true },
+    { label: "Narrow task summary", identifier: false, timestamp: true },
+    { label: "Smallest task summary", identifier: false, timestamp: false },
+  ]) {
+    const list = page.getByRole("list", { name: label, exact: true });
+    const rows = list.locator('[data-slot="task-row"]');
+    await expect(rows).toHaveCount(3);
+    const row = rows.first();
+    await expect(row).toHaveCSS("height", "44px");
+    await expect(row.locator('[data-slot="task-row-title"]')).toHaveCSS("font-size", "14px");
+    await expect(row.locator('[data-slot="task-row-title"]')).toHaveCSS("line-height", "16px");
+    await expect(row.locator('[data-slot="task-row-title"]')).toHaveCSS("font-weight", "400");
+    await expect(row.locator('[data-slot="task-row-identifier"]')).toBeVisible({ visible: identifier });
+    await expect(row.locator('[data-slot="task-row-timestamp"]')).toBeVisible({ visible: timestamp });
+    const fit = await list.evaluate(element => ({ content: element.scrollWidth, available: element.clientWidth }));
+    expect(fit.content).toBeLessThanOrEqual(fit.available);
+    await expect(list.locator('[data-testid="issue-row-unread-slot"], [data-slot="avatar"], [role="columnheader"]')).toHaveCount(0);
+  }
+  const list = page.getByRole("list", { name: "Narrow task summary", exact: true });
+  const row = list.locator('[data-slot="task-row"]').first();
+  const title = row.locator('[data-slot="task-row-title"]');
+  expect(await titleOverflows(title)).toBe(true);
+  const originalColor = await title.evaluate(element => getComputedStyle(element).color);
+  const rect = (await title.boundingBox())!;
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+  await expect(title).toHaveAttribute("data-revealing", "true");
+  await expect(title).toHaveCSS("font-weight", "400");
+  expect(await title.evaluate(element => getComputedStyle(element).color)).not.toBe(originalColor);
+  await page.mouse.move(0, 0);
+  await expect(title).not.toHaveAttribute("data-revealing");
+  const link = list.getByRole("link", { name: `Open PAP-431: ${longTitle}`, exact: true });
+  await link.focus();
+  await expect(title).toHaveAttribute("data-revealing", "true");
+  await link.press("Escape");
+  await expect(title).not.toHaveAttribute("data-revealing");
+  await page.getByRole("heading", { name: "Task summaries", exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath("task-summary-containers.png"), fullPage: true });
+  // Container queries also apply below the app's global sm breakpoint.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(list.locator('[data-slot="task-row-identifier"]').first()).toBeHidden();
+  await expect(list.locator('[data-slot="task-row-timestamp"]').first()).toBeVisible();
+  await expect(row).toHaveCSS("height", "44px");
+  await expect(row.locator('[data-slot="task-row-status"]')).toBeVisible();
+});
+
 for (const { story, density, height } of [
   { story: "specimen", density: "comfortable", height: 44 },
   { story: "compact", density: "compact", height: 32 },

@@ -3651,6 +3651,36 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
 }
 .task-row-refreshed [data-slot="task-row-timestamp"] { width: var(--task-row-time-width); }
 
+/* A narrow summary reuses the standalone row anatomy without a disclosure
+   gutter. Container breakpoints live here in the token/style layer: hide the
+   identifier below 28rem, then time below 20rem; never change type or row density. */
+.task-summary-list {
+  container: task-summary / inline-size;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task-summary-list > li + li { border-top: var(--task-row-rule-width) solid var(--task-row-rule-color); }
+.task-summary-row [data-slot="task-row-leading-control"] { display: none; }
+.task-summary-row [data-slot="task-row-trailing"] { display: flex; }
+.task-summary-row [data-slot="task-row-title-cluster"] { min-width: 0; }
+.activity-row-refreshed { display: flex; min-width: 0; text-decoration: none; }
+.activity-row-refreshed:focus-visible { outline: var(--task-row-focus-width) solid var(--task-row-focus-color); outline-offset: calc(var(--task-row-focus-width) * -1); }
+.activity-row-details:empty { display: none; }
+.activity-row-details:not(:empty) { padding: 0 var(--task-row-padding-inline) var(--task-row-gap); }
+.task-row-responsive-container { container: task-summary / inline-size; }
+.task-row-responsive-container [data-slot="task-row-trailing"] { display: flex; }
+@container task-summary (width < 28rem) {
+  .task-summary-row [data-slot="task-row-identifier"],
+  .task-row-responsive-container [data-slot="task-row-identifier"],
+  .task-row-responsive-container [data-slot="task-row-metadata"] { display: none; }
+}
+@container task-summary (width < 20rem) {
+  .task-summary-row [data-slot="task-row-timestamp"],
+  .task-row-responsive-container [data-slot="task-row-timestamp"] { display: none; }
+}
+
 /* Complete task-list column contract. Header and row cells share the same
    dimensions; horizontal scrolling preserves every field and title legibility. */
 :root, .dark {
@@ -3914,6 +3944,16 @@ html.dark:has(.design-proposal-theme) [data-slot="card-title"] { color: var(--fo
   --flyout-type-size: var(--text-sm);
   --flyout-type-leading: calc(var(--spacing) * 5);
   --shadow-flyout: 0 4px 16px rgb(0 0 0 / 20%);
+  --task-preview-width: calc(var(--spacing) * 70);
+  --task-preview-padding: calc(var(--spacing) * 4);
+  --task-preview-gap: calc(var(--spacing) * 3);
+  --task-preview-meta-gap: calc(var(--spacing) * 2);
+  --task-preview-meta-size: var(--text-xs);
+  --task-preview-meta-leading: calc(var(--spacing) * 4);
+  --task-preview-title-size: var(--text-sm);
+  --task-preview-content-leading: calc(var(--spacing) * 4.5);
+  --task-preview-title-lines: 2;
+  --task-preview-description-lines: 3;
 }
 [data-flyout-appearance="refreshed"] {
   min-height: 0;
@@ -3925,6 +3965,35 @@ html.dark:has(.design-proposal-theme) [data-slot="card-title"] { color: var(--fo
   box-shadow: var(--shadow-flyout);
   font-size: var(--flyout-type-size);
   line-height: var(--flyout-type-leading);
+}
+/* Task previews share the popover surface and shadow, but their content is a
+   single padded card rather than a menu with separately padded sections. */
+[data-quicklook][data-flyout-appearance="refreshed"] {
+  width: var(--task-preview-width);
+  max-width: var(--radix-popover-content-available-width, 100vw);
+  padding: var(--task-preview-padding);
+}
+.task-hover-card { display: flex; flex-direction: column; gap: var(--task-preview-gap); }
+.task-hover-card [data-slot="task-preview-meta"],
+.task-hover-card [data-slot="task-preview-identity"] { gap: var(--task-preview-meta-gap); }
+.task-hover-card [data-slot="task-preview-id"],
+.task-hover-card [data-slot="task-preview-time"] {
+  color: var(--muted-foreground);
+  font-size: var(--task-preview-meta-size);
+  line-height: var(--task-preview-meta-leading);
+}
+.task-hover-card [data-slot="task-preview-title"] {
+  color: var(--foreground);
+  font-size: var(--task-preview-title-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--task-preview-content-leading);
+  -webkit-line-clamp: var(--task-preview-title-lines);
+}
+.task-hover-card [data-slot="task-preview-description"] {
+  color: var(--muted-foreground);
+  font-size: var(--task-preview-meta-size);
+  line-height: var(--task-preview-content-leading);
+  -webkit-line-clamp: var(--task-preview-description-lines);
 }
 [data-flyout-appearance="refreshed"] [data-flyout-header] {
   height: auto;

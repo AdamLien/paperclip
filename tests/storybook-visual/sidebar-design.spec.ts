@@ -22,6 +22,11 @@ test("standalone sidebar supports resize, navigation states, search and producti
   await expect(resize).toHaveAttribute("aria-valuenow", "256");
   await page.reload();
   await expect(resize).toHaveAttribute("aria-valuenow", "256");
+  await resize.dblclick();
+  await expect(resize).toHaveAttribute("aria-valuenow", "240");
+  await expect(sidebar).toHaveCSS("width", "240px");
+  await page.reload();
+  await expect(resize).toHaveAttribute("aria-valuenow", "240");
   await sidebar.getByRole("button", { name: "Global search" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");

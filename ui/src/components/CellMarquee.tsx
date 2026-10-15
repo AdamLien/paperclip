@@ -1,8 +1,22 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
 import { cn } from "../lib/utils";
 
 /** Row overlays keep navigation intact; the row reports the cell under the pointer. */
 export const HoveredCellContext = createContext<string | null>(null);
+
+/** Shared hit testing for row overlays and ordinary links. Only the cell under
+ * the pointer reveals, even when its navigation target covers the whole row. */
+export function useCellMarqueeHover() {
+  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
+  const onMouseMove = (event: ReactMouseEvent<HTMLElement>) => {
+    const cell = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-marquee-cell]")).find(element => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && event.clientX >= rect.left && event.clientX < rect.right;
+    });
+    setHoveredCell(cell?.dataset.marqueeCell ?? null);
+  };
+  return { hoveredCell, onMouseMove, clearHoveredCell: () => setHoveredCell(null) };
+}
 
 export function CellMarquee({ children, cell, active = false, className, slot = "cell-marquee", contentSlot = "cell-marquee-content", tabbable = true, interactWithParent = false, resetKey }: {
   children: ReactNode;

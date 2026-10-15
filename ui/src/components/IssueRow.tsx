@@ -25,7 +25,7 @@ import { ExternalObjectStatusSummary } from "./ExternalObjectStatusSummary";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TaskRowColumnCells, useTaskListColumns, type TaskRowColumnValues } from "./TaskListColumns";
-import { CellMarquee, HoveredCellContext } from "./CellMarquee";
+import { CellMarquee, HoveredCellContext, useCellMarqueeHover } from "./CellMarquee";
 
 export type IssueRowUnreadState = "hidden" | "visible" | "fading";
 export type IssueRowPresentation = "legacy" | "task";
@@ -166,7 +166,7 @@ export function IssueRow({
   showDivider = false,
 }: IssueRowProps) {
   const visibleColumns = useTaskListColumns();
-  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
+  const { hoveredCell, onMouseMove: handleCellHover, clearHoveredCell } = useCellMarqueeHover();
   const [titleFocused, setTitleFocused] = useState(false);
 
   const issuePathId = issue.identifier ?? issue.id;
@@ -269,7 +269,7 @@ export function IssueRow({
         onBlur={appearance === "refreshed" ? () => setTitleFocused(false) : undefined}
         onKeyDown={appearance === "refreshed" ? (event) => {
           if (event.key === "Escape") {
-            setHoveredCell(null);
+            clearHoveredCell();
             setTitleFocused(false);
           }
         } : undefined}
@@ -285,14 +285,8 @@ export function IssueRow({
       <HoveredCellContext.Provider value={hoveredCell}>
         <div
           onMouseEnter={onMouseEnter}
-          onMouseMove={refreshed ? event => {
-            const cell = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-marquee-cell]")).find(element => {
-              const rect = element.getBoundingClientRect();
-              return rect.width > 0 && event.clientX >= rect.left && event.clientX < rect.right;
-            });
-            setHoveredCell(cell?.dataset.marqueeCell ?? null);
-          } : undefined}
-          onMouseLeave={refreshed ? () => { setHoveredCell(null); setTitleFocused(false); } : undefined}
+          onMouseMove={refreshed ? handleCellHover : undefined}
+          onMouseLeave={refreshed ? () => { clearHoveredCell(); setTitleFocused(false); } : undefined}
           role={refreshed && columnValues ? "row" : undefined}
           data-slot="task-row"
           data-unread={isUnread ? "true" : undefined}

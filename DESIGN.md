@@ -322,7 +322,8 @@ and full page consume the same `TaskList` collection.
   review scope; mobile composition remains to be designed.
   Enable the shared shell's production resize handle, including its hover,
   dragging and keyboard states. Sidebar width persists under the proposal's own
-  storage key, separate from the production sidebar preference.
+  storage key, separate from the production sidebar preference. Double-clicking
+  the resize handle restores and saves the default 240px width.
 - `DesignSidebar` is the shared proposed navigation component used by this page
   and **Design proposals → Components → Sidebar**. Refine its Default, Narrow,
   Long Labels, Many Recent Tasks, Empty Recent Tasks, Organization Menu and
@@ -448,6 +449,120 @@ The next milestone is the agent reference contract and another fresh-agent test
 using the shared components, tokens and collection controller. A corrected trial
 does not establish that a new agent will discover and reuse this system without
 coaching. Visual approval and production integration remain separate milestones.
+
+### Activity lists
+
+**Design proposals → Components → Activity list** demonstrates the shared
+`ActivityList` and the refreshed appearance of `ActivityRow`, including mixed
+task, agent, project, approval, run and unlinked system events. Its Playground
+exposes comfortable/compact density and standard/narrow/smallest container width.
+It reuses task-row height, spacing, typography, ID/time widths and responsive
+metadata rules, plus the same `CellMarquee` and `useCellMarqueeHover` behavior.
+Activity is its own composition; events are not converted into synthetic tasks.
+
+The caller supplies events in display order, entity/actor directories and any
+entry animation. Only task events show a task ID and task hover card; other
+events retain their entity or run destination. Unlinked events remain readable.
+The main row stays 44px (comfortable) or 32px (compact), with 14px/16px text.
+Added/removed issue references remain in a detail block below that row rather
+than being dropped or clipped to fit. Narrow containers hide task ID first,
+then timestamp in the smallest layout, matching task summaries.
+
+Dashboard's Recent Activity opts in only while the design sandbox is on. The
+sandbox also provides the same single-initial avatar policy as Design proposals
+in Storybook, including account menus and other shared fallback avatars.
+Turning proposals off restores the original rows and avatar policy.
+
+### Task hover cards
+
+**Design proposals → Components → Task hover card** documents the contextual
+preview shared by task links and recent activity. The code names are
+`IssueLinkQuicklook` (trigger/behavior) and `IssueQuicklookCard` (content).
+Use the existing `Link` from `@/lib/router` for task links; set
+`disableIssueQuicklook` when a surface should omit the preview. This choice
+belongs to the caller, not a user preference. `IssueRow` and `TaskSummaryList`
+remain opted out and reveal truncated text locally instead.
+
+The refreshed card follows the Paper task-card reference: 280px width, 16px
+padding, status/ID/timestamp metadata, a 14px semibold title clamped to two
+lines, and a 12px description clamped to three lines. Project metadata is
+omitted in this proposed appearance. The card uses background, border,
+foreground and muted-foreground semantics plus the existing `--shadow-flyout`;
+its geometry and typography live in the `--task-preview-*` token family.
+It retains production hover intent, single-open behavior, focus, dismissal,
+prefetch and access boundaries. The default appearance remains unchanged.
+Story fixtures demonstrate the component and opt-out contract, not live access
+checks; verify the sandbox's recent-activity links for integration review.
+
+### Narrow task summaries
+
+`TaskSummaryList` is the flat summary composition of the same refreshed
+`IssueRow`, reviewed under **Design proposals → Components → Task list → Narrow**.
+The **Playground** (stable story ID `tasks-row-design--specimen`) exposes row
+density and container width both above the preview and in Storybook Controls.
+It retains nesting and read/unread samples while varying these independently;
+the fixed density and width stories remain review references.
+The caller supplies ordered issues and an accessible list
+label; `showIdentifier` and `showUpdated` can omit optional metadata. The list
+uses regular muted read-style titles regardless of the source unread flag and
+never marks a task read. It retains the 44px comfortable height, sm/16px type,
+status tooltips, normal task navigation, hover, keyboard focus and cell-local
+fade/marquee. It omits disclosure spacing, avatars, assignee, table headers,
+column settings and collection state. Container queries hide Task ID below
+28rem and Last updated below 20rem while keeping status/title readable without
+horizontal scrolling. Existing row, spacing, type and divider tokens are reused.
+
+Dashboard's Recent Tasks opts into this composition only while the design
+sandbox is on. Data, ordering, limit and empty-state behavior stay with Dashboard;
+the ordinary presentation remains available with the toggle off.
+Agent overview's Recent Tasks uses the same summary in the sandbox, retaining
+its participant-scoped query, updated ordering, six-task limit, more-task count
+and See All link. The toggle restores its original rows as well.
+
+### Local integration sandbox
+
+The development app can opt into **Design proposals only** with
+`VITE_PAPERCLIP_DESIGN_SANDBOX=true`. The bottom-right **Design proposals: On/Off**
+control persists a local comparison preference. Production builds and development
+instances without this environment switch cannot activate it through browser
+storage. This experiment does not enable other Storybook explorations.
+
+When on, the app uses the same `.design-proposal-theme` marker and
+`FlyoutAppearanceProvider` as the proposal stories. Document-wide token and portal
+propagation is intentional: inspect ordinary pages for missing foundation mappings
+and component variants. The desktop primary sidebar mounts `DesignSidebar` with
+real recent-task data; existing layouts retain their route handling, contextual
+sidebars, panels and dialogs. Mobile retains its existing drawer. No new global
+component defaults are introduced. Toggle off removes the marker and restores
+the existing sidebar, Tasks surface and menu appearance.
+
+`DesignSandboxTasks` adapts real company-scoped APIs to `TaskListToolbar`,
+`TaskList`, `KanbanBoard` and `useTaskListCollection`. It imports no Storybook
+fixtures. Creator names, projects, labels and viewer unread state come from APIs;
+the ordinary organization list does not supply unread context, so a separate
+server-filtered unread query supplies that set. Load-more explicitly limits
+client search/filter/sort coverage to loaded tasks. Preferences use sandbox keys.
+Task links, creation dialogs and board updates retain the existing app services.
+This is an integration experiment, not permission, scale or release acceptance.
+
+Use the worktree-local isolated config and database. For a desktop visual review
+without building the agent runner, the documented direct API/UI dev path is:
+
+```sh
+PAPERCLIP_CONFIG="$PWD/.paperclip/config.json" \
+PAPERCLIP_HOME="$PWD/.paperclip-local" \
+PAPERCLIP_INSTANCE_ID=design-system-sandbox \
+PAPERCLIP_UI_DEV_MIDDLEWARE=true \
+VITE_PAPERCLIP_DESIGN_SANDBOX=true \
+HEARTBEAT_SCHEDULER_ENABLED=false \
+PAPERCLIP_TELEMETRY_DISABLED=1 \
+pnpm dev:server
+```
+
+The dark foundation is the review target; select dark mode in the account menu.
+Local sample records are persisted through product APIs in the sandbox database,
+not supplied by fetch mocks or copied from a live instance. Sample agents remain
+paused. Agent execution is outside this visual sandbox.
 
 ## Enforcement (what "compliant" means for the extraction run)
 

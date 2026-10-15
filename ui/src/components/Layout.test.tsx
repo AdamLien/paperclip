@@ -6,6 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Layout } from "./Layout";
 
+const mockDesignSandbox = vi.hoisted(() => ({ enabled: false }));
+vi.mock("@/context/DesignSandboxContext", () => ({ useDesignSandbox: () => mockDesignSandbox.enabled }));
+vi.mock("./DesignSandboxSidebar", () => ({ DesignSandboxSidebar: () => <div>Proposed sidebar</div> }));
+
 const mockHealthApi = vi.hoisted(() => ({
   get: vi.fn(),
 }));
@@ -299,6 +303,7 @@ describe("Layout", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    mockDesignSandbox.enabled = false;
     container = document.createElement("div");
     document.body.appendChild(container);
     currentPathname = "/PAP/dashboard";
@@ -520,6 +525,20 @@ describe("Layout", () => {
     await act(async () => {
       root.unmount();
     });
+  });
+
+  it("retains settings navigation and route content beside the proposed sandbox sidebar", async () => {
+    currentPathname = "/PAP/company/settings/access";
+    mockDesignSandbox.enabled = true;
+    const root = createRoot(container);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await act(async () => { root.render(<QueryClientProvider client={queryClient}><Layout /></QueryClientProvider>); });
+    await flushReact();
+    expect(container.textContent).toContain("Proposed sidebar");
+    expect(container.textContent).toContain("Company settings sidebar");
+    expect(container.textContent).toContain("Outlet content");
+    expect(container.textContent).not.toContain("Main company nav");
+    await act(async () => { root.unmount(); });
   });
 
   it("replaces the app sidebar with settings navigation on Streamlined settings routes", async () => {

@@ -233,6 +233,7 @@ export function SidebarShell({
           onPointerUp={endResize}
           onPointerCancel={endResize}
           onLostPointerCapture={endResize}
+          onDoubleClick={() => commitWidth(DEFAULT_SIDEBAR_WIDTH)}
           onKeyDown={handleKeyDown}
         >
           <div
