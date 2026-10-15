@@ -1727,3 +1727,22 @@ Receipt: `/private/tmp/claude-test-deployment-20261015/snapshot-id-live-probe.js
 This is provider identity/architecture evidence, not native Claude task proof.
 The new candidate still needs cloud checks, deployment, and a fresh ordinary UI
 journey through creation, useful task, revision and downloaded artifacts.
+
+
+### Warm snapshot review correction — 2026-10-15
+
+Review reproduced a valid warm-run gap: run-only `reuseLease: true` changed the
+configuration fingerprint before snapshot proof was checked. The orchestrator
+now carries the original configured environment into acquisition. The driver
+resolves templates and checks proof against that configuration, then applies the
+run-only retention setting. It rejects other run/configuration differences.
+The regression failed before the fix; 19 focused database/runtime/orchestration
+checks pass afterward, including omitted and false saved retention values.
+
+Candidate 7ff0038175 passed its source CI but received Greptile 4/5 for this gap.
+Its task-owned preview build 38792291081 was cancelled before deployment. The
+previous served 49f99e130a and failed UI report remain unchanged. A replacement
+cloud build and fresh hosted acceptance are pending for the corrected source.
+The disposable acceptance project has a UI-configured $2 lifetime cap, a $1
+per-run reservation, and unpriced usage blocking; all survive reload. This uses
+the previously reserved allowance within the $50 ceiling.

@@ -322,10 +322,10 @@ describeEmbeddedPostgres("environmentRuntimeService", () => {
     } as unknown as PluginWorkerManager;
   }
 
-  it.each(["paperclip_runner", "claude_local", null])("pins qualified snapshots only for native execution (%s)", async adapterType => {
+  it.each([["paperclip_runner", false, false], ["paperclip_runner", true, false], ["paperclip_runner", true, undefined], ["claude_local", false, false], [null, false, false]] as const)("pins qualified snapshots only for native execution (%s, warm=%s, savedReuse=%s)", async (adapterType, warm, savedReuse) => {
     const pluginId = randomUUID();
     const { companyId, environment: baseEnvironment, runId } = await seedEnvironment();
-    const config = { provider: "daytona", snapshot: "managed-snapshot", reuseLease: false, timeoutMs: 1234 };
+    const config = { provider: "daytona", snapshot: "managed-snapshot", ...(savedReuse === undefined ? {} : { reuseLease: savedReuse }), timeoutMs: 1234 };
     await insertSandboxProviderPlugin(pluginId, { environmentDrivers: [{ driverKey: "daytona", kind: "sandbox_provider", displayName: "Daytona", configSchema: { type: "object" } }] });
     await environmentService(db).update(baseEnvironment.id, { driver: "sandbox", config });
     const environment = { ...baseEnvironment, driver: "sandbox", config };
@@ -343,7 +343,8 @@ describeEmbeddedPostgres("environmentRuntimeService", () => {
       return { providerLeaseId: "snapshot-lease", metadata: { provider: "daytona", snapshot: params.config.snapshot, remoteCwd: "/workspace" } };
     });
     const service = environmentRuntimeService(db, { pluginWorkerManager: worker });
-    const acquired = await service.acquireRunLease({ companyId, environment, issueId: null, heartbeatRunId: runId,
+    const runtimeEnvironment = warm ? resolveRunnerEnvironmentForRun(environment, "paperclip_runner", { lifecycleMode: "warm" }) : environment;
+    const acquired = await service.acquireRunLease({ companyId, environment: runtimeEnvironment, configuredEnvironment: environment, issueId: null, heartbeatRunId: runId,
       persistedExecutionWorkspace: null, adapterType, ...(adapterType === null ? { resolveSnapshotIdentity: true } : {}) });
     const expectedSnapshot = adapterType === "paperclip_runner" ? snapshotId : config.snapshot;
     expect(worker.call).toHaveBeenCalledWith(pluginId, "environmentAcquireLease", expect.objectContaining({
