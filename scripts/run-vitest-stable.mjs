@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadShardDurations, selectGeneralServerShard } from "./general-server-shard.mjs";
+import { invocationEnv } from "./ci-profile/record.mjs";
 
 import { assertSelectedTests, partitionTestLines } from "./test-line-shard.mjs";
 
@@ -435,7 +436,7 @@ function runVitest(args, label, testShard = null) {
   }
   const result = spawnSync("pnpm", ["exec", "vitest", "run", ...sourceOnlyVitestArgs, ...args], {
     cwd: repoRoot,
-    env,
+    env: invocationEnv("vitest", env),
     stdio: "inherit",
   });
   if (result.error) {
@@ -552,16 +553,17 @@ function runSerializedSuites(routeTests, shardIndex, shardCount) {
     `\n[test:run] serialized shard ${shardIndex + 1}/${shardCount} running ${shardTests.length} of ${routeTests.length} suites`,
   );
 
-  for (const routeTest of shardTests) {
+  if (shardTests.length > 0) {
     runVitest(
       [
         "--project",
         "@paperclipai/server",
-        routeTest.repoPath,
+        ...shardTests.map((test) => test.repoPath),
         "--pool=forks",
         "--isolate",
+        ...serializedServerVitestArgs,
       ],
-      routeTest.repoPath,
+      `serialized shard ${shardIndex + 1}/${shardCount}`,
     );
   }
 }
@@ -598,7 +600,8 @@ if (options.dryRun) {
     options.mode === serializedModeName
       ? selectSerializedSuites(routeTests, options.shardIndex, options.shardCount)
       : routeTests;
-  console.log(
+  // The inventory exceeds pipe buffers; flush it before the immediate exit.
+  writeFileSync(1,
     JSON.stringify(
       {
         mode: options.mode,

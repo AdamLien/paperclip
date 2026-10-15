@@ -75,6 +75,10 @@ When changing the workflow path or branch, authorize the new reference before
 updating the caller. Retain older authorized SHA references while queued runs or
 supported reruns still use them.
 
+For a full wall-clock profile of all main PR CI jobs, add `profile-ci` to the PR.
+See [CI profiling](ci-profiling.md) for the Honeycomb waterfall, coverage,
+operator setup, and activation requirements.
+
 ## Start Dev
 
 From repo root:
@@ -669,6 +673,29 @@ pnpm exec vitest run server/src/__tests__/task-search-quality.test.ts
 Set `SEARCH_EVAL_SCALE=1` to additionally measure a disposable 10,000-task,
 30,000-comment dataset. `SEARCH_EVAL_REPORT=/tmp/search-quality.json` saves
 per-query results and latency measurements; scale measurements are opt-in.
+
+### Repository workspace admission benchmark
+
+Measure the real repository preparation service with a disposable embedded
+PostgreSQL database and synthetic history, without invoking an agent:
+
+```sh
+pnpm perf:workspace-admission
+pnpm perf:workspace-admission -- --realpath-delay-ms 2.3
+pnpm perf:workspace-admission -- --distinct-cwds --realpath-delay-ms 2.3
+```
+
+Defaults model 8,516 workspaces, 27,971 provenance records and 28 retained
+readers on the shared root. The first command measures ordinary local I/O;
+the others inject filesystem metadata latency for sensitivity comparisons.
+Injected latency does not establish the actual latency of a hosted volume.
+`--distinct-cwds` creates separate folders to exercise bounded concurrent I/O.
+`--service /absolute/path/to/baseline/server/src/services/execution-workspace-repositories.ts`
+compares another checkout, which needs its workspace dependencies installed.
+The JSON report times only the service call, counts filesystem lookups and SQL
+statements, and verifies retained source identities. Setup and cleanup are
+excluded. Source tasks and permissions are synthetic; this is not an end-to-end
+agent latency measurement.
 
 ### Recent task ordering
 
@@ -1828,6 +1855,21 @@ that classification finishes.
   waits for the previous executor to finish releasing its task resources.
 - A verified dead runner starts a replacement from the same durable root and
   resumes the same provider checkpoint. Only the operating-system PID changes.
+- A prepared remote workspace interrupted before the executor's first claim
+  can continue on the same run without a provider checkpoint. Under the recovery
+  locks, Paperclip requires attempt and controller generation zero, no prior
+  controller or lease owner, and no session, process, launch, or provider evidence.
+  Any existing durable runner root must still prove an untouched bootstrap before
+  execution starts. A prior claim or contradictory evidence retains the hold.
+  A server-owned preparation protocol marker is required. It is recorded only
+  when fresh native identities are created by a server with the ownership fence.
+  Older unmarked preparations remain held during rolling upgrades; revisiting an
+  existing run never upgrades that marker from caller-supplied profile data.
+- If the original preparation resumes after another execution claimed the run,
+  it yields without failing the shared run or cleaning up the new owner. An
+  expired foreign lease still requires normal recovery before takeover.
+  Recovery leaves this server's active preparation with its current execution.
+  A detached execution also preserves the current owner's run-scoped gateway tokens.
 - A runner that died before its first authenticated connection can restart on
   the same run only when its durable root proves that no provider authority or
   checkpoint exists. Paperclip quarantines the incomplete root first.
@@ -1850,6 +1892,14 @@ Only successful turns retain a live warm provider session. A structured failed
 or cancelled result must retire that session and collect its managed files before
 heartbeat stops the reusable sandbox. A later retry can resume the same sandbox
 without inheriting the stopped provider transport.
+
+An idle warm owner proves only the exact prior run in the same company, session,
+workspace and environment. Mutable configuration compatibility is checked
+separately: changed settings retire the owned provider before a replacement can
+execute. A copied older owner record, an active or missing owner, and a different
+environment cannot use this in-memory proof. Database terminal status alone is
+not proof that an unsuspended remote runner can be adopted.
+
 The shared lease-release boundary rechecks the durable run status for recovery
 and ordinary teardown. Successful workspace copy-back alone must not keep a
 failed turn's sandbox running.

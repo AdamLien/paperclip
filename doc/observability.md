@@ -179,13 +179,15 @@ connection instructions, and agent identity. Their names are
 `execution_configuration`; do not add them to its duration. They remain available
 when a later setup step fails before the provider lifecycle trace starts.
 
-Each phase starts a new root trace and links to the active trigger span when
-one exists. An unsampled HTTP request must not suppress diagnostics for the
-background run it starts. Root traces still follow the operator's configured
-sampler. The trigger's trace remains unchanged, and overlapping runs keep
-their own phase and child contexts.
+`task.execution_attempt` owns one invocation of the server executor, from its
+admission reads through preparation, provider dispatch, completion, reply persistence,
+and cleanup. It starts a new root trace with a link to the active trigger. It
+therefore follows the operator's root sampler even when the HTTP trigger was not
+sampled. Async-local ownership parents same-run preparation and nested phases to
+the current attempt. Concurrent runs have separate contexts. A phase invoked
+without a live matching attempt still starts an independent linked root.
 
-These spans exist before provider dispatch, including setup failures. Each has
+These spans exist before provider dispatch, including setup failures. Preparation phases have
 only the existing `paperclip.task.run.run_id` attribute: the first 12 hexadecimal
 characters of the run UUID's SHA-256 hash. Failed operations set error status
 without recording exception messages, paths, inputs, or returned content.
@@ -203,8 +205,8 @@ project repositories, and recovery-root reservation. These intervals are inside
 Do not add these intervals to the containing workspace duration. They use the
 same run hash and contain no workspace paths, commands, or returned records.
 
-The `paperclip.native-controller` tracer records separate
-`native.controller.<phase>` root spans around GitHub access setup, wake binding,
+The `paperclip.native-controller` tracer records
+`native.controller.<phase>` spans around GitHub access setup, wake binding,
 backend construction, connector assignments, assigned MCP discovery, tool
 authority, companion selection and Runner binary resolution. It also records
 GitHub shutdown, coordinator release, instruction checkpoints and collection,
@@ -240,9 +242,52 @@ once known, `paperclip.native_reconciliation.candidates` (a count). A failed
 pass marks the pass span and the phase that was running with an error status.
 Faster passes record nothing.
 
+### Detailed execution phases
+
+The `paperclip.execution` tracer adds these content-free spans beneath the current
+attempt or owning phase:
+
+| Span family | Measured work |
+| --- | --- |
+| `workspace.transaction`, `.entry`, `.commit`, `.rollback` | Transaction lifetime, connection acquisition plus BEGIN, and settlement after the callback returns. Entry cannot distinguish pool wait from BEGIN. |
+| `workspace.provenance_lock`, `workspace.row_lock` | The awaited advisory-lock statement and current workspace row read with its row lock. |
+| `workspace.sources.*` | Source inventory queries, canonicalization, one filesystem alias scan, repository scan, and configured project scan. |
+| `workspace.readers`, `workspace.readers.*`, `workspace.access.*` | Retained-reader groups, identity, trust, project and source authorization, privacy and inventory reads. |
+| `workspace.provenance`, `workspace.notification`, `workspace.write` | Preserved ownership, notification statements, and record writes. |
+| `runtime_selection.*` | Completion contracts, session/recovery reads, profiles, interaction materialization, backend discovery, bootstrap, run/coordinator writes, transaction entry/settlement, and workspace synchronization. |
+| `runtime_context.instructions`, `.skills`, `.mcp` | The three concurrent runtime-context branches. Their durations overlap. |
+| `runtime_context.asset_*` | Source reads, manifest hashing, cache lookup, cold materialization, and exact file verification on cold and warm paths. |
+| `workspace_sync.*` | Existing Git and baseline snapshot, pack, seed verification, transfer, and restore operations. Pack and verification can be inside transfer; do not add nested durations. |
+| `execution.runtime` | Runtime dispatch, usage, workspace finalization and runtime cleanup; this includes work after provider execution. |
+| `execution.workspace_finalize` | Best-effort native workspace finalization, including restore recovery, copyback and commit. Its nested restore and commit spans measure distinct steps. |
+| `execution.workspace_ownership`, `.workspace_ownership_wait`, `.workspace_restore`, `.workspace_commit`, `.native_finalize` | Ownership coordination including its action, acquisition before the action, copyback, final snapshot/stamp/descriptor persistence, and native settlement. |
+| `completion.*` | Completion handler, run-log finalization, terminal persistence, accounting, liveness, and continuation summaries. |
+| `response.resolve`, `.authorize`, `.add_comment`, `.transaction*`, `.row_lock`, `.write`, `.publish` | Response selection, existing authorization, comment transaction including commit or rollback, row wait, insert, and external publication enqueue. |
+| `execution.realtime` | Synchronous live-event and plugin publication dispatch. It does not measure browser receipt or paint. |
+
+Detail phases emit at most 16 spans of each name per attempt. Larger reader and
+asset inventories continue under the containing group without unbounded per-row
+or per-file spans. Work, query order, authorization, and locks are unchanged.
+Manual transaction and dispatch boundaries retain their actual lifetime.
+Asset writes and verification may add only non-negative integer
+`paperclip.execution.fileCount` and `paperclip.execution.bytes` attributes.
+The closed keys are declared in `EXECUTION_PREPARATION_SPAN_ATTRS` in
+`packages/adapter-utils/src/acpx-engine/startup-timing.ts`.
+Other execution phases carry only the existing hashed run ID; manual boundaries
+have no attributes. Exceptions set status without exporting their messages.
+
+A committed comment transaction establishes durable server storage. A publication
+enqueue establishes pending delivery, and realtime dispatch establishes a server
+notification call. None establishes browser paint or external delivery. The attempt
+can continue through later bookkeeping and resource cleanup. A later recovery
+invocation has its own attempt; this does not manufacture one continuous trace
+across queueing, process restarts, or an unavailable controller.
+
+
 ## Native Runner Trace Spans
 
-Paperclip Runner task runs emit a single foldable OpenTelemetry trace. This is
+The native provider lifecycle emits one foldable OpenTelemetry trace, linked to
+the server attempt described above. This is
 the native-run trace schema version `3`. `task.provider_session` is the native
 provider lifecycle root; it includes preparation and provider execution, but
 ends before outer workspace persistence. The heartbeat-owned local run-log
@@ -251,12 +296,15 @@ every other native span carries a real OpenTelemetry parent context rather than
 only a descriptive `parentName` field.
 
 The native lifecycle root uses the operator's root sampling policy. It links
-to a valid active trigger trace without inheriting its sampling decision.
+to the matching live server attempt (or a valid active trigger) without inheriting
+its sampling decision. This is a link because historical ingress and queue spans
+can predate this invocation. It does not reparent earlier work beneath a later span.
 An unsampled HTTP request therefore cannot suppress an otherwise sampled
 background run. An operator who disables root sampling still gets no spans.
 Without an OTLP endpoint, tracing remains silent and does not export data.
 
-The run link in Honeycomb matches both `task.provider_session` for native runs and `task.run` for legacy adapters. It retains the exact hashed run-ID and service filters and groups by trace ID. The URL builder uses Honeycomb’s supported `in` operator for the two root names; see the [query specification](https://github.com/honeycombio/honeycomb-mcp#query-specification-for-run_query). This changes only the query link. The operator endpoint gate and span attribute allowlist remain unchanged.
+The run link in Honeycomb matches `task.provider_session` for native runs, `task.run` for legacy adapters, and
+`task.execution_attempt` for server preparation and settlement. It retains the exact hashed run-ID and service filters and groups by trace ID. The URL builder uses Honeycomb’s supported `in` operator for the three root names; see the [query specification](https://github.com/honeycombio/honeycomb-mcp#query-specification-for-run_query). This changes only the query link. The operator endpoint gate and span attribute allowlist remain unchanged.
 
 The canonical lifecycle is:
 
@@ -637,6 +685,14 @@ whether remote work may have been accepted.
   identifiers, untyped terminal failures, and timeouts after accepted work remain
   reportable. Stream/poll errors retain their existing retry and logging behavior.
 
+A Codex ACP model capacity failure also stays local. The Codex ACP classifier
+must match a typed `service` terminal failure that reports the model at capacity
+or the server overloaded. It records `codex_transient_upstream` with the
+`transient_upstream` family, and the bounded transient retry owns recovery. The
+report must come after setup and carry no signal. Other `service` failures,
+untyped capacity text, and Codex CLI transient upstream failures remain reportable.
+The run keeps its failed state and its terminal diagnostic.
+
 Expected pre-provider waits for a shared project workspace, a credential rotation
 lock, or an exhausted AI connection pool carry a server-owned expected
 cancellation receipt. They retain existing retry and lock behavior without a
@@ -791,6 +847,18 @@ provider turn IDs stay in the instance run log. The report reads the caught erro
 only for these labels; its text and stack are not copied, because they bypass the
 executor's identity redaction. These observations do not change close, quarantine
 or recovery behavior.
+
+Remote runner reattachment failures also record `remoteRunnerRecoveryStage`
+and `remoteRunnerRecoveryReason` from the saved run. When reattachment fails
+before the coordinator saves its result, the report reads the same labels from
+the caught recovery error instead. These fields contain
+closed labels for marker reads and process verification. They distinguish
+missing or unsafe markers, invalid or missing fingerprints, changed or
+unavailable process identity, and failed or timed-out probes. Paths, PIDs,
+nonces, command lines and transport output are excluded. The existing
+`runner_remote_process_identity_unavailable` error message and native failure
+classification remain unchanged. The coordinator also saves these labels in
+its failure detail and recovery evidence. A later failure clears stale labels.
 
 ACP turns record `acpLastEventAgeMs`, `acpObservedEventCount`,
 `acpPendingToolCount`, and `acpToolInventoryComplete` at finalization, before

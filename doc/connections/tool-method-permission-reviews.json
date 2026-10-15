@@ -652,6 +652,42 @@
       "liveProof": "not-run"
     },
     {
+      "app": "gmail",
+      "method": "paperclip-archive",
+      "auth": "oauth",
+      "policy": "explicit",
+      "requestedScopes": [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.modify"
+      ],
+      "capability": "write",
+      "supportedActions": "Read Gmail and archive a thread by removing only the INBOX label.",
+      "evidence": [
+        "https://developers.google.com/workspace/gmail/api/reference/mcp/tools_list/unlabel_thread",
+        "https://gmailmcp.googleapis.com/.well-known/oauth-protected-resource/mcp/v1"
+      ],
+      "reviewedAt": "2026-10-14",
+      "liveProof": "not-run"
+    },
+    {
+      "app": "gmail",
+      "method": "customer-archive-oauth",
+      "auth": "oauth",
+      "policy": "explicit",
+      "requestedScopes": [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.modify"
+      ],
+      "capability": "write",
+      "supportedActions": "Read Gmail and archive a thread by removing only the INBOX label.",
+      "evidence": [
+        "https://developers.google.com/workspace/gmail/api/reference/mcp/tools_list/unlabel_thread",
+        "https://gmailmcp.googleapis.com/.well-known/oauth-protected-resource/mcp/v1"
+      ],
+      "reviewedAt": "2026-10-14",
+      "liveProof": "not-run"
+    },
+    {
       "app": "google-calendar",
       "method": "paperclip-read",
       "auth": "oauth",

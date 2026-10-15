@@ -1,3 +1,4 @@
+import { measureRunPhase } from "../execution-preparation-timing.js";
 import { parseNativeSessionGoalControl } from "./scheduling.js";
 import { isHeartbeatRunTerminalStatus } from "./run-lifecycle.js";
 import {
@@ -264,6 +265,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
     );
   }
   let adapterFinalizeOutcome: "succeeded" | "failed" | null = null;
+  let preserveRunGatewayTokens = false;
   const inspectFinalizeWorkspaceBranch = async () => {
     const workspaceRecord = persistedExecutionWorkspace?.id
       ? await executionWorkspacesSvc.getStoredById(
@@ -889,7 +891,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
     if (instructionSave) adapterResult.resultJson = { ...adapterResult.resultJson, instructionSave };
 
     if (parseObject(adapterResult.executionRecovery).providerWorkStarted !== false) {
-      const captured = await usageRecorder.complete(adapterResult);
+      const captured = await measureRunPhase("execution.usage", () => usageRecorder.complete(adapterResult));
       adapterResult = { ...adapterResult, ...captured, usageComplete: captured.complete };
     } else {
       // Stop may already own the terminal result. Preserve its metadata
@@ -915,10 +917,10 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
           )).limit(1);
           if (exported.length) adapterFinalizeOutcome = "succeeded";
           else await recordWorkspaceFinalize(hasWorkspaceRestoreFailure(adapterResult.resultJson) ? "failed" : "succeeded", undefined,
-            async () => { await restoreNativeWorkspaceBestEffort({
+            async () => { await measureRunPhase("execution.workspace_finalize", () => restoreNativeWorkspaceBestEffort({
               db, runId: run.id, assertOwnership: ownership?.assertHeld,
               restore: () => nativeWorkspaceSync!.restoreWorkspace(ownership?.assertHeld),
-            }); });
+            })); });
         }
         await ownership?.assertHeld();
         await db
@@ -936,12 +938,12 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
           adapterResult.nativeFinalization.workspaceFinalizeStatus =
             workspaceFinalizeStatus;
           try {
-            const finalized = await finalizeNativeRun({
+            const finalized = await measureRunPhase("execution.native_finalize", () => finalizeNativeRun({
               db,
               runId: run.id,
               workspaceFinalizeStatus,
               preserveProviderAttempt: Boolean(nativeWorkspaceSync),
-            });
+            }));
             await dispatchPendingNativeStatusWakeups({
               companyId: run.companyId,
             });
@@ -964,9 +966,9 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
       }
     };
     if (nativeWorkspaceSync) {
-      const owned = await withNativeWorkspaceFinalizationOwnership({
+      const owned = await measureRunPhase("execution.workspace_ownership", () => withNativeWorkspaceFinalizationOwnership({
         db, companyId: run.companyId, runId: run.id,
-      }, completeWorkspace);
+      }, completeWorkspace));
       if (!owned.acquired) throw new NativeWorkspaceFinalizationBusyError();
     } else {
       await completeWorkspace();
@@ -986,11 +988,16 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
       // Preserve the provider and its run for the new controller. This
       // also keeps generic teardown from terminalizing/releasing its lease.
       input.effects.onNativeSessionResumeScheduled();
+      preserveRunGatewayTokens = true;
       throw adapterErr;
     }
     if (adapterErr instanceof NativeRunnerOwnershipUnverifiedError) {
       input.effects.onNativeOwnershipHeld();
       throw adapterErr;
+    }
+    if (nativeRuntimeResolution.kind === "native" && nativeWorkspaceSync?.reference.state === "prepared"
+      && !(nativeExecution && "access" in nativeExecution.workspace && nativeExecution.workspace.access === "none")) {
+      input.effects.onProviderResourceDisposition("stop_and_retain");
     }
     await db
       .update(heartbeatRuns)
@@ -1110,11 +1117,11 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         );
       }
       try {
-        await finalizeNativeRun({
+        await measureRunPhase("execution.native_finalize", () => finalizeNativeRun({
           db,
           runId: run.id,
           workspaceFinalizeStatus: "failed",
-        });
+        }));
         await dispatchPendingNativeStatusWakeups({
           companyId: run.companyId,
         });
@@ -1128,7 +1135,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
     throw adapterErr;
   } finally {
     try {
-      await revokeHeartbeatRunGatewayTokens({
+      if (!preserveRunGatewayTokens) await revokeHeartbeatRunGatewayTokens({
         db,
         companyId: agent.companyId,
         runId: run.id,

@@ -1,3 +1,5 @@
+import { measureRunTransaction } from "./execution-transaction-timing.js";
+import { measureRunPhase } from "./execution-preparation-timing.js";
 import { assertTaskWorkspaceAccess, assertTaskWorkspaceSourceProjectAccess } from "./task-workspace-source-access.js";
 import { verifiedRecordedIsolatedRemoteSource } from "./isolated-remote-workspace-source.js";
 import { parseObject } from "../adapters/utils.js";
@@ -251,9 +253,9 @@ async function preserveWorkspaceOwnershipForPatch(
   tx: DbTransaction, current: typeof executionWorkspaces.$inferSelect, patch: Partial<typeof executionWorkspaces.$inferInsert>,
 ) {
   if (workspaceSourceKeys.some(key => patch[key] !== undefined && patch[key] !== current[key])) {
-    await preserveExecutionWorkspaceRootProvenance(tx, {
+    await measureRunPhase("workspace.provenance", () => preserveExecutionWorkspaceRootProvenance(tx, {
       companyId: current.companyId, workspaceId: current.id, cwd: current.cwd,
-    });
+    }));
   }
   const nextPatch = { ...patch };
   const retainedSources = {
@@ -1531,8 +1533,8 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
 
   async function bindTaskWorkspace(companyId: string, issueId: string, workspaceId: string, patch: TaskWorkspaceBindingPatch = {}) {
     return db.transaction(async tx => {
-      const [task] = await tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, companyId))).for("no key update");
-      const [workspace] = await tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.companyId, companyId))).for("no key update");
+      const [task] = await measureRunPhase("workspace.row_lock", () => tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, companyId))).for("no key update"));
+      const [workspace] = await measureRunPhase("workspace.row_lock", () => tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.companyId, companyId))).for("no key update"));
       if (!task || !workspace) throw notFound("Task workspace unavailable");
       await tx.update(executionWorkspaces).set({ metadata: { ...workspace.metadata,
         _issuePrivacySources: { ...(workspace.metadata?._issuePrivacySources as Record<string, unknown> ?? {}), [task.id]: true } } }).where(eq(executionWorkspaces.id, workspaceId));
@@ -1572,9 +1574,9 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
   async function prepareTaskWorkspaceUpdate(input: {
     companyId: string; issueId: string; patch: TaskWorkspaceBindingPatch;
   }, tx: DbTransaction) {
-    const [task] = await tx.select().from(issues).where(and(
+    const [task] = await measureRunPhase("workspace.row_lock", () => tx.select().from(issues).where(and(
       eq(issues.id, input.issueId), eq(issues.companyId, input.companyId),
-    )).for("no key update");
+    )).for("no key update"));
     if (!task) throw notFound("Task not found");
     const fields = ["executionWorkspaceId", "projectWorkspaceId", "executionWorkspacePreference", "executionWorkspaceSettings"] as const;
     if (!fields.some(field => input.patch[field] !== undefined && !isDeepStrictEqual(input.patch[field], task[field]))) return {};
@@ -1929,7 +1931,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         }
         return input.onSkip();
       }
-      await notifyTerminalWorkspaceWork(tx, `workspace:${input.workspaceId}`);
+      await measureRunPhase("workspace.notification", () => notifyTerminalWorkspaceWork(tx, `workspace:${input.workspaceId}`));
       return input.write({ tx, fresh });
     });
   }
@@ -3582,36 +3584,36 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     },
 
     create: async (data: typeof executionWorkspaces.$inferInsert) => {
-      const row = await db.transaction(async tx => {
-        await notifyTerminalWorkspaceWork(tx, data.id ? `workspace:${data.id}`
-          : data.sourceIssueId ? `issue:${data.sourceIssueId}` : undefined);
-        return tx.insert(executionWorkspaces).values(data).returning().then(rows => rows[0] ?? null);
+      const row = await measureRunTransaction(db, "workspace", async tx => {
+        await measureRunPhase("workspace.notification", () => notifyTerminalWorkspaceWork(tx, data.id ? `workspace:${data.id}`
+          : data.sourceIssueId ? `issue:${data.sourceIssueId}` : undefined));
+        return measureRunPhase("workspace.write", () => tx.insert(executionWorkspaces).values(data).returning().then(rows => rows[0] ?? null));
       });
       return row ? toExecutionWorkspace(row) : null;
     },
 
     update: async (id: string, patch: Partial<typeof executionWorkspaces.$inferInsert>) => {
       if (patch.metadata === undefined && !workspaceSourceKeys.some(key => patch[key] !== undefined)) {
-        const row = await db.transaction(async tx => {
-          await notifyTerminalWorkspaceWork(tx, `workspace:${id}`);
-          return tx.update(executionWorkspaces).set({ ...patch, updatedAt: new Date() })
-            .where(eq(executionWorkspaces.id, id)).returning().then(rows => rows[0] ?? null);
+        const row = await measureRunTransaction(db, "workspace", async tx => {
+          await measureRunPhase("workspace.notification", () => notifyTerminalWorkspaceWork(tx, `workspace:${id}`));
+          return measureRunPhase("workspace.write", () => tx.update(executionWorkspaces).set({ ...patch, updatedAt: new Date() })
+            .where(eq(executionWorkspaces.id, id)).returning().then(rows => rows[0] ?? null));
         });
         return row ? toExecutionWorkspace(row) : null;
       }
-      const [identity] = await db.select({ companyId: executionWorkspaces.companyId }).from(executionWorkspaces)
-        .where(eq(executionWorkspaces.id, id));
+      const [identity] = await measureRunPhase("workspace.identity_read", () => db.select({ companyId: executionWorkspaces.companyId }).from(executionWorkspaces)
+        .where(eq(executionWorkspaces.id, id)));
       if (!identity) return null;
-      return db.transaction(async tx => {
+      return measureRunTransaction(db, "workspace", async tx => {
         await lockExecutionWorkspaceRootProvenance(tx, identity.companyId);
-        const [current] = await tx.select().from(executionWorkspaces).where(and(
+        const [current] = await measureRunPhase("workspace.row_lock", () => tx.select().from(executionWorkspaces).where(and(
           eq(executionWorkspaces.id, id), eq(executionWorkspaces.companyId, identity.companyId),
-        )).for("no key update");
+        )).for("no key update"));
         if (!current) return null;
-        const nextPatch = await preserveWorkspaceOwnershipForPatch(tx, current, patch);
-        await notifyTerminalWorkspaceWork(tx, `workspace:${id}`);
-        const [row] = await tx.update(executionWorkspaces).set({ ...nextPatch, updatedAt: new Date() })
-          .where(and(eq(executionWorkspaces.id, id), eq(executionWorkspaces.companyId, current.companyId))).returning();
+        const nextPatch = await measureRunPhase("workspace.provenance", () => preserveWorkspaceOwnershipForPatch(tx, current, patch));
+        await measureRunPhase("workspace.notification", () => notifyTerminalWorkspaceWork(tx, `workspace:${id}`));
+        const [row] = await measureRunPhase("workspace.write", () => tx.update(executionWorkspaces).set({ ...nextPatch, updatedAt: new Date() })
+          .where(and(eq(executionWorkspaces.id, id), eq(executionWorkspaces.companyId, current.companyId))).returning());
         return row ? toExecutionWorkspace(row) : null;
       });
     },
@@ -3866,7 +3868,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           // generation so a queued cleanup that captured the old generation does
           // nothing. Clear cleanupEligibleAt so the reaper does not destroy the
           // half-built worktree while a later reopen retries.
-          await notifyTerminalWorkspaceWork(tx, `workspace:${row.id}`);
+          await measureRunPhase("workspace.notification", () => notifyTerminalWorkspaceWork(tx, `workspace:${row.id}`));
           await tx
             .update(executionWorkspaces)
             .set({
@@ -3917,7 +3919,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         // flag stops the terminal reaper and the archive route from archiving and
         // destroying the rebuilt worktree in that window.
         const activeMetadata = setMetadataReopenPendingConsumption(nextMetadata, now());
-        await notifyTerminalWorkspaceWork(tx, `workspace:${row.id}`);
+        await measureRunPhase("workspace.notification", () => notifyTerminalWorkspaceWork(tx, `workspace:${row.id}`));
         const activeRow = await tx
           .update(executionWorkspaces)
           .set({
@@ -4085,12 +4087,12 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       return db.transaction(async (tx) => {
         await lockExecutionWorkspaceRootProvenance(tx, identity.companyId);
         await acquireExecutionWorkspaceLifecycleLock(tx, input.id);
-        const fresh = await tx
+        const fresh = await measureRunPhase("workspace.row_lock", () => tx
           .select()
           .from(executionWorkspaces)
           .where(and(eq(executionWorkspaces.id, input.id), eq(executionWorkspaces.companyId, identity.companyId)))
           .for("no key update")
-          .then((rows) => rows[0] ?? null);
+          .then((rows) => rows[0] ?? null));
         if (!fresh || isClosedExecutionWorkspaceStatus(fresh.status)) {
           // The row is missing or already closed by a concurrent path. Do not
           // archive again.
@@ -4103,14 +4105,14 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           // rebuilt worktree. The route maps this to HTTP 409.
           return { outcome: "reopen_pending" };
         }
-        const nextPatch = await preserveWorkspaceOwnershipForPatch(tx, fresh, input.patch);
+        const nextPatch = await measureRunPhase("workspace.provenance", () => preserveWorkspaceOwnershipForPatch(tx, fresh, input.patch));
         const baseMetadata =
           (nextPatch.metadata as Record<string, unknown> | null | undefined)
           ?? (fresh.metadata as Record<string, unknown> | null);
         const archiveMetadata = clearMetadataReopenPendingConsumption(
           bumpExecutionWorkspaceLifecycleGeneration(baseMetadata),
         );
-        await notifyTerminalWorkspaceWork(tx, `workspace:${input.id}`);
+        await measureRunPhase("workspace.notification", () => notifyTerminalWorkspaceWork(tx, `workspace:${input.id}`));
         const archived = await tx
           .update(executionWorkspaces)
           .set({
@@ -4375,7 +4377,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             updatePatch.name = inspection.toBranch;
           }
 
-          await notifyTerminalWorkspaceWork(tx, `workspace:${lockedWorkspace.id}`);
+          await measureRunPhase("workspace.notification", () => notifyTerminalWorkspaceWork(tx, `workspace:${lockedWorkspace.id}`));
           const [branchUpdatedRow] = await tx
             .update(executionWorkspaces)
             .set(updatePatch)

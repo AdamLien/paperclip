@@ -12464,16 +12464,16 @@ export function issueService(db: Db) {
     ): Promise<IssueComment> {
       if (dbOrTx === db && (actor.runId || actor.userId)) {
         const append = () =>
-          db.transaction(async (tx) => {
+          measureRunTransaction(db, "response", async (tx) => {
             // Serialize run-authored comments on the issue so a provider retry
             // cannot publish the same visible result twice. This needs no schema
             // change: the issue row is the transaction fence, and the recursive
             // call below performs the lookup and insert while holding it.
-            await tx
+            await measureRunPhase("response.row_lock", () => tx
               .select({ id: issues.id })
               .from(issues)
               .where(eq(issues.id, issueId))
-              .for("update");
+              .for("update"));
             return addComment(issueId, body, actor, options, tx);
           });
         return options?.authorizationReason ===
@@ -12735,7 +12735,7 @@ export function issueService(db: Db) {
         }
       }
       if (!comment) {
-        [comment] = await dbOrTx
+        [comment] = await measureRunPhase("response.write", () => dbOrTx
           .insert(issueComments)
           .values({
             companyId: issue.companyId,
@@ -12755,7 +12755,7 @@ export function issueService(db: Db) {
               ? { updatedAt: currentInsertTimestamp }
               : {}),
           })
-          .returning();
+          .returning());
       }
       if (!comment) throw new Error("Failed to create issue comment");
       if (options?.completionReply && actor.agentId && createdByRunId) await acknowledgeChatCompletionReply(dbOrTx, createdByRunId, comment.id);
@@ -13008,7 +13008,7 @@ export function issueService(db: Db) {
               );
         const publicationCreatedAt = new Date();
         for (const binding of bindings) {
-          await dbOrTx.transaction(async (tx: DbTransaction) => {
+          await measureRunPhase("response.publish", () => dbOrTx.transaction(async (tx: DbTransaction) => {
             await notifyChatPublicationWork(tx);
             return tx
               .insert(chatPublications)
@@ -13029,12 +13029,12 @@ export function issueService(db: Db) {
                 updatedAt: publicationCreatedAt,
               })
               .onConflictDoNothing();
-          });
+          }));
           for (const [index, attachment] of boundAttachments.entries()) {
             const attachmentCreatedAt = new Date(
               publicationCreatedAt.getTime() + index + 1,
             );
-            await dbOrTx.transaction(async (tx: DbTransaction) => {
+            await measureRunPhase("response.publish", () => dbOrTx.transaction(async (tx: DbTransaction) => {
               await notifyChatPublicationWork(tx);
               return tx
                 .insert(chatPublications)
@@ -13056,7 +13056,7 @@ export function issueService(db: Db) {
                   updatedAt: attachmentCreatedAt,
                 })
                 .onConflictDoNothing();
-            });
+            }));
           }
         }
       }
