@@ -1709,3 +1709,21 @@ Docker context/native compilation control:
 [38622133915](https://github.com/paperclipai/paperclip/actions/runs/38622133915).
 The behavior PR checklist now reflects those completed gates. This does not
 qualify or publish the still-local platform image consumer.
+
+
+### Hosted named-snapshot repair — 2026-10-15
+
+The failed UI journey is retained unchanged. The correction extends explicit
+Claude Connect qualification to Daytona snapshots: the plugin resolves a stable
+provider ID and creates by that ID, the server measures the actual sandbox and
+records v2 company/config/account/template-bound proof after owned cleanup, and
+native acquisition pins that same ID. Existing image v1 readers remain intact;
+ordinary Legacy acquisition and Codex setup eligibility are unchanged. Discovery
+performs no new provider calls. Lookup timeout cannot continue into allocation.
+
+A no-prompt live check with the pinned Daytona SDK 0.203.0 created an owned sandbox
+from the managed snapshot ID, measured Linux x86_64 / glibc 2.41, and deleted it.
+Receipt: `/private/tmp/claude-test-deployment-20261015/snapshot-id-live-probe.json`.
+This is provider identity/architecture evidence, not native Claude task proof.
+The new candidate still needs cloud checks, deployment, and a fresh ordinary UI
+journey through creation, useful task, revision and downloaded artifacts.

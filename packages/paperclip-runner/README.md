@@ -234,9 +234,25 @@ for an image pinned with `@sha256`, after confirmed lease cleanup. The record is
 server-owned and bound to the company, effective provider/image configuration
 and active custom-image identity. Creation and discovery read this record without
 allocating a sandbox. Configuration or image changes invalidate it. Mutable tags,
-provider defaults and name-only snapshots do not establish compatibility; they
-keep automatic Legacy selection until there is verifiable immutable image evidence.
+provider defaults and unverified snapshot names do not establish compatibility;
+they keep automatic Legacy selection until there is verifiable immutable image
+or Daytona snapshot-ID evidence. See managed snapshot qualification below.
 A connection-only success does not establish native readiness.
+
+### Managed Daytona snapshot qualification
+
+Claude's automatic Connect flow can qualify a named Daytona snapshot through the
+existing administrator-only saved environment probe. The bundled Daytona plugin
+resolves the name to its provider snapshot ID, creates the probe sandbox by ID,
+and returns its account and creation identity. OS, architecture and libc facts
+are recorded only after confirmed cleanup. Native execution uses that same
+snapshot ID; discovery does not allocate or perform provider lookups. A deleted
+snapshot fails at the provider rather than silently selecting a replacement with
+the same name. Configuration, resolved credentials and active captured-template
+changes require another probe. Other named provider templates and mutable OCI
+tags remain unqualified. A provider plugin without snapshot identity support
+returns an actionable setup failure; it cannot certify a native default.
+
 
 On Linux, Codex's sandboxed filesystem modes also require the host to permit its
 unprivileged namespaces. A no-privilege Docker container can prohibit nested

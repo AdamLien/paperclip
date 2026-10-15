@@ -43,6 +43,7 @@ import {
 } from "@paperclipai/adapter-utils/acpx-engine/startup-timing";
 import { environmentService } from "./environments.js";
 import { instanceSettingsService } from "./instance-settings.js";
+import { qualifiedSandboxSnapshotId, type SandboxTemplateIdentity } from "./sandbox-snapshot-qualification.js";
 import { verifyNativeHarnessBackupStamp } from "./native-runtime/native-harness-backup-stamp.js";
 import {
   collectEnvironmentSecretRefs,
@@ -454,6 +455,8 @@ export interface EnvironmentDriverAcquireInput {
    * configured default adapter.
    */
   adapterType: string | null;
+  /** Resolve an immutable provider snapshot identity for an explicit platform probe. */
+  resolveSnapshotIdentity?: boolean;
   /**
    * Force applying the active custom-image template even when issueId and
    * heartbeatRunId are null. Operator-initiated `Test` probes set this so the
@@ -1844,14 +1847,19 @@ function createSandboxEnvironmentDriver(
 
     async acquireRunLease(input) {
       const storedParsed = parseEnvironmentDriverConfig(input.environment);
+      const selectedTemplate: { value: SandboxTemplateIdentity } = { value: null };
       const parsed = await resolveEnvironmentDriverConfigForRuntime(db, input.companyId, input.environment, {
         issueId: input.issueId,
         heartbeatRunId: input.heartbeatRunId,
         applyCustomImageTemplate: input.applyCustomImageTemplate ?? false,
+        onResolvedCustomImageTemplate: identity => { selectedTemplate.value = identity; },
       });
       if (parsed.driver !== "sandbox" || storedParsed.driver !== "sandbox") {
         throw new Error(`Expected sandbox environment config for driver "${input.environment.driver}".`);
       }
+      const pinnedSnapshotId = input.adapterType === "paperclip_runner"
+        ? qualifiedSandboxSnapshotId(input.environment, input.companyId, parsed.config, selectedTemplate.value) : null;
+      if (pinnedSnapshotId) parsed.config = { ...parsed.config, snapshot: pinnedSnapshotId };
 
       // Check if this provider should be handled by a plugin.
       if (!isBuiltinSandboxProvider(parsed.config.provider)) {
@@ -1882,7 +1890,8 @@ function createSandboxEnvironmentDriver(
         }
 
         const workerConfig = stripSandboxProviderEnvelope(parsed.config);
-        const storedConfig = storedParsed.config;
+        const storedConfig = pinnedSnapshotId ? { ...storedParsed.config, snapshot: pinnedSnapshotId } : storedParsed.config;
+        if (pinnedSnapshotId) delete storedConfig.image;
         const providerConfigForLease = sandboxConfigForLeaseMetadata(storedConfig);
         // Require the reusable-lease capability AND a worker that verifies the
         // reuse methods. The provider must first opt in through the declaration:
@@ -2122,6 +2131,7 @@ function createSandboxEnvironmentDriver(
                 // environment's default adapter image (a pi agent then runs in the
                 // opencode image and the harness binary is missing at exec time).
                 adapterType: input.adapterType ?? undefined,
+                ...(input.resolveSnapshotIdentity ? { resolveSnapshotIdentity: true } : {}),
                 // Forward a caller deadline so the provider configures a provider-side
                 // expiry at or before it and returns the real provider expiry.
                 ...(requestedExpiresAtParam(input.requestedExpiresAt) !== undefined
@@ -4000,6 +4010,7 @@ export function environmentRuntimeService(
       executionWorkspaceSettings?: IssueExecutionWorkspaceSettings | null;
       /** The agent's adapter type for this run (mixed-harness environments). */
       adapterType?: string | null;
+      resolveSnapshotIdentity?: boolean;
       /**
        * Force applying the active custom-image template even for ad-hoc (no
        * issue/run) invocations. Operator `Test` probes set this so the runtime
@@ -4037,6 +4048,7 @@ export function environmentRuntimeService(
         executionWorkspaceMode: leaseContext.executionWorkspaceMode,
         executionWorkspaceSettings: input.executionWorkspaceSettings ?? null,
         adapterType: input.adapterType ?? null,
+        resolveSnapshotIdentity: input.resolveSnapshotIdentity,
         applyCustomImageTemplate: input.applyCustomImageTemplate ?? false,
         requestedExpiresAt: input.requestedExpiresAt ?? null,
         assertCompanyBinding: input.assertCompanyBinding,
