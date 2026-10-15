@@ -1816,3 +1816,74 @@ bytes or invalidate these serving-source results. PRs remain
 [#15993](https://github.com/paperclipai/paperclip/pull/15993), and
 [#15997](https://github.com/paperclipai/paperclip/pull/15997).
 No merge or production rollout occurred.
+
+### Startup latency delivery — 2026-10-15
+
+Owner: this chat, isolated `codex/claude-startup-latency` worktree based on
+`6bb6159cdfe088bb2cc5ee5adad5de829f576c15` (runtime `15e37379e94535fd9692a4f0c4d3fadd2595b188`).
+The user requested trace-led diagnosis and a fix on the dedicated test workspace.
+This remains within the $50 qualification ceiling; Docker/Rust builds stay remote.
+No merge, production rollout, or fleet-wide image change is authorized by this work.
+
+| Acceptance | Baseline | Required evidence |
+| --- | --- | --- |
+| Fresh sandbox startup | 133.446s native startup; 122.117s pack upload | Under 30s to prompt admission; timing/trace from exact serving source |
+| Follow-up in a new sandbox | 136.285s resume; 125.798s pack upload | Under 30s, same provider session, successful artifact revision |
+| Runtime admission | Older managed snapshot; verified pack fallback uploads | Exact pack/daemon identities, full integrity/architecture checks retained |
+| Correctness | Two downloaded versions verified | Independently download new outputs and verify revision plus session continuity |
+| Regressions | Shared native transport, staged/preinstalled/upload paths | Focused existing tests including corrupt/mismatched pack rejection; applicable CI |
+| Deployment | Dedicated test organization only | Recorded startup spans and healthy target, usable preview, reviewable delivery |
+
+The first experiment makes no paid Claude prompt: separate archive creation,
+transfer, and extraction, inspect the snapshot's preinstalled identity, and test
+the verified preinstalled path. Existing run-log spans already locate the critical
+path. Honeycomb had no matching exported trace for the first run; local native
+spans provide before/after measurement without changing the operator endpoint.
+Evidence directory: `/private/tmp/claude-startup-20261015/`.
+
+The owned no-prompt snapshot probe confirmed a preinstalled pack from source
+`4a8178e9cf40bf77d1a22a2dc6ddc1a7d5189eae`, not the serving runtime. The pack
+occupies 2.0 GiB. A bounded cloud compression experiment over 2,125,271,040 tar
+bytes measured gzip 66.409s / 763,211,573 bytes and zstd 17.687s / 711,973,704
+bytes. These isolate compression on the sandbox CPU, not the exact controller's
+historical phase breakdown. Both owned probe sandboxes were deleted; no provider
+prompts were issued. The first benchmark approval was rejected under the mistaken
+assumption that it uploaded the pack. Inspection established that only a 1,640-byte
+script was uploaded and all pack/archive bytes stayed in the sandbox; re-review
+approved that same command.
+
+The optional Honeycomb export setup would require refreshing an expired AWS
+secret-store login. The user questioned that need; this work proceeds without it.
+Existing native startup spans remain the before/after acceptance authority.
+
+The matching image build passed all 22 CLI/runtime identity checks in cloud run
+[38803382803](https://github.com/paperclipai/paperclip-cloud/actions/runs/38803382803).
+Candidate `fleet-sandbox-image-1791979001546`, snapshot
+`fleet-sbx-040bf1ccbc2a-c19a1bc17412`, uses exact app image
+`ghcr.io/paperclipai/paperclip@sha256:733f5cafb09c3d743b86fc2bdecf38077bde7db5cc55eb35ce017c1cd720e7ca`.
+It remains unpromoted: current sandbox-image campaigns require fleet-wide default
+promotion before targeting a stack. Avoid widening this task's rollout. Instead,
+the runtime fix precompresses the app-owned pack at build time and uses its
+hash-bound archive for the existing upload fallback. This improves the dedicated
+workspace without a global image promotion. Actual deployed latency is pending.
+
+The actual fallback transport was then measured without model prompts using a
+public qualified pack from `557c3064a30779e86e1ae312eab3d1d42c3a8b8d`.
+Prebuilt gzip: 0.878s controller verification, 4.184s transfer, 16.340s extraction,
+0.482s artifact verification. Prebuilt zstd through the actual Daytona
+`performSyncIn` implementation: 0.788s verification, 0.076s capability probe,
+6.009s transfer, 7.767s extraction, 0.412s artifact verification. All declared
+artifact hashes matched; both owned sandboxes were deleted. Receipts are
+`transfer-result.json` and `transfer-zstd-result.json` in the evidence directory.
+These are transport probes, not a deployed application startup claim.
+
+The implementation uses build-time zstd with an explicit remote capability
+probe. Missing archives or missing remote zstd retain directory staging;
+malformed or corrupt archives fail closed. Source/custom installations and
+verified staged/preinstalled pack selection retain their existing behavior.
+The compressed sidecar adds approximately 0.98 GB to this measured image's
+uncompressed layers; it trades one build/pull cost for every fresh sandbox's
+repeated CPU work. Actual target image size will be recorded after the build.
+Eleven archive contract tests pass. The focused native selection/transport suite
+passes 56 selected tests. Local full server typecheck has fourteen pre-existing
+missing/stale dependency errors; broad verification runs in a clean cloud job.

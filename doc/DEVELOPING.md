@@ -1817,6 +1817,17 @@ versions across directories. With these artifacts preinstalled, startup links
 and verifies them without uploading a binary or installing packages. Deploy
 the updated sandbox image with the matching runner qualification changes.
 
+Stamped app images also carry `provider-pack.tar.zst` and
+`provider-pack.archive.json` beside their unpacked provider pack. The cloud build
+creates these once with zstd, so a sandbox with an older pack receives compressed bytes
+without blocking startup on compression. The receipt binds the archive hash and
+size to the expected provider-pack digest. The controller checks it before upload,
+the sandbox checks the transferred hash before extraction, and normal full pack
+verification still runs afterward. Missing sidecars retain directory staging for
+source installs, as does missing remote zstd; invalid sidecars fail closed. Keep the archive outside the pack
+directory so it cannot include itself. Matching staged/preinstalled packs remain
+preferred and never transfer the archive.
+
 ### Native runner restart recovery
 
 Custom source-mode HTTP launchers should create their listener with
