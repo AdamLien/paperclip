@@ -1746,3 +1746,73 @@ cloud build and fresh hosted acceptance are pending for the corrected source.
 The disposable acceptance project has a UI-configured $2 lifetime cap, a $1
 per-run reservation, and unpriced usage blocking; all survive reload. This uses
 the previously reserved allowance within the $50 ceiling.
+
+
+### Hosted API-key acceptance passed — 2026-10-15
+
+The corrected candidate `15e37379e94535fd9692a4f0c4d3fadd2595b188` is deployed
+to the dedicated test organization. The deployment receipt confirms
+`sha-15e37379e94535fd9692a4f0c4d3fadd2595b188-cloud`, status succeeded, and
+verification verified. Cloud build:
+[38793774125](https://github.com/paperclipai/paperclip/actions/runs/38793774125).
+Deployment campaign: `fleet-campaign-1791979001533`. This is a Core-only preview;
+private Cloud UI plugins are excluded. All image builds ran in cloud infrastructure.
+
+A fresh strict browser journey started at `https://test.paperclip.app`, selected
+the test organization, created Claude Hosted Writer through New Agent, reused
+the saved personal Claude API connection, and submitted default model/runner
+settings. The saved Runtime form showed Paperclip Runner (default), Claude
+Opus 5.5, effort Auto, and Paperclip Computer. No runner or model override was
+submitted. The native experimental flag remained at its disabled app default.
+Prior interface familiarity and the preconfigured $2 project are disclosed.
+
+The useful task and same-task follow-up both succeeded:
+
+| Turn | Run | Result | Duration | Displayed API estimate |
+| --- | --- | --- | --- | --- |
+| Create checklist | `000105db-4244-48f2-8b7e-a2bd207b2311` | succeeded | 3m 07s | $0.2083 |
+| Add rollback section | `c68e858f-09f2-4aea-9c21-fbc57a1585a2` | succeeded | 3m 11s | $0.1468 |
+
+Independent checks read browser-downloaded files after the strict journey ended.
+The 655-byte v1 has three headings and six checkboxes; the 906-byte v2 preserves
+those sections and adds Rollback with two checks. Downloading v1 again after the
+revision produced identical bytes. SHA-256 values:
+
+- v1: `0a279d7048f3e1d949aaaac6fdb467ec8d18489e7e7a6818497083e327bd1365`
+- v2: `0b78e9f0226613892f47892a29f2e2aba7f28c7cd78707b6800e194603b8e485`
+
+Both rendered run logs identify provider session
+`b1b07c68-7557-4a8d-b109-6619e10300ec` and normalized session
+`163815a9-25e5-438b-bfc0-a84c6fadd479`. The follow-up records session resume
+and durable-session attachment to its new run authority. Workspace finalization
+succeeded on both runs. Saved settings, both responses, both attachments, and
+Done status persisted across revisit/reload. The QA agent was then paused.
+The displayed task estimates total $0.3551; this is additional to the previous
+$4.810616600 known estimates. Unknown charges and the setup reservation remain
+reserved, and aggregate qualification allowances remain within $50.
+
+The 78-step report includes an actual screenshot for every step. Evidence lives
+in `/private/tmp/claude-test-user-20261015-r2/`, including `journey.json`,
+`artifact-verification.json`, `session-verification.json`, and the portable HTML.
+The report and structured log were uploaded to the completed acceptance task:
+report attachment `43b8698f-d264-4d0f-86c3-9d0b8adabd35`; log attachment
+`b5313baa-4a1c-408e-886b-400ac876083c`. The original failed journey remains intact.
+
+Functional acceptance passes. Experience needs improvement: Connect shows
+“Connection needs attention” despite successful credential/hello checks, and
+cold provider-pack uploads took 122.1s and 125.8s while the task mainly said
+“Thinking.” The first download-text click had no visible feedback; file-card
+preview and its Download control worked. This is desktop dark-theme evidence,
+not mobile/accessibility qualification. The report renderer validated all images;
+host preview was queued, so HTML gallery interaction was not visually verified.
+Subscription execution and private Cloud plugins remain unqualified.
+
+Exact deployed-source required CI passed, including typecheck, tests, build,
+Docker context/native compilation, and the aggregate verification gates.
+Greptile is 5/5 with zero unresolved threads. The optional supply-chain scan
+remains neutral/inconclusive. The evidence-only follow-up does not change runtime
+bytes or invalidate these serving-source results. PRs remain
+[#15994](https://github.com/paperclipai/paperclip/pull/15994),
+[#15993](https://github.com/paperclipai/paperclip/pull/15993), and
+[#15997](https://github.com/paperclipai/paperclip/pull/15997).
+No merge or production rollout occurred.
