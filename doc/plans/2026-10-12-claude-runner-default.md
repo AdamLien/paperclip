@@ -1,6 +1,18 @@
 # Claude default: refreshed plan — 2026-10-15
 
-Implementation and API-key qualification are complete on the existing three-PR stack. This delivery checkpoint supersedes the earlier progress checkpoints; their attempts and evidence remain preserved below.
+Installed-target implementation and API-key qualification are complete on the existing three-PR stack. The subsequent hosted test below found a Cloud default-selection gap. Hosted acceptance is failed and must not be inferred from the installed-target evidence. Earlier attempts remain preserved below.
+
+## Hosted user acceptance — 2026-10-15
+
+A dedicated test organization served exact candidate `49f99e130aff317cb270c367523755910f20d080` after a successful single-organization deployment. The supported Core-only branch preview excluded private Cloud UI plugins; it does not qualify the full private distribution. [Cloud image build](https://github.com/paperclipai/paperclip/actions/runs/38778601920) completed remotely. No local Docker or Rust build ran.
+
+The strict user-only journey started at the supplied management entry, entered the fresh organization, created Claude Staging Writer, connected the authorized API key through the normal masked field, and completed onboarding without any runner/model override. The saved runtime form displayed `Default (claude-opus-5-5)` but **`Legacy runner (default)`** in Advanced. Acceptance failed at that point. No task or follow-up was submitted, so native execution, downloaded artifacts and session continuity remain unverified on this hosted deployment. The failure is preserved in 33 chronological screenshots and the structured journal; later engineering diagnosis is separate.
+
+The managed test fleet uses a named sandbox snapshot. Candidate `needsClaudeSetupQualification` only probes explicit immutable OCI image digests, and `readSandboxPlatformQualification` rejects named snapshots. The same target gate therefore keeps this Cloud path Legacy. A correct follow-up must establish an immutable provider snapshot identity, bind measured OS/architecture/libc facts to the selected environment and company, and invalidate stale/replaced bindings. It must then repeat fresh ordinary onboarding and the useful-task/revision acceptance. Forcing the agent to native, changing the fleet default image, or treating a CLI version probe as native task proof would not resolve this failure.
+
+The QA agent was paused with no runs or sessions. An unused $2 allowance was reserved within the existing $50 ceiling by lowering an inactive local fixture cap; its unknown-charge hold and blocking policy remain intact. Report: `/private/tmp/claude-test-user-20261015/report.html`; structured log: `/private/tmp/claude-test-user-20261015/journey.json`; deployment and diagnosis receipt: `/private/tmp/claude-test-deployment-20261015/deployment.json`. The offline renderer validated all 33 screenshots. Host file preview was queued; report-gallery rendering was not visually verified. Individual product screenshots were inspected during the journey.
+
+Experience findings: the Connectors announcement covered part of the first-task screen until dismissed; budget navigation required several detours and did not expose a clear policy-creation action. These do not cancel the successful API-key connection, and connection success does not establish native execution.
 
 ## Delivery checkpoint — 2026-10-15
 
