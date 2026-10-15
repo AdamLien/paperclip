@@ -1,4 +1,8 @@
-import { automaticReadRecoveryCleanupCondition, directHumanCommentCondition, humanCreatedIssueCondition, pendingUserRequestCondition, touchedByUserCondition } from "./issue-participation.js";
+import { measureRunTransaction } from "./execution-transaction-timing.js";
+import { measureRunPhase } from "./execution-preparation-timing.js";
+import { automaticReadRecoveryCleanupCondition, touchedByUserCondition } from "./issue-participation.js";
+import { HUMAN_TASK_ORIGIN_KINDS } from "@paperclipai/shared";
+import { directHumanCommentCondition, humanCreatedIssueCondition, pendingUserRequestCondition } from "./issue-participation.js";
 import { resolveProjectDefaultWorkspaceId } from "./project-default-workspace.js";
 import { type AuthorizationActor, executionWorkspaceReadSqlCondition, projectReadSqlCondition } from "./authorization.js";
 import { assertTaskWorkspaceAccess, assertTaskWorkspaceSourceProjectAccess } from "./task-workspace-source-access.js";
@@ -12679,7 +12683,7 @@ export function issueService(db: Db) {
           // instead of returning early and letting the generic completion
           // milestone win the provider reply slot.
           const shouldUpgradeExternalAuthorization =
-            authorType === "agent" &&
+            ***REDACTED*** === "agent" &&
             metadata?.authorizationReason ===
               CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON &&
             existing.metadata?.authorizationReason !==
@@ -12687,7 +12691,7 @@ export function issueService(db: Db) {
           const shouldBindAttachments =
             (options?.attachmentIds?.length ?? 0) > 0;
           const shouldUpgradeAttachmentAuthorization =
-            shouldBindAttachments &&
+            ***REDACTED*** &&
             isExplicitExternalAgentComment(metadata) &&
             !isExplicitExternalAgentComment(existing.metadata);
           if (
