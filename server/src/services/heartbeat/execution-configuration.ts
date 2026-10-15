@@ -1,4 +1,5 @@
 import { withSkillActor } from "../skill-access.js";
+import { withSkillVersionCacheLock } from "../skill-version-cache.js";
 import type { AuthorizationActor } from "../authorization.js";
 import { eq, sql } from "drizzle-orm";
 import { heartbeatRuns, type Db, type agents, type projects } from "@paperclipai/db";
@@ -208,7 +209,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   const nativeRunnerPreparationSpans: NativeRunHistoricalSpan[] = [];
   const skillsPrepareStartedAtMs = Date.now();
   let skillDeliveryConfig = effectiveResolvedConfig;
-  const runtimeSkillEntries = await time("configuration_skills", async () => {
+  const runtimeSkillEntries = await time("configuration_skills", () => withSkillVersionCacheLock(db, agent.companyId, async () => {
     try {
       const storedVersions = parseObject(run.contextSnapshot?.skillVersions);
       const hasStoredVersions = Object.prototype.hasOwnProperty.call(run.contextSnapshot ?? {}, "skillVersions");
@@ -263,7 +264,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
       }
       throw error;
     }
-  });
+  }));
   nativeRunnerPreparationSpans.push({
     name: "skills.prepare",
     parentName: "task.prepare",

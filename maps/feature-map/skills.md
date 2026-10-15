@@ -65,6 +65,10 @@ Manual: Enable the skill for one test agent and leave another without access. Ru
 - Installed does not mean enabled for every agent.
 - Read-only GitHub/bundled skills may require a writable copy rather than an in-place edit.
 - Studio interaction coverage is in [questions and approvals](./questions-and-approvals.md); a passing mock is not a live harness test.
+- Old version disk caches may expire; saved versions remain available. Verify a pinned
+  version is restored through normal execution with upstream unavailable. Current
+  and in-use versions stay materialized. See [cleanup controls](../../doc/recoverable-disk-cleanup.md)
+  and the [database-backed cache tests](../../server/src/__tests__/skill-version-cache.test.ts).
 
 ### Project repository source behavior
 

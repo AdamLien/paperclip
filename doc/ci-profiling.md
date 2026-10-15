@@ -154,3 +154,44 @@ References: [Honeycomb trace fields](https://docs.honeycomb.io/get-started/best-
 [Events API](https://docs.honeycomb.io/api/events/create-events),
 [large trace display limit](https://docs.honeycomb.io/troubleshoot/common-issues/data-in-honeycomb/#your-very-large-trace-displays-only-32000-spans),
 [GitHub workflow_run](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
+
+## Qualify reductions in CI work
+
+For changes to the stable test launcher, dependency setup, or the large Git and
+readiness fixtures, `profile-ci` also runs **CI work benchmark**. It uses one
+GitHub-hosted runner without secrets or AWS access. It compares the unchanged
+PR base and candidate sequentially. It records complete command times, test
+inventories, revisions, and failure logs in the `ci-work-benchmark` artifact.
+The complete general-server shard must retain the same cases. The fixture comparison retains
+the database contract and splits large Git scanning from bounded staging.
+These command timings exclude queue time and setup; use the full Honeycomb
+waterfall to assess the complete CI critical path.
+
+The benchmark also exercises cold dependency setup and a real materialized
+cache restore after removing the installed directories. Its two qualification
+entries are scoped to the PR merge ref and a separate checkout path. They cannot
+populate master's caches. Normal PR lanes restore only; the exact canonical
+master push in release verification is the normal cache writer.
+
+Materialized dependency keys include every tracked package manifest, lockfile,
+workspace configuration, patches, repository scripts, Node version/ABI, platform,
+architecture, libc, pnpm version, store location, and physical checkout path.
+There are no prefix restores. An input change takes the normal install path.
+A stale lockfile uses the existing resolution fallback but cannot publish an
+entry. An additional workspace install/prepare hook disables materialized reuse
+until its inputs are modeled. Shared/SDK build outputs have a separate key that also includes both
+packages' source/configuration and the build verifier. The existing verifier
+checks source and output fingerprints and rebuilds incomplete or changed output.
+Tests and their results are never cached or omitted by this mechanism.
+
+Serialized shards share one Vitest controller with `forks`, `isolate`, one
+worker, and file parallelism disabled. Each file gets a separate process and
+test home/configuration. The isolation regression runs files in both orders and
+checks process IDs, environment, globals, fake timers, and filesystem state.
+
+The readiness regression uses a real one-second PostgreSQL idle timeout and
+verifies that the backend connection changes while the parent write can commit.
+Its configured readiness window stays long. The Git regression keeps all four
+filename lanes above 32 MiB, while the staging case transfers and deletes 4,000
+files whose filename list exceeds 2 MiB. It still checks every staged file,
+unusual names, snapshot ownership, cleanup, and bounded command lengths.
