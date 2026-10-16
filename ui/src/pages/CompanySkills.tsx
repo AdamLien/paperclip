@@ -1,3 +1,4 @@
+import { SkillsToolbar, type DiscoverySort } from "@/components/skill-studio/SkillsToolbar";
 import { SkillBinaryFile } from "../components/SkillBinaryFile";
 import { skillFileLinkHref } from "@/lib/skill-file-links";
 import { SkillSourceProvenance } from "../components/SkillSourceProvenance";
@@ -589,18 +590,6 @@ export function skillDetailBreadcrumbs(
     { label: detail.name },
   ];
 }
-
-type DiscoverySort = "agents" | "stars" | "forks" | "recent" | "alphabetical";
-
-const DISCOVERY_SORT_LABELS: Record<DiscoverySort, string> = {
-  agents: "Most agents",
-  stars: "Most stars",
-  forks: "Most forks",
-  recent: "Recently updated",
-  alphabetical: "Alphabetical",
-};
-
-const DISCOVERY_SORTS: DiscoverySort[] = ["agents", "stars", "forks", "recent", "alphabetical"];
 
 export type DiscoveryCard = {
   key: string;
@@ -1234,125 +1223,20 @@ export function DiscoveryGrid({
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Search + sort + actions */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-          <div className="w-full">
-            <h1 className="text-lg font-semibold text-foreground">{viewTitle}</h1>
-            <p className="text-xs text-muted-foreground">{viewDescription}</p>
-          </div>
-          <div className="flex h-9 min-w-(--sz-12rem) flex-1 items-center gap-2 rounded-md border border-border px-2.5">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <input
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              aria-label={searchLabel}
-              placeholder={`${searchLabel}…`}
-              className="h-full w-full bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
-            />
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <span className="text-muted-foreground">Sort</span>
-                <span className="ml-1.5">{DISCOVERY_SORT_LABELS[sort]}</span>
-                <ChevronDown className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuRadioGroup value={sort} onValueChange={(value) => onSortChange(value as DiscoverySort)}>
-                {DISCOVERY_SORTS.map((option) => (
-                  <DropdownMenuRadioItem key={option} value={option}>
-                    {DISCOVERY_SORT_LABELS[option]}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {availableSources.length > 1 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <span className="text-muted-foreground">Source</span>
-                  <span className="ml-1.5">
-                    {sourceBadgeFilter === "all"
-                      ? "All"
-                      : availableSources.find((source) => source.value === sourceBadgeFilter)?.label ?? "All"}
-                  </span>
-                  <ChevronDown className="ml-1 h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuRadioGroup value={sourceBadgeFilter} onValueChange={setSourceBadgeFilter}>
-                  <DropdownMenuRadioItem value="all">All sources</DropdownMenuRadioItem>
-                  {availableSources.map((source) => (
-                    <DropdownMenuRadioItem key={source.value} value={source.value}>
-                      {source.label}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onScan()}
-            disabled={scanPending}
-            aria-label="Scan project workspaces for skills"
-            title="Scan project workspaces for skills"
-          >
-            <RefreshCw className={cn("h-4 w-4", scanPending && "animate-spin")} />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="default">
-                <Plus className="mr-1 h-3.5 w-3.5" />
-                New
-                <ChevronDown className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={onCreate}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Create new skill
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onBrowseDiscover}>
-                <Compass className="mr-2 h-4 w-4" />
-                Discover skills
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild><Link to="/skills/sources/new"><GithubIcon className="mr-2 h-4 w-4" />Import from GitHub</Link></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link to="/skills/sources">Manage sources</Link></DropdownMenuItem>
-              <DropdownMenuItem onSelect={onImport}>
-                <Globe className="mr-2 h-4 w-4" />
-                Import from path or URL
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onImportFromProject}>
-                <FolderSearch className="mr-2 h-4 w-4" />
-                Import skills from project
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {showBrowseRails && folderResult && onFolderSelect ? (
+        <SkillsToolbar
+          viewTitle={viewTitle} viewDescription={viewDescription} searchLabel={searchLabel}
+          search={search} onSearchChange={onSearchChange} sort={sort} onSortChange={onSortChange}
+          availableSources={availableSources} sourceBadgeFilter={sourceBadgeFilter} setSourceBadgeFilter={setSourceBadgeFilter}
+          onScan={onScan} scanPending={scanPending} onCreate={onCreate} onBrowseDiscover={onBrowseDiscover}
+          onImport={onImport} onImportFromProject={onImportFromProject}
+          onCreateFolder={!showFolderRail ? onCreateFolder : undefined}
+          selectMode={selectMode} onToggleSelectMode={onToggleSelectMode}
+          folderControl={showBrowseRails && folderResult && onFolderSelect ? (
             <div className="w-full md:hidden">
-              <FolderChip
-                result={folderResult}
-                selection={folderSelection}
-                allLabel="All skills"
-                onClick={onOpenMobileFolders ?? (() => undefined)}
-              />
+              <FolderChip result={folderResult} selection={folderSelection} allLabel="All skills" onClick={onOpenMobileFolders ?? (() => undefined)} />
             </div>
-          ) : null}
-          {onCreateFolder && !showFolderRail ? (
-            <Button variant="outline" size="sm" onClick={onCreateFolder}>
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              New folder
-            </Button>
-          ) : null}
-          {onToggleSelectMode ? (
-            <Button variant="ghost" size="sm" onClick={onToggleSelectMode}>
-              {selectMode ? "Done" : "Select"}
-            </Button>
-          ) : null}
-        </div>
+          ) : undefined}
+        />
 
         {/* Mobile category selector (sidebar is hidden below md) */}
         {showBrowseRails && categories.length > 0 ? (

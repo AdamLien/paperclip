@@ -1,13 +1,14 @@
 import type { ComponentProps, Ref } from "react";
-import { ChevronDown, CirclePlus, Columns3, List, ListTree, Search, X } from "lucide-react";
+import { ChevronDown, CirclePlus, Columns3, List, ListTree } from "lucide-react";
 import { IssueFiltersPopover } from "./IssueFiltersPopover";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { ToolbarSearch } from "./ToolbarSearch";
 import { FlyoutHeader, FlyoutOptions } from "./ui/flyout";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { taskListViews as views, type TaskListView } from "@/lib/task-list-views";
 
+/** Canonical proposed task toolbar; review under Components / Toolbars / Tasks. */
 export function TaskListToolbar({ view, onViewChange, query, onQueryChange, searchRef, layout, onLayoutChange, allExpanded, onToggleExpanded, onNewTask, filters }: {
   view: TaskListView;
   onViewChange: (view: TaskListView) => void;
@@ -22,7 +23,7 @@ export function TaskListToolbar({ view, onViewChange, query, onQueryChange, sear
   filters: ComponentProps<typeof IssueFiltersPopover>;
 }) {
   return (
-    <div className="design-page-toolbar" role="toolbar" aria-label="Task list controls">
+    <div data-canonical-toolbar="tasks" className="design-page-toolbar" role="toolbar" aria-label="Task list controls">
       <DropdownMenu>
         <DropdownMenuTrigger asChild><Button variant="outline" className="design-toolbar-button design-view-trigger" aria-label={`Task view: ${views.find(option => option.value === view)!.label}`}>{views.find(option => option.value === view)!.label}<ChevronDown aria-hidden /></Button></DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="task-list-options" aria-label="Task views">
@@ -32,11 +33,7 @@ export function TaskListToolbar({ view, onViewChange, query, onQueryChange, sear
           </FlyoutOptions></DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <div className="design-task-search">
-        <Search aria-hidden />
-        <Input ref={searchRef} aria-label="Search tasks" placeholder="Search tasks…" value={query} onChange={event => onQueryChange(event.target.value)} />
-        {query ? <Button variant="ghost" size="icon-xs" aria-label="Clear search" onClick={() => onQueryChange("")}><X aria-hidden /></Button> : null}
-      </div>
+      <ToolbarSearch query={query} onQueryChange={onQueryChange} inputRef={searchRef} label="Search tasks" placeholder="Search tasks…" />
       <div className="design-view-toggle" role="group" aria-label="Task layout">
         {[{ value: "list", label: "List view", icon: List }, { value: "board", label: "Board view", icon: Columns3 }].map(({ value, label, icon: Icon }) => (
           <Tooltip key={value}><TooltipTrigger asChild><Button variant="ghost" className="design-toolbar-button design-toolbar-icon" aria-label={label} aria-pressed={layout === value} onClick={() => onLayoutChange(value as "list" | "board")}><Icon aria-hidden /></Button></TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>

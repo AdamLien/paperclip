@@ -5,7 +5,7 @@ import { projectHealthProjectIds } from "../../support/design-proposals/project-
 
 const meta = {
   id: "design-project-health-trial",
-  title: "Design proposals/Pages/Project health trial",
+  title: "Design proposals/AI Generated Test Pages/Project health trial",
   component: ProjectHealthTrial,
   globals: { theme: "dark" },
   parameters: {

@@ -5,11 +5,10 @@ import { NativeSelect } from "@/components/ui/select";
 import { ButtonSamples, buttonSizes, buttonStates, buttonSurfaces, buttonVariants, defaultButtonSettings, type ButtonPlaygroundSettings } from "./ButtonSamples";
 
 export type ButtonsPlaygroundProps = ButtonPlaygroundSettings & {
-  showControls?: boolean;
   onSettingsChange?: (settings: Partial<ButtonsPlaygroundProps>) => void;
 };
 
-export function ButtonsPlayground({ showControls = true, onSettingsChange, ...settings }: ButtonsPlaygroundProps) {
+export function ButtonsPlayground({ onSettingsChange, ...settings }: ButtonsPlaygroundProps) {
   const [sizeHeights, setSizeHeights] = useState<Record<string, number>>({});
   useEffect(() => {
     const buttons = document.querySelectorAll<HTMLElement>('[data-testid="proposal-button-samples"] [data-button-size] [data-slot="button"]');
@@ -30,7 +29,7 @@ export function ButtonsPlayground({ showControls = true, onSettingsChange, ...se
         <h1 className="text-3xl font-semibold">Buttons playground</h1>
         <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">Style the buttons and contextual controls used in the design sandbox. Every example uses its shared component with the sandbox’s proposal theme. Hover and Tab through the controls; actions use local fixture state.</p>
       </header>
-      {showControls ? <fieldset className="sticky top-0 z-20 flex flex-wrap items-end gap-4 rounded-lg border border-border bg-background p-4" aria-label="Button playground controls">
+      <fieldset className="sticky top-0 z-20 flex flex-wrap items-end gap-4 rounded-lg border border-border bg-background p-4" aria-label="Button playground controls">
         <label className="flex flex-col gap-2 text-xs text-muted-foreground">Label
           <Input aria-label="Button label" value={settings.label} maxLength={80} onChange={event => onSettingsChange?.({ label: event.target.value })} className="w-48" />
         </label>
@@ -61,7 +60,7 @@ export function ButtonsPlayground({ showControls = true, onSettingsChange, ...se
         </label>
         <Button variant="outline" onClick={() => onSettingsChange?.(defaultButtonSettings)}>Reset controls</Button>
         <p className="w-full text-xs text-muted-foreground">Size labels show measured heights. Specimens report their actual width, padding, typography, icon size and colors. The inventory below uses the full available width.</p>
-      </fieldset> : null}
+      </fieldset>
       <section className="min-w-0 space-y-6" aria-labelledby="sandbox-buttons-title">
         <header className="space-y-2"><h2 id="sandbox-buttons-title" className="text-2xl font-semibold">Sandbox buttons</h2>
           <p className="text-sm text-muted-foreground">Shared styles and sizes, followed by task, navigation, pane, agent, conversation and attachment controls in context.</p>

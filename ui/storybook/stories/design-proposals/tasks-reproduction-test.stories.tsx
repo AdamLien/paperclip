@@ -3,7 +3,7 @@ import { TasksReproductionTrial } from "../../support/design-proposals/TasksRepr
 
 const meta = {
   id: "design-agent-task-list-trial",
-  title: "Design proposals/Pages/Tasks reproduction test",
+  title: "Design proposals/AI Generated Test Pages/Tasks reproduction test",
   component: TasksReproductionTrial,
   globals: { theme: "dark" },
   parameters: {

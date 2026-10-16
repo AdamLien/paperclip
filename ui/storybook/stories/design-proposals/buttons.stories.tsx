@@ -8,7 +8,7 @@ const meta = {
   title: "Design proposals/Components/Buttons",
   component: ButtonsPlayground,
   globals: { theme: "dark" },
-  args: { ...defaultButtonSettings, showControls: true },
+  args: { ...defaultButtonSettings },
   argTypes: {
     label: { control: "text" },
     variant: { control: "select", options: Object.keys(buttonVariants) },
@@ -16,12 +16,12 @@ const meta = {
     icon: { control: "inline-radio", options: ["none", "leading", "trailing"] },
     state: { control: "select", options: Object.keys(buttonStates) },
     surface: { control: "select", options: Object.keys(buttonSurfaces) },
-    showControls: { control: false }, onSettingsChange: { control: false },
+    onSettingsChange: { control: false },
   },
   parameters: {
     layout: "fullscreen",
     initialEntries: ["/PAP/issues"],
-    docs: { story: { inline: false }, description: { component: "Sandbox button styling workbench. Visible controls and Storybook args select label, style, measured size, icon placement, default/hover/keyboard-focus/pressed/disabled/loading state and semantic surface. All examples use the same proposed theme as the local design sandbox. Specimens report computed pixel dimensions, typography, padding, radius, icon size and colors. Forced states derive from compiled component CSS and remain preview-only. Contextual controls use real shared components with local fixture actions. Sandbox inventory shows the same collection without the control panel; its former Production reference URL remains valid. No production comparison or repository-wide usage counts are shown." } },
+    docs: { story: { inline: false }, description: { component: "Sandbox button styling workbench. Visible controls and Storybook args select label, style, measured size, icon placement, default/hover/keyboard-focus/pressed/disabled/loading state and semantic surface. All examples use the same proposed theme as the local design sandbox. Specimens report computed pixel dimensions, typography, padding, radius, icon size and colors. Forced states derive from compiled component CSS and remain preview-only. Contextual controls use real shared components with local fixture actions. No production comparison or repository-wide usage counts are shown." } },
     paperclip: {
       capabilities: ["developer-labs/design"],
       home: "design-proposals",
@@ -41,8 +41,3 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Playground: Story = {};
-// Keep the existing export/URL usable while replacing its former comparison role.
-export const ProductionReference: Story = {
-  name: "Sandbox inventory",
-  args: { showControls: false },
-};

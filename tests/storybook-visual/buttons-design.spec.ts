@@ -7,18 +7,16 @@ async function openButtons(page: Page, story = "playground") {
   return page.getByTestId("proposal-button-samples");
 }
 
-test("the sandbox inventory uses one proposal theme and preserves its old entry link", async ({ page }) => {
-  for (const story of ["playground", "production-reference"]) {
-    const samples = await openButtons(page, story);
-    await expect(samples.locator("[data-button-variant]")).toHaveCount(7);
-    await expect(samples.locator("[data-button-size]")).toHaveCount(8);
-    await expect(page.locator(".design-proposal-theme")).toBeVisible();
-    await expect(page.locator("iframe")).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "Button usage inventory", exact: true })).toHaveCount(0);
-    await expect(page.getByLabel("Comparison layout", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("group", { name: "Button playground controls", exact: true })).toHaveCount(story === "playground" ? 1 : 0);
-    await expect(samples.getByRole("region", { name: "All button variants", exact: true }).locator('[aria-busy="true"]')).toHaveCount(7);
-  }
+test("the playground uses a single sandbox inventory and proposal theme", async ({ page }) => {
+  const samples = await openButtons(page);
+  await expect(samples.locator("[data-button-variant]")).toHaveCount(7);
+  await expect(samples.locator("[data-button-size]")).toHaveCount(8);
+  await expect(page.locator(".design-proposal-theme")).toBeVisible();
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Button usage inventory", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Comparison layout", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Button playground controls", exact: true })).toHaveCount(1);
+  await expect(samples.getByRole("region", { name: "All button variants", exact: true }).locator('[aria-busy="true"]')).toHaveCount(7);
 });
 
 test("on-canvas controls update the live sandbox specimen and reset it", async ({ page }) => {

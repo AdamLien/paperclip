@@ -693,10 +693,8 @@ and loading remain real props. Context actions use local fixtures.
 The workbench has one full-width sandbox inventory. It does not show a
 production iframe, comparison-layout controls, legacy-only components,
 feature-gated priority controls or repository-wide source usage counts.
-**Sandbox inventory** shows the same collection without the control panel.
-Its explicit export keeps the previous `design-buttons--production-reference`
-URL working, but that story now uses the sandbox theme as well. These examples
-do not run agents, persist uploads or establish backend behavior.
+Playground is the single story in this grouping. These examples do not run
+agents, persist uploads or establish backend behavior.
 
 ### Local integration sandbox
 
@@ -832,3 +830,94 @@ tokenize motion. Principles — reasoning only; values live in `ui/src/index.css
   in addition to each animation's own component-level guard.
 
 Agent Chat and regular task chats keep pending questions as compact “Unanswered question” entries at their original position in history. Dismissing the form or sending a newer user message clears it from the composer without resolving it. Questions never contribute to composer pending counts or navigation. Opening the history entry restores the original form and its draft; submitting later uses the same durable question response path. Actual permission reviews retain their permission checks.
+
+## Canonical proposal toolbars
+
+`Design proposals / Components / Toolbars` is the canonical toolbar review and
+reuse home. Playground shows all demonstrated families; Tasks and Decisions
+isolate their controls, and Narrow exercises wrapping. Reuse `TaskListToolbar` with
+`useTaskListCollection` for proposed Tasks controls, `CollectionToolbar` for
+collection context/search/controls/actions/feedback slots, and `DecisionsToolbar`
+for decision filtering, grouping and sorting. These are distinct jobs; do not
+copy their markup into new page-specific toolbars. Shared buttons, semantic
+foundations, focus treatment and refreshed flyouts remain their dependencies.
+
+The Decisions specimen mounts the production component used by
+WhatNeedsMe and DecisionQueuePage. Preview creation callbacks only report
+intent; menu and control state is local. Canonical proposal status establishes
+the reference for continued styling and reuse, rather than certifying deployed
+production behavior or migrating every existing page.
+
+Skills and Artifacts are additional canonical toolbar references. Their shared
+`SkillsToolbar` and `ArtifactsToolbar` presentations are consumed by both the
+shipped pages and proposal stories; query, URL, permission and mutation state
+stay in the pages. The Skills story simulates scanning and creation locally.
+
+`Design proposals / Components / Tabs` defines two canonical filled sizes:
+Compact uses `--text-xs` (12px) and a 24px item height; Standard uses
+`--text-sm` (14px) and a 32px item height. Both use normal 400 weight,
+muted inactive text, foreground selected text, rounded filled selection and
+shared focus treatment. Standard follows the Paper tab bar: 10px horizontal
+padding, 8px gaps and 4px list padding. Compact retains the artifact filter's
+6px gaps. Sizes, colors, spacing and motion live in the token layer.
+
+`TabBar` composes within Radix `Tabs` with matching content panels.
+`TabFilters` uses an exclusive Radix ToggleGroup with radio semantics for
+collection filters; it never clears the current choice. Both support roving
+keyboard focus and disabled choices. `PageTabBar` adopts Standard and retains
+its mobile select; connector source filters and the Artifacts toolbar use
+Standard. Artifact type filters also support Compact for dense standalone uses. Segmented controllers and closable document tabs are separate
+patterns. Tabs contains only Playground, Standard and Compact. Playground
+compares the two sizes with local fixture state; narrow width remains a control.
+
+Accepted toolbar foundation for Design Proposals and the opt-in sandbox:
+
+- Use the shared `ToolbarSearch` and 44px control height, with one token-driven
+  border, radius and horizontal padding across Tasks, Decisions, Skills and
+  Artifacts. Adjacent toolbar controls and action groups use an 8px gap
+  (`--collection-toolbar-gap`); separate rows retain the 16px layout gap. Embedded search clear buttons and the inner halves of a segmented
+  layout switch retain their smaller geometry within a full-height control.
+- Order controls as search, filter/sort/group/view, optional secondary actions,
+  then the primary action. Tasks is the exception: its view dropdown precedes
+  search because it also serves as a heading.
+- Decisions includes a controlled search field on the desk and queue pages.
+  Search intersects active filters before grouping; it matches all entered words
+  across titles, task identifiers, summaries, agent, project and workspace names.
+  It searches the current decision list, not collapsed terminal-history curtains.
+
+Further consolidation proposals, pending visual review:
+
+- Move infrequent secondary creation actions into the primary creation menu
+  when that keeps the toolbar readable.
+- Reuse CollectionToolbar slots while keeping domain-specific controls and
+  controllers separate. Preserve search and the primary action in narrow
+  layouts, with predictable wrapping or overflow for secondary controls.
+- Use canonical Standard or Compact filled tabs for the compared label strips.
+  Keep panel-switching tab semantics separate from exclusive collection
+  filters. Closable document tabs retain their additional behavior.
+
+### Segmented controller comparison
+
+`Design proposals / Components / Segmented controllers` owns the segmented
+comparison Playground, with Disabled and Narrow stories. It includes audit
+scope, proposal and production task layouts, agent layouts, instruction and file
+preview modes, secret ownership/value source, goal panels and model lanes.
+FilePreviewModeToggle mounts directly; inline page controls use explicitly
+labelled primitive compositions with local state. Page navigation and
+collection filters remain in Tabs. This comparison does not migrate app styles
+or certify backend behavior or keyboard accessibility.
+
+Agents and Connectors compose the same `ToolbarSearch` with canonical Standard filled tabs. `AgentsToolbar` is shared by the roster page and
+toolbar references; `ConnectorsToolbar` is shared by Browse and toolbar references. Keep search
+first, status/source selection next, and view/actions last where present.
+Connector source choices use radio semantics and preserve Browse's existing
+automatic search expansion; they do not switch separate content panels.
+Agents status navigation retains route-backed Tabs with its associated roster
+panel. Agent search intersects the chosen status/built-in filter, matches name,
+role and title words, and retains ancestor context for matching org-chart nodes.
+
+Projects uses `ProjectsToolbar` for shared search, the existing name/updated/
+created/target-date sort choices and direction toggling, and Add Project. Project
+search matches all words across name and description before sorting and grouping.
+Connector source tabs sit on a second row below search. Tasks keeps its view
+dropdown before search; task view state and persistence are unchanged.
