@@ -994,3 +994,9 @@ profiles and entries, bindings, policies, and MCP gateways. They ignore health
 bookkeeping and trust-rule usage counters. Profile creation alone does not change
 an agent's runtime; its assignment does. Credential-only fields remain outside
 this migration's coverage.
+
+Migration 0356 adds access, referenced credentials and vaults, and chat/email
+endpoint configuration to connector runtime invalidation. Grant and membership
+changes retain company scope. Agent secret bindings and new personal delegations
+use agent scope. Credential values remain outside the journal. Endpoint activity,
+vault health, and other bookkeeping fields remain excluded.

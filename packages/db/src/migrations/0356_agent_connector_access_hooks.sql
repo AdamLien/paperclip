@@ -1,0 +1,121 @@
+CREATE OR REPLACE FUNCTION paperclip_connector_runtime_changed() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+DECLARE company uuid; query text; binding record; candidate uuid;
+  old_projection text := '(to_jsonb(o) - $1)'; new_projection text := '(to_jsonb(n) - $1)';
+  ignored text[] := ARRAY['updated_at', 'created_at', 'last_used_at', 'last_resolved_at', 'last_health_at',
+    'health_status', 'health_checked_at', 'health_message', 'last_catalog_refresh_at', 'last_seen_at', 'last_error', 'last_event_at', 'last_publication_at',
+    'last_sync_at', 'sync_checkpoint', 'activation_at', 'lease_token', 'lease_expires_at'];
+BEGIN
+  IF TG_TABLE_NAME = 'tool_profiles' AND TG_OP = 'INSERT' THEN RETURN NULL; END IF;
+  IF TG_TABLE_NAME = 'connection_grant_delegations' AND TG_OP = 'INSERT' THEN
+    FOR binding IN SELECT DISTINCT company_id, agent_id FROM new_rows ORDER BY company_id, agent_id LOOP
+      PERFORM paperclip_record_agent_runtime(binding.company_id, binding.agent_id);
+    END LOOP;
+    RETURN NULL;
+  END IF;
+  IF TG_TABLE_NAME = 'company_secret_bindings' THEN
+    IF TG_OP = 'INSERT' THEN query := 'SELECT DISTINCT company_id, target_type, target_id FROM new_rows ORDER BY company_id, target_id';
+    ELSIF TG_OP = 'DELETE' THEN query := 'SELECT DISTINCT company_id, target_type, target_id FROM old_rows ORDER BY company_id, target_id';
+    ELSE query := 'WITH changed AS (
+      SELECT to_jsonb(o) AS previous, to_jsonb(n) AS current FROM old_rows o FULL JOIN new_rows n ON o.id = n.id
+      WHERE (to_jsonb(o) - $1) IS DISTINCT FROM (to_jsonb(n) - $1)), targets AS (
+      SELECT previous AS target FROM changed UNION SELECT current FROM changed)
+      SELECT DISTINCT (target->>''company_id'')::uuid AS company_id, target->>''target_type'' AS target_type, target->>''target_id'' AS target_id
+      FROM targets WHERE target IS NOT NULL ORDER BY company_id, target_id';
+    END IF;
+    FOR binding IN EXECUTE query USING ignored LOOP
+      IF binding.target_type = 'agent' THEN
+        SELECT id INTO candidate FROM agents WHERE company_id = binding.company_id AND id::text = binding.target_id;
+        IF FOUND THEN PERFORM paperclip_record_agent_runtime(binding.company_id, candidate); END IF;
+      ELSE PERFORM paperclip_invalidate_connector_company(binding.company_id);
+      END IF;
+    END LOOP;
+    RETURN NULL;
+  END IF;
+  IF TG_TABLE_NAME = 'tool_policies' THEN
+    old_projection := old_projection || ' #- ''{config,trustRule,hitCount}'' #- ''{config,trustRule,lastHitAt}''';
+    new_projection := new_projection || ' #- ''{config,trustRule,hitCount}'' #- ''{config,trustRule,lastHitAt}''';
+  END IF;
+  IF TG_OP = 'INSERT' THEN query := 'SELECT DISTINCT company_id FROM new_rows ORDER BY company_id';
+  ELSIF TG_OP = 'DELETE' THEN query := 'SELECT DISTINCT company_id FROM old_rows ORDER BY company_id';
+  ELSE query := format('WITH changed AS (
+    SELECT o.company_id AS old_company, n.company_id AS new_company FROM old_rows o FULL JOIN new_rows n ON o.%I = n.%I
+    WHERE %s IS DISTINCT FROM %s)
+    SELECT old_company AS company_id FROM changed WHERE old_company IS NOT NULL UNION
+    SELECT new_company AS company_id FROM changed WHERE new_company IS NOT NULL ORDER BY company_id', TG_ARGV[0], TG_ARGV[0], old_projection, new_projection);
+  END IF;
+  FOR company IN EXECUTE query USING ignored LOOP
+    PERFORM paperclip_invalidate_connector_company(company);
+  END LOOP;
+  RETURN NULL;
+END;
+$$;
+--> statement-breakpoint
+DO $$
+DECLARE relation text; key_column text;
+BEGIN
+  FOREACH relation IN ARRAY ARRAY['tool_applications', 'tool_connections', 'connection_grants', 'connection_grant_members',
+    'connection_grant_delegations', 'tool_connection_installs', 'tool_catalog_entries', 'tool_profiles', 'tool_profile_entries',
+    'tool_profile_bindings', 'tool_policies', 'tool_mcp_gateways', 'company_memberships', 'principal_permission_grants',
+    'company_secret_bindings', 'chat_endpoints', 'chat_endpoint_resources', 'chat_agent_routes', 'chat_identity_links',
+    'chat_voice_callbacks', 'email_endpoints'] LOOP
+    key_column := CASE WHEN relation = 'email_endpoints' THEN 'endpoint_id' ELSE 'id' END;
+    EXECUTE format('DROP TRIGGER IF EXISTS paperclip_connector_runtime_insert ON %I', relation);
+    EXECUTE format('DROP TRIGGER IF EXISTS paperclip_connector_runtime_update ON %I', relation);
+    EXECUTE format('DROP TRIGGER IF EXISTS paperclip_connector_runtime_delete ON %I', relation);
+    EXECUTE format('CREATE TRIGGER paperclip_connector_runtime_insert AFTER INSERT ON %I REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION paperclip_connector_runtime_changed(%L)', relation, key_column);
+    EXECUTE format('CREATE TRIGGER paperclip_connector_runtime_update AFTER UPDATE ON %I REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION paperclip_connector_runtime_changed(%L)', relation, key_column);
+    EXECUTE format('CREATE TRIGGER paperclip_connector_runtime_delete AFTER DELETE ON %I REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION paperclip_connector_runtime_changed(%L)', relation, key_column);
+  END LOOP;
+END;
+$$;
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION paperclip_connector_uses_secret(p_company uuid, p_secret uuid) RETURNS boolean
+LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
+  SELECT EXISTS (SELECT 1 FROM tool_connections WHERE company_id = p_company AND (
+      credential_refs @> jsonb_build_array(jsonb_build_object('secretId', p_secret::text)) OR
+      credential_secret_refs @> jsonb_build_array(jsonb_build_object('secretId', p_secret::text)))) OR
+    EXISTS (SELECT 1 FROM connection_grants WHERE company_id = p_company AND
+      credential_secret_refs @> jsonb_build_array(jsonb_build_object('secretId', p_secret::text)));
+$$;
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION paperclip_connector_secret_changed() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+DECLARE secret uuid; company uuid;
+BEGIN
+  IF TG_OP = 'UPDATE' AND jsonb_build_array(OLD.status, OLD.latest_version, OLD.deleted_at, OLD.external_ref, OLD.provider_config_id, OLD.provider_metadata)
+    IS NOT DISTINCT FROM jsonb_build_array(NEW.status, NEW.latest_version, NEW.deleted_at, NEW.external_ref, NEW.provider_config_id, NEW.provider_metadata) THEN RETURN NEW; END IF;
+  IF TG_OP = 'DELETE' THEN secret := OLD.id; company := OLD.company_id;
+  ELSE secret := NEW.id; company := NEW.company_id; END IF;
+  IF paperclip_connector_uses_secret(company, secret) THEN
+    PERFORM paperclip_invalidate_connector_company(company);
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS paperclip_connector_secret_changed ON company_secrets;
+CREATE TRIGGER paperclip_connector_secret_changed AFTER UPDATE OR DELETE ON company_secrets
+  FOR EACH ROW EXECUTE FUNCTION paperclip_connector_secret_changed();
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION paperclip_connector_vault_changed() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+DECLARE vault uuid; company uuid;
+BEGIN
+  IF TG_OP = 'UPDATE' AND jsonb_build_array(OLD.provider, OLD.status, OLD.config, OLD.is_default, OLD.disabled_at)
+    IS NOT DISTINCT FROM jsonb_build_array(NEW.provider, NEW.status, NEW.config, NEW.is_default, NEW.disabled_at) THEN RETURN NEW; END IF;
+  IF TG_OP = 'DELETE' THEN vault := OLD.id; ELSE vault := NEW.id; END IF;
+  FOR company IN SELECT DISTINCT s.company_id FROM company_secrets s WHERE s.provider_config_id = vault
+    AND paperclip_connector_uses_secret(s.company_id, s.id) ORDER BY s.company_id LOOP
+    PERFORM paperclip_invalidate_connector_company(company);
+  END LOOP;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS paperclip_connector_vault_changed ON company_secret_provider_configs;
+CREATE TRIGGER paperclip_connector_vault_changed AFTER INSERT OR UPDATE OR DELETE ON company_secret_provider_configs
+  FOR EACH ROW EXECUTE FUNCTION paperclip_connector_vault_changed();
+--> statement-breakpoint

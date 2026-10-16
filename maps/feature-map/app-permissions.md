@@ -47,6 +47,12 @@ cover catalog and action-policy invalidation, ignored bookkeeping, and profile
 entry edits concurrent with setup finalization using PostgreSQL. They do not
 qualify live provider access.
 
+[Connector access runtime tests](../../server/src/__tests__/agent-runtime-connector-access.test.ts)
+cover grants, delegation, membership cleanup, referenced vault changes, and
+agent-scoped secret bindings. OAuth and Railway tests exercise the corresponding
+credential lock order. Provider calls use fixtures; no live credentials are
+qualified by this coverage.
+
 Manual: Grant one agent access, leave another excluded, and exercise off, ask, and allowed states for a harmless action. Reload between changes. Verify actual denied calls stay denied and ask-first creates a decision rather than executing early.
 
 ### `test-and-maintain`
