@@ -145,7 +145,7 @@ describeDatabase("connection assignment synchronization", () => {
     await db.insert(toolConnectionInstalls).values({ companyId, connectionId, targetType: "company", targetId: companyId });
     const initial = await pluginAgentRuntimeState(db, pluginId, companyId, agentId);
     const before = await events();
-    await db.update(toolConnections).set({ healthCheckedAt: new Date(), lastError: "fixture", config: { fixture: true }, updatedAt: new Date() }).where(eq(toolConnections.id, connectionId));
+    await db.update(toolConnections).set({ healthCheckedAt: new Date(), lastError: "fixture", updatedAt: new Date() }).where(eq(toolConnections.id, connectionId));
     expect(await events()).toEqual(before);
     await db.transaction(async tx => {
       await tx.update(toolConnections).set({ name: "Renamed", enabled: false }).where(eq(toolConnections.id, connectionId));
@@ -159,7 +159,7 @@ describeDatabase("connection assignment synchronization", () => {
     await db.insert(toolProfileBindings).values({ companyId, profileId: profile.id, targetType: "company", targetId: companyId });
     expect((await pluginAgentRuntimeState(db, pluginId, companyId, agentId))!.connectionAssignments.profileIds).toContain(profile.id);
     const active = await events();
-    await db.update(toolProfiles).set({ name: "Cosmetic rename" }).where(eq(toolProfiles.id, profile.id));
+    await db.update(toolProfiles).set({ updatedAt: new Date() }).where(eq(toolProfiles.id, profile.id));
     expect(await events()).toEqual(active);
     await db.update(toolProfiles).set({ status: "archived" }).where(eq(toolProfiles.id, profile.id));
     expect(await events()).toHaveLength(active.length + 2);

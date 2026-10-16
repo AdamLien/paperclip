@@ -3086,6 +3086,18 @@ export async function lockToolConnectionRuntimeInputs(client: ToolAccessMutation
   await lockManagedAppPolicies(client, companyId, connectionId);
 }
 
+async function lockProfileEntryReferences(client: ToolAccessMutationDb, companyId: string, entries: CreateToolProfileEntryForProfile[]) {
+  const applicationIds = [...new Set(entries.flatMap(entry => entry.applicationId ? [entry.applicationId] : []))];
+  const connectionIds = [...new Set(entries.flatMap(entry => entry.connectionId ? [entry.connectionId] : []))];
+  const catalogIds = [...new Set(entries.flatMap(entry => entry.catalogEntryId ? [entry.catalogEntryId] : []))];
+  if (applicationIds.length) await client.select({ id: toolApplications.id }).from(toolApplications)
+    .where(and(eq(toolApplications.companyId, companyId), inArray(toolApplications.id, applicationIds))).orderBy(toolApplications.id).for("key share");
+  if (connectionIds.length) await client.select({ id: toolConnections.id }).from(toolConnections)
+    .where(and(eq(toolConnections.companyId, companyId), inArray(toolConnections.id, connectionIds))).orderBy(toolConnections.id).for("key share");
+  if (catalogIds.length) await client.select({ id: toolCatalogEntries.id }).from(toolCatalogEntries)
+    .where(and(eq(toolCatalogEntries.companyId, companyId), inArray(toolCatalogEntries.id, catalogIds))).orderBy(toolCatalogEntries.id).for("key share");
+}
+
 export function toolAccessService(
   db: Db,
   options: ToolAccessServiceOptions = {},
@@ -6245,10 +6257,11 @@ export function toolAccessService(
     companyId: string,
     profileId: string,
     entries: CreateToolProfileEntryForProfile[],
+    dbClient: ToolAccessMutationDb = db,
   ) {
-    await assertProfileEntryInputs(db, companyId, entries);
+    await assertProfileEntryInputs(dbClient, companyId, entries);
     if (entries.length === 0) return;
-    await db.insert(toolProfileEntries).values(
+    await dbClient.insert(toolProfileEntries).values(
       entries.map((entry) => ({
         companyId,
         profileId,
@@ -6268,9 +6281,10 @@ export function toolAccessService(
     companyId: string,
     profileId: string,
     entries: CreateToolProfileEntryForProfile[],
+    dbClient: ToolAccessMutationDb = db,
   ) {
-    await assertProfileEntryInputs(db, companyId, entries);
-    await db
+    await assertProfileEntryInputs(dbClient, companyId, entries);
+    await dbClient
       .delete(toolProfileEntries)
       .where(
         and(
@@ -6278,7 +6292,7 @@ export function toolAccessService(
           eq(toolProfileEntries.profileId, profileId),
         ),
       );
-    await createProfileEntries(companyId, profileId, entries);
+    await createProfileEntries(companyId, profileId, entries, dbClient);
   }
 
   /**
@@ -19637,25 +19651,31 @@ export function toolAccessService(
       if (input.entries) {
         await assertProfileEntryInputs(db, existing.companyId, input.entries);
       }
-      await db
-        .update(toolProfiles)
-        .set({
-          profileKey: input.profileKey ?? existing.profileKey,
-          name: input.name ?? existing.name,
-          description: input.description ?? existing.description,
-          status: input.status ?? existing.status,
-          defaultAction: input.defaultAction ?? existing.defaultAction,
-          metadata: input.metadata ?? existing.metadata,
-          updatedAt: new Date(),
-        })
-        .where(eq(toolProfiles.id, profileId));
-      if (input.entries) {
-        await replaceProfileEntries(
-          existing.companyId,
-          profileId,
-          input.entries,
-        );
-      }
+      await db.transaction(async tx => {
+        const db = tx as unknown as Db;
+        await lockProfileEntryReferences(tx, existing.companyId, input.entries ?? []);
+        await tx.select({ id: toolProfiles.id }).from(toolProfiles).where(eq(toolProfiles.id, profileId)).for("no key update");
+        await db
+          .update(toolProfiles)
+          .set({
+            profileKey: input.profileKey ?? existing.profileKey,
+            name: input.name ?? existing.name,
+            description: input.description ?? existing.description,
+            status: input.status ?? existing.status,
+            defaultAction: input.defaultAction ?? existing.defaultAction,
+            metadata: input.metadata ?? existing.metadata,
+            updatedAt: new Date(),
+          })
+          .where(eq(toolProfiles.id, profileId));
+        if (input.entries) {
+          await replaceProfileEntries(
+            existing.companyId,
+            profileId,
+            input.entries,
+            tx,
+          );
+        }
+      });
       return profileDetails(profileId, existing.companyId);
     },
 
@@ -19837,9 +19857,12 @@ export function toolAccessService(
     addProfileEntry: async (
       profileId: string,
       input: CreateToolProfileEntryForProfile,
-    ): Promise<ToolProfileEntry> => {
+    ): Promise<ToolProfileEntry> => db.transaction(async tx => {
+      const db = tx as unknown as Db;
       const profile = await getProfileRow(profileId);
       await assertProfileEntryInput(profile.companyId, input);
+      await lockProfileEntryReferences(tx, profile.companyId, [input]);
+      await tx.select({ id: toolProfiles.id }).from(toolProfiles).where(eq(toolProfiles.id, profile.id)).for("no key update");
       const [row] = await db
         .insert(toolProfileEntries)
         .values({
@@ -19860,7 +19883,7 @@ export function toolAccessService(
         .set({ updatedAt: new Date() })
         .where(eq(toolProfiles.id, profile.id));
       return toProfileEntry(row);
-    },
+    }),
 
     getProfileEntry: async (entryId: string): Promise<ToolProfileEntry> => {
       const [row] = await db
@@ -19874,7 +19897,8 @@ export function toolAccessService(
     updateProfileEntry: async (
       entryId: string,
       input: UpdateToolProfileEntry,
-    ): Promise<ToolProfileEntry> => {
+    ): Promise<ToolProfileEntry> => db.transaction(async tx => {
+      const db = tx as unknown as Db;
       const [existing] = await db
         .select()
         .from(toolProfileEntries)
@@ -19891,6 +19915,8 @@ export function toolAccessService(
         conditions: input.conditions ?? existing.conditions,
       };
       await assertProfileEntryInput(existing.companyId, next);
+      await lockProfileEntryReferences(tx, existing.companyId, [next]);
+      await tx.select({ id: toolProfiles.id }).from(toolProfiles).where(eq(toolProfiles.id, existing.profileId)).for("no key update");
       const [row] = await db
         .update(toolProfileEntries)
         .set({
@@ -19911,9 +19937,13 @@ export function toolAccessService(
         .set({ updatedAt: new Date() })
         .where(eq(toolProfiles.id, existing.profileId));
       return toProfileEntry(row);
-    },
+    }),
 
-    deleteProfileEntry: async (entryId: string): Promise<ToolProfileEntry> => {
+    deleteProfileEntry: async (entryId: string): Promise<ToolProfileEntry> => db.transaction(async tx => {
+      const db = tx as unknown as Db;
+      const [existing] = await tx.select().from(toolProfileEntries).where(eq(toolProfileEntries.id, entryId));
+      if (!existing) throw notFound("Tool profile entry not found");
+      await tx.select({ id: toolProfiles.id }).from(toolProfiles).where(eq(toolProfiles.id, existing.profileId)).for("no key update");
       const [row] = await db
         .delete(toolProfileEntries)
         .where(eq(toolProfileEntries.id, entryId))
@@ -19924,7 +19954,7 @@ export function toolAccessService(
         .set({ updatedAt: new Date() })
         .where(eq(toolProfiles.id, row.profileId));
       return toProfileEntry(row);
-    },
+    }),
 
     bindProfile: async (
       profileId: string,
