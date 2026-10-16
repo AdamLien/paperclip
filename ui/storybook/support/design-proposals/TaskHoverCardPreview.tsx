@@ -38,26 +38,26 @@ export function TaskHoverCardPreview({ enabled = true, showDescription = true, o
           <p className="max-w-2xl text-sm text-muted-foreground">A contextual task preview for links and activity. Summary rows use their own local text reveal and keep this preview off.</p>
         </header>
         <section className="space-y-4" aria-label="Card appearance">
-          <h2 className="text-sm font-medium">Appearance</h2>
+          <h2 className="text-sm font-normal">Appearance</h2>
           <div data-testid="task-hover-card-reference" data-quicklook data-flyout-appearance="refreshed">
             <IssueQuicklookCard issue={issue} linkTo="/PAP/issues/PAP-173" />
           </div>
         </section>
         <section className="space-y-4" aria-label="Optional hover preview">
           <div className="flex flex-wrap items-center gap-4">
-            <h2 className="text-sm font-medium">Text link</h2>
+            <h2 className="text-sm font-normal">Text link</h2>
             <Button size="sm" variant="outline" aria-pressed={enabled} onClick={() => onEnabledChange?.(!enabled)}>Hover preview: {enabled ? "On" : "Off"}</Button>
           </div>
           <p className="text-sm">Related work: <Link to="/issues/PAP-173" issuePrefetch={issue} disableIssueQuicklook={!enabled} className="underline" aria-label="Preview linked task PAP-173">PAP-173</Link></p>
         </section>
         <section className="space-y-4" aria-label="Activity preview example">
-          <h2 className="text-sm font-medium">Recent activity · Preview on</h2>
+          <h2 className="text-sm font-normal">Recent activity · Preview on</h2>
           <Card className="block overflow-hidden py-0">
             <ActivityRow appearance="refreshed" event={{ ...storybookActivityEvents[0]!, entityId: task.id }} agentMap={storybookAgentMap} entityNameMap={new Map([[`issue:${task.id}`, task.identifier!]])} entityTitleMap={new Map([[`issue:${task.id}`, task.title]])} />
           </Card>
         </section>
         <section className="space-y-4" aria-label="Summary without hover preview">
-          <h2 className="text-sm font-medium">Recent tasks · Preview off</h2>
+          <h2 className="text-sm font-normal">Recent tasks · Preview off</h2>
           <Card className="block overflow-hidden py-0"><TaskSummaryList issues={[issue]} /></Card>
         </section>
       </div>

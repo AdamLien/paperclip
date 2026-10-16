@@ -401,8 +401,9 @@ export function Dashboard() {
             </div>
           ) : null}
 
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-2">
+          <div className={cn("grid grid-cols-2 xl:grid-cols-4", designSandbox ? "gap-4" : "gap-1 sm:gap-2")}>
             <MetricCard
+              appearance={designSandbox ? "card" : "plain"}
               icon={Bot}
               value={data.agents.active + data.agents.running + data.agents.paused + data.agents.error}
               label="Agents Enabled"
@@ -416,6 +417,7 @@ export function Dashboard() {
               }
             />
             <MetricCard
+              appearance={designSandbox ? "card" : "plain"}
               icon={CircleDot}
               value={data.tasks.inProgress}
               label="Tasks In Progress"
@@ -428,6 +430,7 @@ export function Dashboard() {
               }
             />
             <MetricCard
+              appearance={designSandbox ? "card" : "plain"}
               icon={DollarSign}
               value={formatCents(data.costs.monthSpendCents)}
               label="Month Spend"
@@ -441,6 +444,7 @@ export function Dashboard() {
               }
             />
             <MetricCard
+              appearance={designSandbox ? "card" : "plain"}
               icon={ShieldCheck}
               value={data.pendingApprovals + data.budgets.pendingApprovals}
               label="Pending Approvals"

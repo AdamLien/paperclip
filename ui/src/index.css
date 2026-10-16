@@ -50,7 +50,6 @@
 
 @theme inline {
   --font-sans: "InterVariable", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -97,6 +96,12 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Keep this font runtime-resolved: the proposal/sandbox theme substitutes
+   Paper Mono for every shared font-mono consumer, including portaled content. */
+@theme {
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 :root {
@@ -324,7 +329,16 @@
   --motion-question-page-enter: var(--motion-duration-instant);
   --motion-count-tween: var(--motion-duration-slow);
   --motion-streaming-cursor-blink: 1.1s;
+  /* Synthetic thread playback cadence; no provider or runtime is involved. */
+  --motion-sandbox-stream-tick: 40ms;
+  --motion-sandbox-word-tick: 60ms;
+  --motion-conversation-word-fade: 320ms;
+  --conversation-word-start-opacity: 0.08;
+  --motion-conversation-tool-shimmer: 2.5s;
+  --motion-sandbox-playback-step: 4s;
   --motion-turn-fold: 380ms;            /* finished-turn activity folding into its summary line */
+  --motion-conversation-handoff-fade: 180ms;
+  --motion-conversation-handoff-fold: 480ms;
   --motion-turn-meta: var(--motion-duration-fast); /* finished-turn hover metadata reveal */
   --motion-line-scroll: 240ms;          /* completed interstitial line sliding out of the 1lh live-line viewport */
   --motion-interstitial-dwell: 4000ms;  /* interstitial update hold: minimum before the next swaps in, and how long a finished update sits before sliding away */
@@ -334,6 +348,8 @@
   --motion-ease-scroll-pill-in: cubic-bezier(0.23, 1, 0.32, 1);
   --motion-ease-scroll-pill-out: cubic-bezier(0.7, 0, 0.84, 0);
   --motion-pane-glide: 320ms;           /* properties-pane maximize/restore glide */
+  --motion-pane-width-reset: 200ms;
+  --motion-ease-pane-width-reset: ease-in-out;
   --motion-side-panel-tab: var(--motion-duration-fast);
 
   /* Portable side-panel geometry and hierarchy. These stay centralized so
@@ -981,6 +997,7 @@ select:where(:not([multiple]):not(.appearance-none)):where(:not([size]), [size="
     --motion-scroll-pill-enter: 0ms;
     --motion-scroll-pill-exit: 0ms;
     --motion-pane-glide: 0ms;
+    --motion-pane-width-reset: 0ms;
   }
 }
 
@@ -1122,6 +1139,9 @@ select:where(:not([multiple]):not(.appearance-none)):where(:not([size]), [size="
 /* Properties-pane maximize/restore glide (left animates between docked and
    sidebar-flush while the pane is position:fixed). */
 .tc-pane-glide { transition: left var(--motion-pane-glide) var(--motion-ease-standard); }
+.sidebar-shell[data-width-resetting="true"],
+.sidebar-shell[data-width-resetting="true"] > .sidebar-shell-panel { transition: width var(--motion-pane-width-reset) var(--motion-ease-pane-width-reset); }
+.design-page-aside[data-width-resetting="true"] { transition: flex-basis var(--motion-pane-width-reset) var(--motion-ease-pane-width-reset); }
 .side-panel-tab-motion {
   transition-property: color, background-color, border-color, opacity, box-shadow, transform;
   transition-duration: var(--motion-side-panel-tab);
@@ -1477,7 +1497,6 @@ select:where(:not([multiple]):not(.appearance-none)):where(:not([size]), [size="
 /* Shimmer text effect for active "Working" state — Cursor-style sweep */
 @keyframes shimmer-text-slide {
   0% { background-position: 100% center; }
-  60% { background-position: 0% center; }
   100% { background-position: 0% center; }
 }
 
@@ -1902,14 +1921,14 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 .paperclip-mdxeditor-content h1 {
   margin: 1.4em 0 0.9em;
   font-size: 1.75em;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1.2;
 }
 
 .paperclip-mdxeditor-content h2 {
   margin: 1.3em 0 0.85em;
   font-size: 1.35em;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1.3;
 }
 
@@ -2108,7 +2127,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 }
 
 .paperclip-markdown-codeblock-action-label {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 /* Remove backtick pseudo-elements from inline code (prose default adds them) */
@@ -2122,7 +2141,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   background-color: color-mix(in oklab, var(--accent) 60%, transparent);
   padding: 0.15em 0.35em;
   border-radius: 3px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .dark .prose :not(pre) > code {
@@ -3725,6 +3744,186 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --task-list-min-width: calc(var(--task-list-column-status) + var(--task-list-column-title-min) + var(--task-list-column-task-id) + var(--task-list-column-created-by) + var(--task-list-column-assignee) + var(--task-list-column-project) + var(--task-list-column-parent) + var(--task-list-column-tags) + var(--task-list-column-updated) + var(--task-list-column-worktree) + var(--task-row-gap) * 9 + var(--task-row-padding-inline) * 2);
 }
 .task-row-design-preview { background: var(--task-list-surface); }
+/* Proposal typography is shared by Storybook and the opt-in sandbox. Aliases
+   migrate existing production-component recipes without restyling the ordinary
+   app or stories outside the proposal theme. */
+html:has(.design-proposal-theme) {
+  --font-mono: var(--font-paper-mono);
+  --default-mono-font-family: var(--font-paper-mono);
+  --font-weight-medium: var(--font-weight-normal);
+  --font-weight-bold: var(--font-weight-semibold);
+  --text-micro: var(--text-xs);
+  --profile-popover-meta-line-height: calc(var(--text-xs) * var(--text-xs--line-height));
+}
+/* Legacy micro utilities get the full xs size/leading recipe. New proposal
+   code uses text-xs directly; shared component defaults stay compatible. */
+html:has(.design-proposal-theme) [class~="text-(length:--text-micro)"] {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+}
+/* Tailwind prose and preflight also contain literal medium/bolder weights.
+   Preserve explicit strong-heading rules and compact reasoning inheritance. */
+html:has(.design-proposal-theme) :where(b, strong) { font-weight: var(--font-weight-semibold); }
+html:has(.design-proposal-theme) .paperclip-markdown :where(a, code, blockquote) { font-weight: var(--font-weight-normal); }
+
+/* Conversation proposal: two size/leading recipes, shared by saved threads,
+   synthetic previews and the composer. Page headers and other prose are outside
+   these explicit regions. Removing the proposal theme restores ordinary UI. */
+html:has(.design-proposal-theme) [data-conversation-typography] {
+  --conversation-human-foreground: #fff;
+  --conversation-body-size: var(--text-sm);
+  --conversation-body-leading: calc(var(--text-sm) * var(--text-sm--line-height));
+  --conversation-meta-size: var(--text-xs);
+  --conversation-meta-leading: calc(var(--text-xs) * var(--text-xs--line-height));
+  font-size: var(--conversation-body-size);
+  line-height: var(--conversation-body-leading);
+  color: var(--muted-foreground);
+}
+/* Collapse inherited contrast tiers without changing semantic status colors,
+   SVG icons, action-button variants or keyboard-focus treatments. */
+html:has(.design-proposal-theme) [data-conversation-typography] :where([class*="text-muted-foreground"], [class*="text-foreground"]):where(:not(svg, [data-slot="button"])) {
+  color: inherit;
+}
+html:has(.design-proposal-theme) [data-conversation-typography] :is(
+  [data-conversation-meta], [data-conversation-message], [data-testid="task-chat-agent-identity"],
+  [data-testid="task-chat-turn-summary"], [data-testid="task-chat-activity-phase"],
+  [data-testid="task-chat-tool-card"], [data-testid="task-chat-protocol-activity-row"],
+  [data-testid="task-chat-live-run-pill"], [data-testid="task-chat-current-activity"],
+  [data-testid="task-chat-activity-unavailable"], [data-testid="task-chat-collapsible-marker"],
+  [data-testid="task-chat-system-notice"], [data-testid="task-chat-runner-activity-detail"],
+  [data-testid="task-chat-composer-actions"]
+) {
+  font-size: var(--conversation-meta-size);
+  line-height: var(--conversation-meta-leading);
+  color: var(--muted-foreground);
+}
+html:has(.design-proposal-theme) [data-conversation-typography] :is(
+  [data-testid="task-chat-agent-identity"], [data-testid="task-chat-human-identity"]
+) { font-weight: var(--font-weight-normal); }
+/* Nested text utilities and tool output share their owning role's rhythm. */
+html:has(.design-proposal-theme) [data-conversation-typography] :where(
+  [class~="text-xs"], [class~="text-sm"], [class~="text-(length:--text-micro)"],
+  [class~="leading-relaxed"], [class~="leading-4"], [class~="leading-none"]
+):where(:not([data-slot="button"])) {
+  font-size: inherit;
+  line-height: inherit;
+}
+html:has(.design-proposal-theme) [data-conversation-typography] :where(
+  [data-conversation-text], [data-testid="task-chat-thinking"] .paperclip-markdown,
+  [data-testid="task-chat-composer-input"],
+  [data-testid="task-chat-live-run-pill"] > span:first-child,
+  [data-testid="task-chat-turn-status-header"]
+) {
+  font-size: var(--conversation-body-size);
+  line-height: var(--conversation-body-leading);
+  color: var(--muted-foreground);
+}
+html:has(.design-proposal-theme) [data-conversation-typography] [data-conversation-text="final"] { color: var(--foreground); }
+html:has(.design-proposal-theme) [data-conversation-typography] [data-conversation-text="human"] { color: var(--conversation-human-foreground); }
+html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown :is(h1, h2, h3, h4, h5, h6, p, ul, ol, li, blockquote, a, code, strong, b, em, th, td) {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  letter-spacing: normal;
+}
+html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown :is(h1, h2, h3, h4, h5, h6) { font-weight: var(--font-weight-normal); }
+html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown :is(strong, b) { font-weight: var(--font-weight-semibold); }
+/* Existing shared code-block rules use !important; retain their layout while
+   allowing authored message and diagnostic roles to own size and contrast. */
+html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown pre {
+  font-size: inherit !important;
+  line-height: inherit;
+  color: inherit !important;
+}
+html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown :is(a, a:hover, a:focus-visible) { color: inherit; }
+html:has(.design-proposal-theme) [data-conversation-typography] .shimmer-text {
+  --shimmer-base: var(--conversation-human-foreground);
+  --shimmer-highlight: color-mix(in oklch, var(--conversation-human-foreground) 35%, transparent);
+  /* Two identical waves make the endpoints coincide without a blank dwell. */
+  background-image: linear-gradient(90deg, var(--shimmer-base) 0%, var(--shimmer-highlight) 25%, var(--shimmer-base) 50%, var(--shimmer-highlight) 75%, var(--shimmer-base) 100%);
+  animation-duration: var(--motion-conversation-tool-shimmer);
+}
+/* One text-clipped background spans both Inter and Paper Mono. Descendants
+   inherit its text fill, rather than starting a separate sweep for each font.
+   Removing the lifecycle hook restores ordinary muted metadata and hover. */
+html:has(.design-proposal-theme) [data-conversation-typography] [data-conversation-tool-running="true"] {
+  color: var(--conversation-human-foreground);
+  --shimmer-base: var(--conversation-human-foreground);
+  --shimmer-highlight: color-mix(in oklch, var(--conversation-human-foreground) 35%, transparent);
+  background-image: linear-gradient(90deg, var(--shimmer-base) 0%, var(--shimmer-highlight) 25%, var(--shimmer-base) 50%, var(--shimmer-highlight) 75%, var(--shimmer-base) 100%);
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer-text-slide var(--motion-conversation-tool-shimmer) linear infinite;
+}
+html:has(.design-proposal-theme) [data-conversation-typography] [data-conversation-tool-running="true"] > span {
+  background: none;
+  animation: none;
+  -webkit-text-fill-color: inherit;
+}
+
+
+/* Agent identity uses the body size with foreground semibold emphasis. */
+html:has(.design-proposal-theme) [data-conversation-typography] :is([data-testid="task-chat-agent-identity"], [data-testid="task-chat-agent-identity"] > span:last-child) {
+  font-size: var(--conversation-body-size);
+  line-height: var(--conversation-body-leading);
+  font-weight: var(--font-weight-semibold);
+  color: var(--foreground);
+}
+/* Restore the neutral interactive metadata treatment suppressed by contrast
+   normalization. Preserve semantic status accents and action-button variants. */
+html:has(.design-proposal-theme) [data-conversation-typography] :is(
+  button[data-testid="task-chat-turn-summary"],
+  button[data-testid="task-chat-activity-phase-toggle"],
+  [data-activity-item-id] > button,
+  [data-testid="task-chat-tool-card"] > button,
+  [data-testid="task-chat-thinking"] > button,
+  [data-testid="task-chat-protocol-activity-row"] button[aria-expanded],
+  [data-testid="task-chat-system-notice"] button[aria-expanded],
+  [data-testid="task-chat-collapsible-marker"] button[aria-expanded]
+):is(:hover, :focus-visible):not(:disabled) {
+  color: var(--conversation-human-foreground);
+  background-color: color-mix(in srgb, var(--muted) 40%, transparent);
+  border-radius: var(--radius-sm);
+}
+@keyframes conversation-word-in {
+  from { opacity: var(--conversation-word-start-opacity); }
+  to { opacity: 1; }
+}
+.conversation-handoff-activity {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: opacity var(--motion-conversation-handoff-fade) var(--motion-ease-out),
+    grid-template-rows var(--motion-conversation-handoff-fold) var(--motion-ease-standard) var(--motion-conversation-handoff-fade);
+}
+.conversation-handoff-activity[data-collapsing="true"] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+[data-handoff-state="settled"] [data-testid="task-chat-bubble-attached-turn"] {
+  animation: conversation-word-in var(--motion-conversation-handoff-fade) var(--motion-ease-out) both;
+}
+html:has(.design-proposal-theme) [data-conversation-typography] .conversation-stream-word {
+  animation: conversation-word-in var(--motion-conversation-word-fade) var(--motion-ease-out) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .conversation-handoff-activity { transition: none; }
+  [data-handoff-state="settled"] [data-testid="task-chat-bubble-attached-turn"] { animation: none; }
+  html:has(.design-proposal-theme) [data-conversation-typography] .conversation-stream-word { animation: none; }
+  html:has(.design-proposal-theme) [data-conversation-typography] [data-conversation-tool-running="true"] {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
 /* Paper color foundation, scoped to proposed stories. The other six semantic
    colors already match Paper's dark tokens in .dark above. Scope at html so
    Radix portals inherit the same values; removing the story marker restores
@@ -3737,13 +3936,37 @@ html.dark:has(.design-proposal-theme) {
   --popover: var(--background);
   --accent: var(--muted-highlight);
   --input: var(--border);
-  --task-row-surface-hover: var(--muted-highlight);
-  --design-page-control-border: var(--border);
+  /* Focus follows foreground independently of neutral pane-divider interactions. */
+  --ring: var(--foreground);
+  --sidebar-ring: var(--ring);
+  --focus-ring-stroke-width: 1px;
+  --focus-ring-halo-width: 3px;
+  --focus-ring-halo: color-mix(in srgb, var(--ring) 20%, transparent);
+  --focus-ring-shadow: 0 0 0 var(--focus-ring-halo-width) var(--focus-ring-halo);
+  --pane-resize-highlight: oklch(0.556 0 0);
+  --task-row-surface-hover: var(--muted);
   background: var(--background);
 }
 .design-proposal-theme { color: var(--muted-foreground); }
+html.dark:has(.design-proposal-theme) .pane-resize-handle { --ring: var(--pane-resize-highlight); }
 html.dark:has(.design-proposal-theme) :is(body, #storybook-root) { background: var(--background); }
 html.dark:has(.design-proposal-theme) [data-slot="input"] { background: var(--background-alt); border-color: var(--border); color: var(--muted-foreground); }
+html.dark:has(.design-proposal-theme) [data-slot="input"]:focus-visible { border-color: var(--ring); }
+/* Bright edge with a softer outer halo, matching the production focus treatment.
+   Trigger wrappers replace Button's slot, so include those identities too.
+   Resize controls keep their separate neutral interaction color. */
+html.dark:has(.design-proposal-theme) :where([data-slot="input"], [data-slot="textarea"], [data-slot="button"], [data-slot="tooltip-trigger"], [data-slot="dropdown-menu-trigger"], [data-slot="popover-trigger"], [data-slot="select-trigger"], [data-slot="checkbox"], [data-slot="tabs-trigger"], [role="tab"], select):focus-visible:where(:not([aria-invalid="true"], [data-variant="destructive"], .pane-resize-handle, .pane-resize-handle *, .design-task-search input)) {
+  --tw-ring-color: var(--focus-ring-halo);
+  --tw-ring-shadow: var(--focus-ring-shadow);
+  outline: var(--focus-ring-stroke-width) solid var(--ring);
+  outline-offset: calc(-1 * var(--focus-ring-stroke-width));
+  box-shadow: var(--focus-ring-shadow);
+}
+html.dark:has(.design-proposal-theme) :where(.task-row-link, .task-row-status-link, .cell-marquee, .activity-row-refreshed, .task-list-sort-button, .design-page-content, .design-sidebar-recent-list, .design-sidebar a, .task-filter-search input):focus-visible {
+  outline: var(--focus-ring-stroke-width) solid var(--ring);
+  outline-offset: calc(-1 * var(--focus-ring-stroke-width));
+  box-shadow: var(--focus-ring-shadow);
+}
 html.dark:has(.design-proposal-theme) [data-slot="card"] { border-color: var(--border); }
 html.dark:has(.design-proposal-theme) [data-slot="card"][data-elevation="middle"] { background: var(--muted-alt); }
 html.dark:has(.design-proposal-theme) [data-slot="card"][data-elevation="high"] { background: var(--muted); }
@@ -4044,6 +4267,12 @@ html.dark:has(.design-proposal-theme) [data-slot="card-title"] { color: var(--fo
 :root, .dark {
   --design-page-height: 100dvh;
   --design-page-header-height: calc(var(--spacing) * 15);
+  --design-page-aside-width: var(--sz-320px);
+  --design-page-aside-max-width: 30%;
+  --design-page-aside-min-width: var(--sz-260px);
+  --design-page-main-min-width: var(--sz-320px);
+  --design-page-aside-resize-step: 16px;
+  --design-page-aside-resize-hit-width: calc(var(--spacing) * 2);
   --design-page-inset: calc(var(--spacing) * 6);
   --design-page-section-gap: calc(var(--spacing) * 8);
   --design-page-toolbar-gap: calc(var(--spacing) * 4);
@@ -4075,12 +4304,24 @@ html.dark:has(.design-proposal-theme) [data-slot="card-title"] { color: var(--fo
 }
 .design-page-shell { display: flex; position: relative; height: var(--design-page-height); overflow: hidden; color: var(--foreground); }
 .design-page-main { display: flex; flex: 1; flex-direction: column; min-width: 0; background: var(--task-list-surface); }
+.design-page-aside { position: relative; display: flex; flex-direction: column; flex: 0 0 clamp(var(--design-page-aside-min-width), var(--design-page-aside-user-width, min(var(--design-page-aside-width), var(--design-page-aside-max-width))), var(--design-page-aside-available-width, 100%)); min-width: 0; background: var(--background); border-inline-start: var(--task-row-rule-width) solid var(--border); }
+.design-page-aside-resize { left: calc(var(--design-page-aside-resize-hit-width) / -2); width: var(--design-page-aside-resize-hit-width); }
+.design-page-shell[data-aside-maximized="true"] > .design-page-main { display: none; }
+.design-page-shell[data-aside-maximized="true"] > .design-page-aside { flex: 1; }
+.design-page-header-actions { display: flex; align-items: center; margin-inline-start: auto; }
+.design-page-header.design-page-aside-header { min-width: 0; gap: var(--spacing); padding-inline: calc(var(--spacing) * 2); }
+.design-page-aside-tabs { display: flex; flex: 1; align-self: stretch; min-width: 0; }
+.design-page-aside-controls { display: flex; flex-shrink: 0; align-items: center; gap: var(--spacing); }
 .design-page-header { display: flex; align-items: center; height: var(--design-page-header-height); flex-shrink: 0; padding-inline: var(--design-page-inset); border-bottom: var(--task-row-rule-width) solid var(--border); }
-.design-page-header h1 { font-size: var(--design-page-type-size); line-height: var(--design-page-type-leading); font-weight: var(--font-weight-semibold); text-transform: uppercase; letter-spacing: var(--design-page-heading-tracking); }
+.design-page-header :is(h1, h2) { font-size: var(--design-page-type-size); line-height: var(--design-page-type-leading); font-weight: var(--font-weight-semibold); text-transform: uppercase; letter-spacing: var(--design-page-heading-tracking); }
 .design-page-content { display: flex; flex: 1; flex-direction: column; gap: var(--design-page-section-gap); min-height: 0; overflow-y: auto; padding: var(--design-page-inset); outline: none; }
+.design-page-aside .design-page-content { overscroll-behavior-y: contain; }
+.design-page-aside .design-page-content:focus-visible { outline: var(--design-page-focus-width) solid var(--ring); outline-offset: calc(-1 * var(--design-page-focus-width)); }
 .design-page-skip-link { position: absolute; z-index: var(--z-60); top: var(--design-page-inset); left: var(--design-page-inset); padding: var(--design-page-control-padding); border-radius: var(--design-page-control-radius); background: var(--foreground); color: var(--background); transform: translateY(calc(-1 * var(--design-page-header-height) * 2)); }
 .design-page-skip-link:focus { transform: none; }
-.design-sidebar { display: flex; flex-direction: column; height: 100%; min-height: 0; border-inline-end: var(--task-row-rule-width) solid var(--design-sidebar-border); background: var(--design-sidebar-surface); }
+/* Keep the muted fill out of the translucent divider. The divider composites
+   over the app background, matching the main-pane header and pane boundaries. */
+.design-sidebar { display: flex; flex-direction: column; height: 100%; min-height: 0; border-inline-end: var(--task-row-rule-width) solid var(--design-sidebar-border); background: var(--design-sidebar-surface); background-clip: padding-box; }
 .design-sidebar-brand { display: flex; align-items: center; gap: var(--design-page-control-gap); flex-shrink: 0; height: var(--design-page-header-height); padding-inline: var(--design-sidebar-inset); font-size: var(--design-page-type-size); font-weight: var(--font-weight-semibold); }
 .design-sidebar-search { flex-shrink: 0; color: var(--muted-foreground); }
 .design-sidebar-search svg { width: var(--design-page-icon-size); height: var(--design-page-icon-size); }
@@ -4088,7 +4329,18 @@ html.dark:has(.design-proposal-theme) [data-slot="card-title"] { color: var(--fo
 .design-sidebar-navigation { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: var(--design-page-toolbar-gap); overflow-y: auto; padding: var(--design-sidebar-item-inset) var(--design-sidebar-inset); }
 .design-sidebar-primary { display: flex; flex-direction: column; gap: var(--design-sidebar-item-gap); }
 .design-sidebar-navigation [class~="group/sidebar-section"] > div { min-height: 0; }
-.design-sidebar-navigation [class~="group/sidebar-section"] span { font-family: var(--font-sans); font-weight: var(--font-weight-normal); line-height: var(--design-sidebar-label-leading); letter-spacing: var(--design-sidebar-heading-tracking); }
+/* Navigation and streamlined properties intentionally share this exact label
+   recipe: sans, nano, normal, uppercase, 150% leading and 0.1em tracking. */
+html:has(.design-proposal-theme) :is([data-slot="sidebar-group-label"], [data-slot="property-section-label"][data-streamlined="true"]),
+html:has(.design-proposal-theme) .design-navigation-group-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-nano);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--design-sidebar-label-leading);
+  letter-spacing: var(--design-sidebar-heading-tracking);
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+}
 .design-sidebar .design-sidebar-item { min-height: var(--design-sidebar-item-height); margin-inline: var(--design-sidebar-item-inset); padding-inline: var(--design-sidebar-item-inset); color: var(--muted-foreground); font-size: var(--design-sidebar-label-size); line-height: var(--design-sidebar-label-leading); }
 .design-sidebar .design-sidebar-item:is(:hover, [aria-current="page"]) { background: var(--muted-highlight); color: var(--foreground); }
 .design-sidebar-new-task { display: flex; justify-content: flex-start; width: calc(100% - var(--design-sidebar-item-inset) * 2); height: var(--design-sidebar-item-height); margin-inline: var(--design-sidebar-item-inset); padding-inline: var(--design-sidebar-item-inset); gap: calc(var(--spacing) * 2.5); font-size: var(--design-sidebar-label-size); line-height: var(--design-sidebar-label-leading); font-weight: var(--font-weight-medium); color: var(--muted-foreground); }
@@ -4120,13 +4372,14 @@ html.dark:has(.design-proposal-theme) [data-slot="card-title"] { color: var(--fo
 .design-toolbar-filter > button { width: var(--design-page-control-height); padding: 0; }
 .design-page-toolbar .design-view-trigger { justify-content: space-between; min-width: calc(var(--spacing) * 28); }
 .design-task-search { display: flex; align-items: center; gap: var(--design-page-control-gap); width: var(--design-page-search-width); min-width: var(--design-page-search-min); height: var(--design-page-control-height); padding-inline: var(--design-page-control-padding); border: var(--task-row-rule-width) solid var(--design-page-control-border); border-radius: var(--design-page-control-radius); color: var(--muted-foreground); background: var(--design-page-search-surface); }
-.design-task-search:focus-within { outline: var(--design-page-focus-width) solid var(--ring); outline-offset: var(--design-page-focus-width); }
+.design-task-search:focus-within { border-color: var(--ring); outline: none; box-shadow: var(--focus-ring-shadow); }
 .design-task-search input { min-width: 0; height: 100%; padding: 0; border: none; border-radius: 0; background: transparent; color: var(--foreground); box-shadow: none; font-size: var(--design-page-type-size); line-height: var(--design-page-type-leading); }
 .design-task-search input:focus-visible { outline: none; box-shadow: none; }
 .design-view-toggle { display: flex; border: var(--task-row-rule-width) solid var(--design-page-control-border); border-radius: var(--design-page-control-radius); }
 .design-view-toggle .design-toolbar-button { height: calc(var(--design-page-control-height) - var(--task-row-rule-width) * 2); border-radius: 0; background: transparent; }
 .design-view-toggle .design-toolbar-button:first-child { border-start-start-radius: var(--design-page-control-radius); border-end-start-radius: var(--design-page-control-radius); }
 .design-view-toggle .design-toolbar-button:last-child { border-start-end-radius: var(--design-page-control-radius); border-end-end-radius: var(--design-page-control-radius); }
+.design-view-toggle .design-toolbar-button:focus-visible { position: relative; z-index: var(--z-1); }
 .design-toolbar-actions { display: flex; align-items: center; gap: var(--design-page-action-gap); margin-inline-start: auto; }
 .design-page-toolbar .design-new-task { margin-inline-start: var(--design-page-toolbar-gap); background: var(--foreground); color: var(--background); font-weight: var(--font-weight-semibold); }
 .design-page-toolbar .design-new-task:hover { background: color-mix(in oklab, var(--foreground) 90%, var(--task-list-surface)); color: var(--background); }

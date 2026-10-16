@@ -16,6 +16,8 @@ const colors = [
   { name: "muted-alt", usage: "Middle card surface." },
   { name: "muted-foreground", usage: "Default text, secondary labels, metadata and read task titles." },
   { name: "border", usage: "Shared pane dividers, field outlines and card borders. White at 10% opacity; its appearance depends on the surface beneath it." },
+  { name: "ring", usage: "Focus indicators use foreground; pane resize controls keep their neutral gray highlight." },
+  { name: "focus-ring-halo", usage: "Soft outer focus halo: foreground at 20% opacity, surrounding the bright edge." },
 ] as const;
 
 function TokenReference() {
@@ -33,7 +35,7 @@ function TokenReference() {
         </tr></thead>
         <tbody>{colors.map(({ name, usage }) => <tr key={name} data-token={name} className="border-b border-border align-top">
           <td className="px-3 py-4"><div aria-hidden className="h-12 w-16 overflow-hidden rounded-md border border-border bg-background"><div className="h-full w-full" style={{ backgroundColor: `var(--${name})` }} /></div></td>
-          <th scope="row" className="px-3 py-4 font-normal"><code className="block whitespace-nowrap text-foreground">--{name}</code><span className="mt-1 block whitespace-nowrap text-xs text-muted-foreground">Paper reference: dark-color-{name}</span></th>
+          <th scope="row" className="px-3 py-4 font-normal"><code className="block whitespace-nowrap text-foreground">--{name}</code><span className="mt-1 block whitespace-nowrap text-xs text-muted-foreground">{name === "ring" || name === "focus-ring-halo" ? "Derived from dark-color-foreground" : `Paper reference: dark-color-${name}`}</span></th>
           <td className="whitespace-nowrap px-3 py-4"><code data-token-value>{values[name] ?? "…"}</code></td>
           <td className="px-3 py-4 leading-relaxed">{usage}</td>
         </tr>)}</tbody>

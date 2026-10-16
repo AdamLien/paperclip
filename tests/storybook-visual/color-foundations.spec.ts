@@ -9,7 +9,7 @@ async function openColors(page: Page, story: string) {
   await page.mouse.move(0, 0);
 }
 
-test("color reference reads all eight Paper colors from the active CSS theme", async ({ page }, testInfo) => {
+test("color reference reads the Paper palette and foreground focus color from the active CSS theme", async ({ page }, testInfo) => {
   await openColors(page, "token-reference");
   const expected = {
     foreground: "oklch(0.985 0 0)",
@@ -20,8 +20,10 @@ test("color reference reads all eight Paper colors from the active CSS theme", a
     "muted-alt": "#202020",
     "muted-foreground": "oklch(0.708 0 0)",
     border: "oklch(1 0 0 / 10%)",
+    ring: "oklch(0.985 0 0)",
+    "focus-ring-halo": "color-mix(in srgb, oklch(0.985 0 0) 20%, transparent)",
   };
-  await expect(page.locator("tr[data-token]")).toHaveCount(8);
+  await expect(page.locator("tr[data-token]")).toHaveCount(Object.keys(expected).length);
   for (const [name, value] of Object.entries(expected)) {
     await expect(page.locator(`tr[data-token="${name}"] [data-token-value]`)).toHaveText(value);
   }
@@ -41,6 +43,10 @@ test("shared cards use three surfaces and one border; inputs use background-alt"
     await expect(field).toHaveCSS("background-color", "oklch(0.145 0 0)");
     await expect(field).toHaveCSS("border-color", "oklch(1 0 0 / 0.1)");
   }
+  await page.getByLabel("Task name").focus();
+  await expect(page.getByLabel("Task name")).toHaveCSS("border-color", "oklch(0.985 0 0)");
+  await expect.poll(() => page.getByLabel("Task name").evaluate(element => getComputedStyle(element).boxShadow)).toContain("/ 0.2)");
+  expect(await page.getByLabel("Task name").evaluate(element => getComputedStyle(element).boxShadow)).toContain("3px");
   await page.screenshot({ path: testInfo.outputPath("color-surfaces-and-elevation.png"), fullPage: true });
 });
 
@@ -51,7 +57,7 @@ test("task hover and portaled menus share the palette; production stories restor
   await expect(title).toHaveCSS("color", "oklch(0.708 0 0)");
   await expect(title).toHaveCSS("font-weight", "400");
   await row.hover();
-  await expect(row).toHaveCSS("background-color", "rgb(51, 51, 51)");
+  await expect(row).toHaveCSS("background-color", "oklch(0.269 0 0)");
   await expect(title).toHaveCSS("color", "oklch(0.985 0 0)");
   await expect(title).toHaveCSS("font-weight", "400");
   await page.getByRole("button", { name: "Columns", exact: true }).click();
@@ -69,6 +75,7 @@ test("task hover and portaled menus share the palette; production stories restor
   await page.locator(".design-proposal-theme").evaluate(element => element.classList.remove("design-proposal-theme"));
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--background").trim())).toBe("oklch(0.205 0 0)");
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--muted-alt").trim())).toBe("");
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--ring").trim())).toBe("oklch(0.556 0 0)");
   await page.goto("/iframe.html?id=foundations-primitive-matrix--all-primitives&viewMode=story&globals=theme:dark");
   await expect(page.getByRole("heading", { name: "Primitives and interaction states", exact: true })).toBeVisible();
   await expect(page.locator(".design-proposal-theme")).toHaveCount(0);

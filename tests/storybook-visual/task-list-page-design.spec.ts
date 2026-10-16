@@ -10,6 +10,73 @@ async function openPage(page: Page, story = "default") {
 }
 const rows = (page: Page) => page.locator('.design-task-list-panel [data-slot="task-row"]');
 
+test("toolbar outlines remain opaque and consistent across control fills without changing popover borders", async ({ page }, testInfo) => {
+  await openPage(page);
+  const controls = [
+    page.locator(".design-task-search"),
+    page.locator(".design-view-trigger"),
+    page.locator(".design-view-toggle"),
+    page.getByRole("button", { name: "Collapse all tasks", exact: true }),
+    page.locator(".design-toolbar-filter > button"),
+  ];
+  const border = await controls[0].evaluate(element => getComputedStyle(element).borderTopColor);
+  expect(border).not.toContain("/"); // An opaque color has no fractional alpha.
+  expect(border).not.toBe("transparent");
+  const fill = await controls[0].evaluate(element => getComputedStyle(element).backgroundColor);
+  expect(await controls[1].evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe(fill);
+  for (const control of controls) {
+    await expect(control).toHaveCSS("border-top-color", border);
+    await expect(control).toHaveCSS("border-top-width", "1px");
+  }
+  await controls[1].hover();
+  await expect(controls[1]).toHaveCSS("border-top-color", border);
+  await page.getByRole("button", { name: "Board view", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Board view", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(controls[2]).toHaveCSS("border-top-color", border);
+  await page.getByRole("textbox", { name: "Search tasks", exact: true }).focus();
+  await expect(controls[0]).toHaveCSS("border-top-color", "oklch(0.985 0 0)");
+  await expect(controls[0]).toHaveCSS("outline-style", "none");
+  await expect.poll(() => controls[0].evaluate(element => getComputedStyle(element).boxShadow)).toContain("/ 0.2)");
+  expect(await controls[0].evaluate(element => getComputedStyle(element).boxShadow)).toContain("3px");
+  await controls[4].click();
+  const popover = page.getByRole("dialog", { name: "Filters", exact: true });
+  await expect(popover).toBeVisible();
+  const popoverBorder = await popover.evaluate(element => getComputedStyle(element).borderTopColor);
+  expect(popoverBorder).toContain("/ 0.1"); // Surface borders keep the translucent foundation token.
+  await page.keyboard.press("Escape");
+  await page.mouse.move(0, 0);
+  await page.screenshot({ path: testInfo.outputPath("toolbar-consistent-borders.png"), fullPage: true });
+});
+
+test("tabbing through the toolbar shows the shared foreground edge and halo on every control", async ({ page }, testInfo) => {
+  await openPage(page);
+  const toolbar = page.getByRole("toolbar", { name: "Task list controls", exact: true });
+  const search = toolbar.getByRole("textbox", { name: "Search tasks", exact: true });
+  await search.focus();
+  for (const control of [
+    toolbar.getByRole("button", { name: "List view", exact: true }),
+    toolbar.getByRole("button", { name: "Board view", exact: true }),
+    toolbar.getByRole("button", { name: "Collapse all tasks", exact: true }),
+    toolbar.locator(".design-toolbar-filter > button"),
+    toolbar.getByRole("button", { name: "New Task", exact: true }),
+  ]) {
+    await page.keyboard.press("Tab");
+    await expect(control).toBeFocused();
+    await expect(control).toHaveCSS("outline-style", "solid");
+    await expect(control).toHaveCSS("outline-color", "oklch(0.985 0 0)");
+    await expect.poll(() => control.evaluate(element => getComputedStyle(element).boxShadow)).toContain("/ 0.2)");
+    expect(await control.evaluate(element => getComputedStyle(element).boxShadow)).toContain("3px");
+  }
+  // The view menu precedes search and uses a different trigger wrapper.
+  await search.focus();
+  await page.keyboard.press("Shift+Tab");
+  const view = toolbar.getByRole("button", { name: "Task view: All tasks", exact: true });
+  await expect(view).toBeFocused();
+  await expect(view).toHaveCSS("outline-color", "oklch(0.985 0 0)");
+  await expect.poll(() => view.evaluate(element => getComputedStyle(element).boxShadow)).toContain("/ 0.2)");
+  await page.screenshot({ path: testInfo.outputPath("toolbar-keyboard-focus.png"), fullPage: true });
+});
+
 test("full page uses the reviewed row contract and three default columns", async ({ page }, testInfo) => {
   await openPage(page);
   await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();

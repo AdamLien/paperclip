@@ -141,6 +141,15 @@ components/stories. The token-reference story reads values from the active CSS.
 | `dark-color-muted-foreground` | `--muted-foreground` | Default text, secondary labels, metadata, read task titles |
 | `dark-color-border` | `--border` | Shared dividers, input outlines and card borders |
 
+Focus indicators use `--ring: var(--foreground)`, matching `dark-color-foreground`.
+A 1px bright edge and a 3px outer halo at 20% opacity give focus two levels of
+emphasis, using `--focus-ring-stroke-width`, `--focus-ring-halo-width`, and
+`--focus-ring-halo`. Inputs, buttons and the proposed custom focus indicators
+share this treatment. This additional reference also supplies sidebar focus. Resize controls
+retain their neutral gray via `--pane-resize-highlight`, independent of focus
+elsewhere. The focus colors are listed alongside the Paper palette in the token
+story as derivatives of foreground. The override is scoped to the proposed dark theme.
+
 The border is translucent: its rendered shade depends on the surface beneath it.
 Keep that alpha value rather than replacing it with a different opaque gray for
 each background. Card surface levels share this border and do not automatically
@@ -160,6 +169,97 @@ stories and the app's default theme retain their existing appearance; the
 light palette has not been redesigned by this proposal. The sidebar, page shell,
 task list, shared inputs, card levels and refreshed flyouts consume these same
 semantic tokens.
+
+## Proposed typography foundation
+
+Review **Design proposals → Foundations → Typography → Type specification**
+(`design-foundations-typography--type-specification`). The proposal and the
+opt-in design sandbox use Inter Variable for interface text and bundled Paper
+Mono for all monospace text, including IDs, code and run diagnostics.
+
+**Conversation styles** (`design-foundations-typography--conversation-styles`)
+shows the same composition as the sandbox task detail page by mounting
+`DesignSandboxTaskThread` directly. Its canonical 72-state fixture catalog,
+grouped selector, replay, history, activity disclosures, transcript/native paths
+and local composer actions are shared, rather than independently assembled
+examples. It defaults to All states. Optional computed typography measurements
+inspect rendered text, including expanded disclosures; refresh after changing
+states or opening content. Storybook does not load saved backend conversations.
+The fixtures use production renderers with synthetic data; this does not certify
+a deployed production version. Refine shared tokens/renderers after review so
+subsequent typography changes propagate back to the sandbox.
+
+**Conversation type spec** (`design-foundations-typography--conversation-type-specification`)
+uses the Type specification layout to dissect the shared conversation preview.
+Its size inventory, family/weight specimens, searchable usage rows and shared-
+metric consolidation candidates derive from browser measurements of the same
+72-state composition. Source classes and example-state links connect each row
+to its owning surface. Measurements are snapshots: refresh after opening
+content or selecting another state. Closed disclosures, placeholders and absent
+Markdown structures are excluded. Isolated text specimens copy measured styles;
+the shared composition remains available in context. Consolidation requires a
+subsequent change to shared tokens/renderers, which then propagates to the sandbox.
+
+The sandbox demonstration tasks now open a **Play conversation** preview rather
+than stacking all state fixtures. A local, token-timed controller progressively
+feeds one cumulative synthetic transcript through the real conversation
+renderers: an initial question, reasoning, commentary, file read, command and
+streaming final, then a follow-up with queuing, planning, clarification and
+permission receipts, a failed test and retry, file preview, usage and a second
+final. Demo answers and permissions advance automatically; no approval affects
+a real run. Settled turns retain inspectable Activity history. Pause freezes the preview clock; resume continues
+and replay resets it. At completion the response keeps the same mounted bubble:
+preceding live activity fades over 180ms, then releases its height over 480ms so
+the final reply glides into place. The Activity footer appears after the fold;
+reduced motion settles immediately. This handoff is shared by the Storybook and
+sandbox playback. Preview prose arrives in complete words with a subtle
+320ms fade from near-transparent on newly mounted word spans; existing words remain stable. Reduced
+motion disables the word fade. No provider or command runs. Saved conversations on other
+tasks remain available. The Typography **Conversation playback** story uses the
+same controller; Conversation styles and Conversation type spec retain the
+72-state catalog for detailed inspection.
+
+Conversation typography is now consolidated inside explicit shared thread and
+composer regions under the proposal theme: body text is 14px/20px and metadata
+is 12px/16px. Human messages retain blue bubbles with white text. Final agent
+responses use foreground; commentary, reasoning, activity labels and metadata
+use muted foreground without extra opacity tiers. Interactive metadata
+returns to white text with a subtle neutral background on hover or keyboard
+focus; noninteractive metadata stays muted. Agent names use 14px/20px semibold
+in foreground.
+Only the current activity owns white shimmer: Working while awaiting activity,
+then the active reasoning or tool line. Working returns to muted foreground
+while another activity owns shimmer; streaming final text does not shimmer.
+The sweep loops continuously without an end pause. Tool labels and Paper Mono
+targets share one gradient across their containing line, rather than animating
+each text segment independently; reduced motion restores solid readable text.
+Completed tools return to muted metadata. Runner preparation and transcript
+loading placeholders are omitted from the normal live tail; actionable queues,
+recovery and failure messages remain. Explicit final-channel text is foreground while
+streaming; unclassified/progress deltas stay muted. Reduced motion disables
+tool shimmer and word fades. Markdown headings stay 14px
+normal and retain their semantic elements and spacing; final-response headings
+use foreground. Explicit strong emphasis remains semibold. Authored code follows
+14px body text; diagnostic output follows 12px metadata in Paper Mono. Links
+inherit color and remain underlined. Semantic status accents, action-button
+variants and keyboard-focus treatments remain meaningful exceptions. Standalone
+Markdown outside conversation regions retains its existing scale. Removing the
+proposal theme restores ordinary conversation styling.
+
+Only normal (400) and semibold (600) are part of this proposal. Medium recipes
+resolve to normal; bold recipes resolve to semibold. The size ramp is nano
+(10px), xs (12px), compact (13px), sm (14px), base (16px), lg (18px), xl (20px),
+2xl (24px) and 3xl (30px). Former micro usages use xs, including message times,
+account email and technical metrics. Navigation group labels and streamlined
+property section labels share the same sans/nano/normal/uppercase recipe,
+150% leading, 0.1em tracking and muted foreground at 60%.
+
+These decisions live in `ui/src/index.css`, under the shared proposal marker.
+Compatibility aliases carry existing shared components onto the proposed
+families, weights and sizes, including portals. New proposal code uses normal,
+semibold and xs directly. The ordinary app theme retains its original
+typography. The Buttons playground uses the sandbox proposal theme. Do not
+remove those defaults while this design is being tested.
 
 ## Task-row refresh: proposed specimen
 
@@ -194,7 +294,9 @@ classification while retaining its explicit story ID and exports.
   chips; keep the same type size at both row densities.
 - Titles use Inter: read titles are regular (400), muted foreground; unread titles
   are semibold (600), foreground. Hover changes the row background and title to
-  foreground while preserving its read/unread weight. Keyboard focus reveals the
+  foreground while preserving its read/unread weight. Proposed task-row hover
+  backgrounds use `--muted`; other hover highlights retain their existing tokens.
+  Keyboard focus reveals the
   same title emphasis and retains a visible focus indicator.
 - Refreshed task rows indicate unread state through title typography alone. Do not
   show the old blue unread dot or reserve space for it, including in inbox rows.
@@ -308,6 +410,50 @@ width tokens and configurable column order. Review the complete composition in
   Sort, order and visibility changes in the specimen are local state; saving preferences
   across navigation/reloads belongs to app adoption.
 
+### App-shell layout proposal
+
+Review **Design proposals → Layouts → App shell** (`design-app-shell`):
+Two Panes, Three Panes, and Independent Scrolling. These use the existing
+`DesignPageShell` and `DesignSidebar`, also composed by Pages → Tasks.
+Pages supply the `sidebar`, `title`, and main `children`; optional `rightSidebar`
+and `rightSidebarTitle` add a contextual right pane. Do not recreate this shell
+inside a page or story. The shell owns pane geometry, fixed headers, and separate
+main/right scrolling; each page owns its content and actions.
+
+For tabbed contextual panes, supply `rightSidebarHeader` and
+`rightSidebarControls`; `rightSidebarMaximized` expands the right pane across
+the workspace while retaining the left navigation. `headerActions` can supply
+a reopen control. The Three Panes and Independent Scrolling stories reuse the
+task-detail page's production `SidePanelTabs`, `SidePanelLauncher`,
+`SidePanelWindowControls`, and `useSidePanelTabs`. Their Properties, Tasks, Plan,
+and Artifacts tabs can be selected, added, closed, and reordered; closing the
+last tab reveals the launcher. Tab contents remain neutral fixtures. Closing
+the pane preserves its tabs for reopening. Both content viewports use
+`useScrollbarWhileScrolling` and `scrollbar-while-scrolling`: scrollbars appear
+while moving and hide after the shared `--motion-scrollbar-idle-delay`.
+
+The left sidebar retains its shared resizing behavior. The right pane defaults
+to 320px, capped at 30% of the shell width on narrower desktops. Its divider
+uses the left sidebar's neutral resize highlight on hover, keyboard focus, and dragging.
+Dragging left widens the pane; arrow keys resize in 16px steps, and Home/End
+select the bounds. Double-click clears its saved width and restores the default.
+Both sidebars animate their double-click reset with the shared 200ms
+`--motion-pane-width-reset` and `--motion-ease-pane-width-reset` tokens, matching
+the task-detail right pane. Dragging and keyboard resizing remain immediate;
+left navigation open, close, and peek behavior stays immediate. Reduced motion
+sets the reset duration to zero. The app-shell stories expose this through both
+dividers, using the same SidebarShell as the sandbox's left navigation.
+Resizing keeps at least 260px for the right pane and, when space permits, 320px
+for the main pane. Width preferences use `rightSidebarStorageKey`, defaulting
+to `${sidebarStorageKey}.right`, independently of the left width. Maximizing
+hides the resize handle and restoring retains the chosen width. All dimensions
+use `--design-page-aside-*` and `--design-page-main-min-width` tokens.
+Main and right panes use `--background`, the left
+sidebar uses `--muted`, and dividers use `--border`. Layout stories use separate
+sidebar-width storage keys and neutral placeholder content so review focuses on
+the structure. These are proposed dark desktop layouts; mobile navigation and
+right-panel overlay behavior require separate design work.
+
 ### Task-list page proposal
 
 Review the complete composition in **Design proposals → Pages → Tasks**
@@ -324,6 +470,15 @@ and full page consume the same `TaskList` collection.
   dragging and keyboard states. Sidebar width persists under the proposal's own
   storage key, separate from the production sidebar preference. Double-clicking
   the resize handle restores and saves the default 240px width.
+- Toolbar outlines use the opaque `--design-page-control-border` token so
+  search, view, layout, expansion and filter controls have the same visible
+  border despite their different fills. General surface borders continue to
+  use the translucent `--border` token. Disabled controls retain their normal
+  dimming, and keyboard focus retains its separate ring.
+- The left sidebar clips its muted fill to the padding box so its translucent
+  right divider blends over the app background, matching the main header and
+  pane boundaries. The divider still uses `--border`; the resize handle keeps
+  its distinct hover/focus highlight.
 - `DesignSidebar` is the shared proposed navigation component used by this page
   and **Design proposals → Components → Sidebar**. Refine its Default, Narrow,
   Long Labels, Many Recent Tasks, Empty Recent Tasks, Organization Menu and
@@ -519,6 +674,30 @@ Agent overview's Recent Tasks uses the same summary in the sandbox, retaining
 its participant-scoped query, updated ordering, six-task limit, more-task count
 and See All link. The toggle restores its original rows as well.
 
+### Sandbox button playground
+
+**Design proposals / Components / Buttons / Playground** is a styling
+workbench for the local design sandbox. All specimens use the shared proposal
+theme. The live specimen, variant/state matrix and size matrix use the shared
+Button API; contextual examples mount the sandbox's task toolbar, task list,
+sidebar, pane controls, agent actions, conversation feedback, favorites, file
+controls, status picker, attachment actions and relation expansion.
+
+Label, variant, size, icon, interaction state and semantic surface controls
+stay synchronized with Storybook args. Specimens measure actual dimensions,
+padding, typography, radius, icon size and resolved colors. Hover, keyboard
+focus and pressed previews derive from compiled component CSS under a
+Storybook-only attribute; the app's Button gains no forced-state API. Disabled
+and loading remain real props. Context actions use local fixtures.
+
+The workbench has one full-width sandbox inventory. It does not show a
+production iframe, comparison-layout controls, legacy-only components,
+feature-gated priority controls or repository-wide source usage counts.
+**Sandbox inventory** shows the same collection without the control panel.
+Its explicit export keeps the previous `design-buttons--production-reference`
+URL working, but that story now uses the sandbox theme as well. These examples
+do not run agents, persist uploads or establish backend behavior.
+
 ### Local integration sandbox
 
 The development app can opt into **Design proposals only** with
@@ -536,6 +715,13 @@ sidebars, panels and dialogs. Mobile retains its existing drawer. No new global
 component defaults are introduced. Toggle off removes the marker and restores
 the existing sidebar, Tasks surface and menu appearance.
 
+The resizable contextual pane uses `--design-page-aside-width` for its default
+and double-click reset while the proposal is on (currently 320px). Sandbox
+widths use separate `paperclip.design-proposal.properties-pane-width.*` storage
+keys, so toggling off retains the ordinary 434px task-detail default and its
+saved widths. This adapts the existing task-detail pane; it does not replace its
+production content or maximize behavior with the layout-story fixtures.
+
 `DesignSandboxTasks` adapts real company-scoped APIs to `TaskListToolbar`,
 `TaskList`, `KanbanBoard` and `useTaskListCollection`. It imports no Storybook
 fixtures. Creator names, projects, labels and viewer unread state come from APIs;
@@ -544,6 +730,37 @@ server-filtered unread query supplies that set. Load-more explicitly limits
 client search/filter/sort coverage to loaded tasks. Preferences use sandbox keys.
 Task links, creation dialogs and board updates retain the existing app services.
 This is an integration experiment, not permission, scale or release acceptance.
+
+Dashboard metrics use `MetricCard appearance="card"` while the proposal is on.
+This mounts the shared low-elevation `Card` with semantic background, border,
+radius and padding, keeping the existing metric links and responsive grid.
+The plain metric presentation remains the default outside the experiment.
+
+The streamlined task-detail header follows the Paper title-block proposal while
+the sandbox is on: a regular 24px title, followed by a metadata row grouping the
+status picker with its monospaced task ID, project and people. The title remains
+editable and the existing task-actions menu stays at the upper right. Typography
+and spacing use the shared tokens; toggling off restores the ordinary header.
+
+The local task detail also offers a **Thread preview** selector. DES-1 opens a
+complete synthetic conversation matching the staging transcript layout; other
+tasks start with their saved thread. Synthetic runner events pass through
+`nativeRunEventsToTranscript` and `transcriptToTaskChatItems`. The preview uses
+the shipped message bubbles, attached **Activity** history, working/elapsed/tool
+status, chronological activity groups and composer takeovers. It does not import
+the older chat-lab scenario inventory. The presentation flag follows the instance.
+
+The selector also exposes native-runner turns, streaming commentary/final replies,
+reasoning, tools, startup, queued messages, pause, failure, cancellation, timeout,
+permissions/questions, result dispositions, provider activity, workspace changes
+and usage. Native-runner and transcript layouts are named separately: runner
+version alone does not determine which presentation a run uses. Individual
+snapshots replay streaming text; **All states** is a labeled comparison gallery.
+Stop, approval, question, feedback, resume and composer actions change local
+presentation state only. **Show saved thread** restores the real task thread.
+`threadPreview` preserves selection in the URL, including aliases for older links.
+The fixture module is lazy-loaded only in the enabled development sandbox.
+These styling snapshots do not run agents or prove provider/backend behavior.
 
 Use the worktree-local isolated config and database. For a desktop visual review
 without building the agent runner, the documented direct API/UI dev path is:

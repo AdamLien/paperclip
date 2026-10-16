@@ -22,7 +22,9 @@ import { EmailThreadProvider } from "../components/EmailMessageCard";
 import { EmailTaskActivity } from "../components/EmailTaskActivity";
 import { TaskChatScrollNavigation, taskChatScrollEntry } from "@/components/task-chat/scroll-navigation";
 import {
+  lazy,
   memo,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -186,6 +188,7 @@ import { liveBlueBadge } from "../lib/status-colors";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { ProjectTile } from "../components/ProjectTile";
 import { InlineEditor } from "../components/InlineEditor";
+import { useDesignSandbox } from "../context/DesignSandboxContext";
 import {
   IssueChatThread,
   type IssueChatComposerHandle,
@@ -1346,6 +1349,8 @@ type IssueDetailChatTabProps = {
   linkCaseReferences?: boolean;
 };
 
+const DesignSandboxTaskThread = lazy(() => import("../components/design-sandbox/DesignSandboxTaskThread"));
+
 const IssueDetailChatTab = memo(function IssueDetailChatTab({
   queryIssueId,
   browsers,
@@ -1454,6 +1459,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
   const ThreadComponent = classicTaskInterfaceEnabled
     ? IssueChatThread
     : TaskChatThread;
+  const designSandbox = useDesignSandbox();
   const queryClient = useQueryClient();
   const issueQueryRef = queryIssueId ?? issueId;
   const scrollLocation = useLocation();
@@ -2415,7 +2421,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
     </div>
   ) : null;
 
-  return (
+  const savedThread = (
     <div
       className={
         classicTaskInterfaceEnabled
@@ -2625,6 +2631,21 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
       )}
     </div>
   );
+
+  return import.meta.env.DEV && designSandbox && !classicTaskInterfaceEnabled && !conversationMode ? (
+    <Suspense fallback={savedThread}>
+      <DesignSandboxTaskThread
+        previewMode="playback"
+        key={issueId}
+        header={threadHeader}
+        agentName={agentMap.get(issueAssigneeAgentId ?? "")?.name ?? "Preview agent"}
+        agent={agentMap.get(issueAssigneeAgentId ?? "")}
+        defaultConversation={issueQueryRef === "DES-1" || issueQueryRef === "DES-7"}
+      >
+        {savedThread}
+      </DesignSandboxTaskThread>
+    </Suspense>
+  ) : savedThread;
 });
 
 type IssueDetailActivityTabProps = {
@@ -3015,6 +3036,8 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     streamlinedUiEnabled,
     loaded: taskInterfaceSettingsLoaded,
   } = useTaskDetailInterfaceMode(!!conversation);
+  const designSandbox = useDesignSandbox();
+  const proposedTaskHeader = designSandbox && streamlinedTaskDetailEnabled;
   // Chat-style: the page wrapper spans the full center pane so the thread's
   // scroll viewport (and its scrollbar) reaches the properties-pane border;
   // every non-thread section re-centers itself at the 60rem shell cap instead.
@@ -7121,7 +7144,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   const issueStatusControl = (
     <StatusIcon
       status={issue.status} externalConversationState={issue.externalConversationState}
-      size="lg"
+      size={proposedTaskHeader ? "md" : "lg"}
       blockerAttention={issue.blockerAttention}
       onChange={(status) => updateIssue.mutate({ status })}
     />
@@ -7137,7 +7160,9 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     >
       {streamlinedTaskDetailEnabled ? (
         <div className="flex min-w-0 items-start gap-2 md:items-center md:pr-8">
-          <div className="hidden md:block">{issueStatusControl}</div>
+          {!proposedTaskHeader ? (
+            <div className="hidden md:block">{issueStatusControl}</div>
+          ) : null}
           <div
             data-slot="task-detail-title"
             className="flex min-w-0 flex-1 items-baseline gap-2"
@@ -7146,14 +7171,20 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
               value={issue.title}
               onSave={(title) => updateIssue.mutateAsync({ title })}
               as="h2"
-              className="min-w-0 text-xl font-semibold leading-normal text-balance"
+              className={cn(
+                "min-w-0 text-balance",
+                proposedTaskHeader ? "text-2xl font-normal text-foreground" : "text-xl font-semibold",
+                "leading-normal",
+              )}
             />
-            <span
-              data-slot="task-title-identifier"
-              className="hidden shrink-0 font-mono text-sm text-muted-foreground md:inline"
-            >
-              {issue.identifier ?? issue.id.slice(0, 8)}
-            </span>
+            {!proposedTaskHeader ? (
+              <span
+                data-slot="task-title-identifier"
+                className="hidden shrink-0 font-mono text-sm text-muted-foreground md:inline"
+              >
+                {issue.identifier ?? issue.id.slice(0, 8)}
+              </span>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -7161,13 +7192,22 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       <div
         className={cn(
           "flex min-w-0 flex-wrap items-center gap-2",
-          streamlinedTaskDetailEnabled && "gap-x-3 gap-y-2 md:gap-x-6 md:pl-7",
+          streamlinedTaskDetailEnabled &&
+            (proposedTaskHeader ? "gap-x-6 gap-y-2" : "gap-x-3 gap-y-2 md:gap-x-6 md:pl-7"),
         )}
       >
-        {streamlinedTaskDetailEnabled ? (
+        {proposedTaskHeader ? (
+          <div className="flex shrink-0 items-center gap-2">
+            {issueStatusControl}
+            <span data-slot="task-title-identifier" className="font-mono text-sm text-muted-foreground">
+              {issue.identifier ?? issue.id.slice(0, 8)}
+            </span>
+          </div>
+        ) : null}
+        {streamlinedTaskDetailEnabled && !proposedTaskHeader ? (
           <div className="md:hidden">{issueStatusControl}</div>
         ) : null}
-        {streamlinedTaskDetailEnabled ? (
+        {streamlinedTaskDetailEnabled && !proposedTaskHeader ? (
           <span className="shrink-0 font-mono text-sm text-muted-foreground md:hidden">
             {issue.identifier ?? issue.id.slice(0, 8)}
           </span>
@@ -7425,7 +7465,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                     }
                   }}
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className={proposedTaskHeader ? "h-3 w-3" : "h-4 w-4"} />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-52 p-1" align="end">

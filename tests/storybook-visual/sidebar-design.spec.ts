@@ -11,6 +11,9 @@ test("standalone sidebar supports resize, navigation states, search and producti
   await openSidebar(page);
   const sidebar = page.locator(".design-sidebar");
   await expect(sidebar).toHaveCSS("background-color", "oklch(0.269 0 0)");
+  await expect(sidebar).toHaveCSS("background-clip", "padding-box");
+  const headerBorder = await page.locator(".design-page-header").evaluate(element => getComputedStyle(element).borderBottomColor);
+  await expect(sidebar).toHaveCSS("border-right-color", headerBorder);
   await expect(sidebar.getByRole("link", { name: "Tasks", exact: true })).toHaveAttribute("aria-current", "page");
   const dashboard = sidebar.getByRole("link", { name: "Dashboard", exact: true });
   await dashboard.hover();

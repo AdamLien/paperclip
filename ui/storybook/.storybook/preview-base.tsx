@@ -832,7 +832,7 @@ const preview: Preview = {
         ? Number.parseInt(width, 10) : undefined;
       return (
         <StorybookProviders key={`${context.id}:${theme}`} theme={theme} initialViewportWidth={initialViewportWidth} initialEntries={context.parameters.initialEntries}>
-          {context.parameters.paperclip?.home === "design-proposals" ? <AvatarInitialProvider><div className="design-proposal-theme"><Story /></div></AvatarInitialProvider> : <Story />}
+          {context.parameters.paperclip?.home === "design-proposals" && context.parameters.designProposalTheme !== false ? <AvatarInitialProvider><div className="design-proposal-theme"><Story /></div></AvatarInitialProvider> : <Story />}
         </StorybookProviders>
       );
     },

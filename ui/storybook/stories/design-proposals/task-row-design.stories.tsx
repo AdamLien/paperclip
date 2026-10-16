@@ -32,7 +32,7 @@ function ReviewFrame({ title, detail, children, wide = false }: { title: string;
       <output hidden data-testid="task-row-design-route">{location.pathname}</output>
       <div className={`mx-auto flex flex-col gap-8 ${wide ? "max-w-none" : "max-w-6xl"}`}>
         <header className="flex flex-col gap-3">
-          <p className="text-xs font-medium text-muted-foreground">Paperclip · Design system · Proposed</p>
+          <p className="text-xs font-normal text-muted-foreground">Paperclip · Design system · Proposed</p>
           <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
           <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{detail}</p>
         </header>
@@ -144,7 +144,7 @@ function StateSamples({ density = "comfortable" }: { density?: Density }) {
   return (
     <section className="flex flex-col gap-4" aria-label="Title states">
       <div className="flex flex-col gap-1">
-        <h2 className="text-sm font-medium">Read and unread</h2>
+        <h2 className="text-sm font-normal">Read and unread</h2>
         <p className="text-xs leading-relaxed text-muted-foreground">Hover either row: the title becomes foreground and the row background changes. Weight continues to indicate unread status.</p>
       </div>
       <div className="grid gap-6">
@@ -185,7 +185,7 @@ function TaskRowSpecimen({ density = "comfortable", containerWidth = "standard",
       <div data-testid="task-row-playground-container" className={`task-row-responsive-container flex max-w-full flex-col gap-8 ${widthClass}`}>
         <section className="flex flex-col gap-4" aria-label={`${density === "comfortable" ? "Comfortable" : "Compact"} density specimen`}>
           <div className="flex items-baseline justify-between gap-4">
-            <h2 className="text-sm font-medium">{density === "comfortable" ? "Comfortable" : "Compact"}</h2>
+            <h2 className="text-sm font-normal">{density === "comfortable" ? "Comfortable" : "Compact"}</h2>
             <p className="font-mono text-xs text-muted-foreground">{density === "comfortable" ? "44px" : "32px"} rows · 24px nesting</p>
           </div>
           <TaskTree density={density} />
@@ -259,15 +259,15 @@ export const Summary: Story = {
   },
   render: () => <ReviewFrame title="Task summaries" detail="The same read-style task row in smaller containers. Row height and text size stay fixed; optional metadata yields space to the title.">
     <section aria-label="Standard task summary" className="max-w-2xl space-y-3">
-      <h2 className="text-sm font-medium">Standard · Status, title, task ID, last updated</h2>
+      <h2 className="text-sm font-normal">Standard · Status, title, task ID, last updated</h2>
       <TaskRowGroup><TaskSummaryList label="Standard task summary" issues={[recoveryChild, healthTask, chatTask]} /></TaskRowGroup>
     </section>
     <section aria-label="Narrow task summary" className="w-96 max-w-full space-y-3">
-      <h2 className="text-sm font-medium">Narrow · Status, title, timestamp</h2>
+      <h2 className="text-sm font-normal">Narrow · Status, title, timestamp</h2>
       <TaskRowGroup><TaskSummaryList label="Narrow task summary" issues={[recoveryChild, healthTask, chatTask]} /></TaskRowGroup>
     </section>
     <section aria-label="Smallest task summary" className="w-64 max-w-full space-y-3">
-      <h2 className="text-sm font-medium">Smallest · Status and title</h2>
+      <h2 className="text-sm font-normal">Smallest · Status and title</h2>
       <TaskRowGroup><TaskSummaryList label="Smallest task summary" issues={[recoveryChild, healthTask, chatTask]} /></TaskRowGroup>
     </section>
   </ReviewFrame>,
