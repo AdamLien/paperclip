@@ -238,6 +238,26 @@ describeDatabase("tool definition runtime synchronization", () => {
     expect(updated).toMatchObject({ status: "active", description });
   }, 15000);
 
+  it.each(["add", "edit", "delete", "replace"] as const)("completes profile entry %s with a single database connection", async change => {
+    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "single-entry", name: "Single entry" }).returning();
+    const input = { selectorType: "connection" as const, applicationId, connectionId };
+    const [entry] = await db.insert(toolProfileEntries).values({ companyId, profileId: profile.id, ...input }).returning();
+    const single = createDb(database.connectionString, { maxConnections: 1 });
+    const service = toolAccessService(single);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const work = change === "add" ? service.addProfileEntry(profile.id, input)
+      : change === "edit" ? service.updateProfileEntry(entry.id, { effect: "exclude" })
+        : change === "delete" ? service.deleteProfileEntry(entry.id)
+          : service.updateProfile(profile.id, { entries: [{ ...input, effect: "exclude" }] });
+    const settled = Promise.allSettled([work]);
+    try {
+      await Promise.race([work, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Profile entry waited for another pooled connection")), 3000); })]);
+      const rows = await db.select().from(toolProfileEntries).where(eq(toolProfileEntries.profileId, profile.id));
+      expect(rows).toHaveLength(change === "delete" ? 0 : change === "add" ? 2 : 1);
+      if (change === "edit" || change === "replace") expect(rows[0].effect).toBe("exclude");
+    } finally { clearTimeout(timer); await single.$client.end({ timeout: 1 }); await settled; }
+  }, 10000);
+
   it("journals application and connection configuration", async () => {
     const before = (await events()).length;
     await db.update(toolApplications).set({ name: "Changed application" }).where(eq(toolApplications.id, applicationId));

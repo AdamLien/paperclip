@@ -43,7 +43,7 @@ describeDatabase("connection assignment synchronization", () => {
   });
   const events = () => db.select().from(resourceLifecycleEvents).where(and(eq(resourceLifecycleEvents.companyId, companyId), eq(resourceLifecycleEvents.resourceType, "agent_runtime"))).orderBy(resourceLifecycleEvents.id);
 
-  it("creates gateways without invalidating unrelated standing assignments", async () => {
+  it("journals gateway definitions while preserving ordered agent locks", async () => {
     const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "gateway-fixture", name: "Gateway fixture" }).returning();
     const [lower, higher] = [agentId, peerId].sort();
     let locked!: () => void; let release!: () => void;
@@ -55,19 +55,27 @@ describeDatabase("connection assignment synchronization", () => {
     });
     await held;
     const before = await events();
+    const pids: number[] = [];
     const saves = [higher, lower].map((target, index) => db.transaction(async tx => {
       await tx.execute(sql`SET LOCAL lock_timeout = '8s'`);
+      const [row] = await tx.execute(sql`SELECT pg_backend_pid() AS pid`);
+      pids.push(Number(row.pid));
       return createToolGatewayService(tx as unknown as Db).createNamedGateway({ companyId, body: { name: `Gateway ${index}`, profileId: profile.id, agentId: target } });
     }));
     const completed = Promise.allSettled(saves);
     try {
-      const results = await completed;
-      for (const result of results) if (result.status === "rejected") throw result.reason;
-      expect(await events()).toEqual(before);
+      await vi.waitFor(async () => {
+        expect(pids).toHaveLength(2);
+        for (const pid of pids) {
+          const [row] = await db.execute(sql`SELECT wait_event_type FROM pg_stat_activity WHERE pid = ${pid}`);
+          expect(row.wait_event_type).toBe("Lock");
+        }
+      }, { timeout: 5000 });
     } finally { release(); await blocker; }
     const results = await completed;
     for (const result of results) if (result.status === "rejected") throw result.reason;
     expect(results.map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect((await events()).slice(before.length).map(row => row.resourceId).sort()).toEqual([agentId, agentId, peerId, peerId].sort());
     expect(await db.select().from(toolMcpGateways).where(eq(toolMcpGateways.companyId, companyId))).toHaveLength(2);
     expect(await db.select().from(toolProfileBindings).where(eq(toolProfileBindings.companyId, companyId))).toHaveLength(2);
   }, 15000);

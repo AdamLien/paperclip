@@ -137,11 +137,14 @@ configuration, catalog contents, profile entries, policies, and MCP gateways.
 These changes use the same content-free journal, atomic commit behavior, and
 transaction coalescing. Bulk discovery invalidates once per company per committed
 chunk instead of once per tool. Unchanged rediscovery, health bookkeeping, and
-trust-rule usage counters do not request preparation.
+trust-rule usage counters do not request preparation. Binding and installation
+notifications retain the scoped recipients described above. Definition changes
+use synchronous company-wide fanout with the same documented company-size cost.
 
 Profile entry mutations lock referenced applications, connections, and catalog
 rows before the parent profile. They then change the entries and parent in one
-transaction. Profile replacement uses the same order. Setup finalization and
+transaction, using the reserved connection for validation and profile reads.
+Profile replacement uses the same order. Setup finalization and
 catalog publication can run concurrently without acquiring these locks in the
 opposite order. Policy reorder locks all affected policies in ID order before
 changing priorities.

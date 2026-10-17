@@ -1,5 +1,5 @@
 import { stableHash, descriptorHash } from "./tool-catalog-hash.js";
-import { assertProfileEntryInputs, assertProfileEntryShape } from "./tool-profile-entry-validation.js";
+import { assertProfileEntryInputs } from "./tool-profile-entry-validation.js";
 import { DAYTONA_TOOLS, daytonaClient, daytonaRisk, isDaytonaConnection, isDaytonaToolName } from "./daytona.js";
 import { chatCredentialMutationLease } from "./chat-credential-mutation-lease.js";
 import { notifyChatEndpointWork } from "./chat-work-notifications.js";
@@ -5910,19 +5910,6 @@ export function toolAccessService(
         .filter((install) => install.connectionId === row.id)
         .map(toConnectionInstall),
     }));
-  }
-
-  async function assertProfileEntryInput(
-    companyId: string,
-    input: CreateToolProfileEntryForProfile,
-  ) {
-    assertProfileEntryShape(input);
-    if (input.applicationId)
-      await assertApplication(companyId, input.applicationId);
-    if (input.connectionId)
-      await getConnectionRow(input.connectionId, companyId);
-    if (input.catalogEntryId)
-      await assertCatalogEntry(companyId, input.catalogEntryId);
   }
 
   async function getConnectionRow(idOrUid: string, companyId?: string) {
@@ -19903,8 +19890,8 @@ export function toolAccessService(
       input: CreateToolProfileEntryForProfile,
     ): Promise<ToolProfileEntry> => db.transaction(async tx => {
       const db = tx as unknown as Db;
-      const profile = await getProfileRow(profileId);
-      await assertProfileEntryInput(profile.companyId, input);
+      const profile = await getProfileRow(profileId, undefined, tx);
+      await assertProfileEntryInputs(tx, profile.companyId, [input]);
       await lockProfileEntryReferences(tx, profile.companyId, [input]);
       await tx.select({ id: toolProfiles.id }).from(toolProfiles).where(eq(toolProfiles.id, profile.id)).for("no key update");
       const [row] = await db
@@ -19958,7 +19945,7 @@ export function toolAccessService(
         riskLevel: input.riskLevel ?? existing.riskLevel,
         conditions: input.conditions ?? existing.conditions,
       };
-      await assertProfileEntryInput(existing.companyId, next);
+      await assertProfileEntryInputs(tx, existing.companyId, [next]);
       await lockProfileEntryReferences(tx, existing.companyId, [next]);
       await tx.select({ id: toolProfiles.id }).from(toolProfiles).where(eq(toolProfiles.id, existing.profileId)).for("no key update");
       const [row] = await db
