@@ -147,7 +147,8 @@ transaction, using the reserved connection for validation and profile reads.
 Profile replacement uses the same order. Setup finalization and
 catalog publication can run concurrently without acquiring these locks in the
 opposite order. Policy reorder locks all affected policies in ID order before
-changing priorities.
+changing priorities. Connection removal locks the managed profile before deleting
+its entries in the same transaction.
 
 The bounded assignment snapshot remains the API described above. An invalidation
 can advance its revision without changing its assignment fields. Consumers must

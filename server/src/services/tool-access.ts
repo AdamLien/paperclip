@@ -6606,17 +6606,14 @@ export function toolAccessService(
     let gatewayTokensRevoked = 0;
     let gatewaySessionsRevoked = 0;
     if (appProfile) {
-      appProfileEntriesRemoved = (
-        await db
-          .delete(toolProfileEntries)
-          .where(
-            and(
-              eq(toolProfileEntries.companyId, connection.companyId),
-              eq(toolProfileEntries.profileId, appProfile.id),
-            ),
-          )
-          .returning({ id: toolProfileEntries.id })
-      ).length;
+      appProfileEntriesRemoved = await db.transaction(async tx => {
+        await tx.select({ id: toolProfiles.id }).from(toolProfiles)
+          .where(and(eq(toolProfiles.companyId, connection.companyId), eq(toolProfiles.id, appProfile.id)))
+          .for("no key update");
+        return (await tx.delete(toolProfileEntries)
+          .where(and(eq(toolProfileEntries.companyId, connection.companyId), eq(toolProfileEntries.profileId, appProfile.id)))
+          .returning({ id: toolProfileEntries.id })).length;
+      });
       appProfileBindingsRemoved = (
         await db
           .delete(toolProfileBindings)

@@ -238,6 +238,45 @@ describeDatabase("tool definition runtime synchronization", () => {
     expect(updated).toMatchObject({ status: "active", description });
   }, 15000);
 
+  it("orders connection removal before setup finalization and runtime fanout", async () => {
+    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: `app:${connectionId}`, name: "Removal fixture" }).returning();
+    await db.insert(toolProfileEntries).values({ companyId, profileId: profile.id, selectorType: "connection", connectionId, applicationId });
+    const single = createDb(database.connectionString, { maxConnections: 1 });
+    await single.execute(sql`SET lock_timeout = '8s'`);
+    const [removalPid] = await single.execute(sql`SELECT pg_backend_pid() AS pid`);
+    let locked!: () => void; let release!: () => void;
+    const held = new Promise<void>(resolve => { locked = resolve; });
+    const resume = new Promise<void>(resolve => { release = resolve; });
+    const blocker = db.transaction(async tx => {
+      await tx.select().from(agents).where(eq(agents.id, [agentId, peerId].sort()[0])).for("no key update");
+      locked(); await resume;
+    });
+    await held;
+    let removal: Promise<PromiseSettledResult<unknown>[]> | undefined;
+    const waitForLock = (pid: number) => vi.waitFor(async () => {
+      const [row] = await db.execute(sql`SELECT wait_event_type FROM pg_stat_activity WHERE pid = ${pid}`);
+      expect(row.wait_event_type).toBe("Lock");
+    }, { timeout: 5000 });
+    let finishPid: number | undefined;
+    let finish: Promise<PromiseSettledResult<unknown>[]> | undefined;
+    try {
+      try {
+        finish = Promise.allSettled([db.transaction(async tx => {
+          await tx.execute(sql`SET LOCAL lock_timeout = '8s'`);
+          const [row] = await tx.execute(sql`SELECT pg_backend_pid() AS pid`);
+          finishPid = Number(row.pid);
+          return toolAccessService(tx as unknown as Db).finishGalleryAppConnection(companyId, connectionId, { enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: "all_agents" });
+        })]);
+        await vi.waitFor(() => expect(finishPid).toBeDefined(), { timeout: 5000 });
+        await waitForLock(finishPid!);
+        removal = Promise.allSettled([toolAccessService(single).archiveConnection(connectionId, companyId)]);
+        await waitForLock(Number(removalPid.pid));
+      } finally { release(); await blocker; }
+      for (const result of [...await removal!, ...await finish!]) if (result.status === "rejected") throw result.reason;
+      expect((await db.select().from(toolConnections).where(eq(toolConnections.id, connectionId)))[0].status).toBe("archived");
+    } finally { release(); await blocker; await finish; await removal; await single.$client.end({ timeout: 1 }); }
+  }, 15000);
+
   it.each(["add", "edit", "delete", "replace"] as const)("completes profile entry %s with a single database connection", async change => {
     const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "single-entry", name: "Single entry" }).returning();
     const input = { selectorType: "connection" as const, applicationId, connectionId };
