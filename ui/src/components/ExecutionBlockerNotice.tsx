@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ExecutionBlocker, Issue } from "@paperclipai/shared";
-import { WorkspaceFileRecovery } from "./WorkspaceFileRecovery";
 import { agentsApi } from "../api/agents";
 import { activityApi } from "../api/activity";
 import { issuesApi } from "../api/issues";
@@ -8,6 +7,8 @@ import { queryKeys } from "../lib/queryKeys";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import { Link } from "../lib/router";
+import { deriveRecoveryDisplayState } from "../lib/recovery-display";
+import { readRecoveryRetryLineage } from "../lib/recovery-lineage";
 
 export function ExecutionBlockerNotice({ companyId, issueId, issueStatus, canManage = false, blocker, onRetried, className }: {
   className?: string;
@@ -22,7 +23,7 @@ export function ExecutionBlockerNotice({ companyId, issueId, issueStatus, canMan
   const { data: recovery, error: recoveryError } = useQuery({
     queryKey: queryKeys.issues.recoveryActions(issueId, blocker.recoveryActionId ?? null, blocker.runId ?? null),
     queryFn: () => issuesApi.recoveryActions(issueId),
-    enabled: canManage && Boolean(blocker.recoveryActionId) && !["done", "cancelled"].includes(issueStatus ?? ""),
+    enabled: Boolean(blocker.recoveryActionId) && !["done", "cancelled"].includes(issueStatus ?? ""),
     refetchInterval: 5_000,
   });
   const hold = recovery?.actions.find(action => action.id === blocker.recoveryActionId &&
@@ -47,24 +48,19 @@ export function ExecutionBlockerNotice({ companyId, issueId, issueStatus, canMan
       }
     },
   });
+  // A live, source-bound recovery belongs to the normal Working presentation.
+  // A settled action or an unknown external outcome is still a blocker.
+  if (hold && !replayBlocked && deriveRecoveryDisplayState(hold) === "in_progress" &&
+    readRecoveryRetryLineage(hold)?.hasDurablePath) return null;
+  const hasDetails = Boolean(blocker.runError || (blocker.workspaceRepairRequired && blocker.nextAction) ||
+    (canManage && hold && (replayBlocked || hold.resolutionNote)));
   return (
     <div role="status" aria-label="Task recovery" className={cn("task-context-notice flex flex-wrap items-center justify-between gap-2", className)}>
       <div className="min-w-0 flex-1 break-words">
-        <p>{modelRejected ? "Model unavailable." : "Recovery needed."}{blocker.runError ? ` ${blocker.runError}` : ""}</p>
+        <p className="font-medium">{modelRejected ? "Model unavailable." : "Work paused."}</p>
         {modelRejected && <p>Choose a supported model or clear the task's model override, then retry.</p>}
         {blocker.workspaceRepairRequired ? (
-          <>
-            {/* The stored next action is an operator runbook step; lead with what happened. This hold also covers
-                unsafe archives and local runs, so do not claim retries or a retained sandbox here. */}
-            <p>
-              Paperclip could not restore the agent's workspace files after its last run. A board operator must
-              recover the files before the agent can continue.
-            </p>
-            <details>
-              <summary className="cursor-pointer">Technical details</summary>
-              <p>{blocker.nextAction}</p>
-            </details>
-          </>
+          <p>The workspace needs operator attention before work can continue.</p>
         ) : <p>{blocker.nextAction}</p>}
         {Boolean(blocker.savedMessageCount) && (
           <p>{blocker.savedMessageCount} saved {blocker.savedMessageCount === 1 ? "message is" : "messages are"} waiting for recovery.</p>
@@ -85,15 +81,15 @@ export function ExecutionBlockerNotice({ companyId, issueId, issueStatus, canMan
         <p role="alert" className="w-full text-destructive">{retry.error.message}</p>
       )}
       {runsError && <p role="alert" className="w-full text-destructive">{runsError.message}</p>}
-      {canManage && hold && <details className="w-full">
+      {hasDetails && <details className="w-full text-muted-foreground">
         <summary className="cursor-pointer">Recovery details</summary>
-        {replayBlocked &&
+        {blocker.runError && <p className="break-words">{blocker.runError}</p>}
+        {blocker.workspaceRepairRequired && <p>{blocker.nextAction}</p>}
+        {canManage && replayBlocked &&
           <p>Paperclip stopped automatic retries to avoid repeating work with an unknown outcome. Inspect the run before requesting continuation.</p>}
-        {hold.resolutionNote && <p>{hold.resolutionNote}</p>}
+        {canManage && hold?.resolutionNote && <p>{hold.resolutionNote}</p>}
       </details>}
       {recoveryError && <p role="alert" className="w-full text-destructive">Unable to load recovery details: {recoveryError.message}</p>}
-      {issueStatus && <WorkspaceFileRecovery key={`${blocker.recoveryActionId}:${blocker.runId}`} issueId={issueId}
-        issueStatus={issueStatus} blocker={blocker} canManage={canManage} onRecorded={onRetried} />}
     </div>
   );
 }
