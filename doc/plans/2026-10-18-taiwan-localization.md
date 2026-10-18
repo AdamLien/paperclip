@@ -1,13 +1,13 @@
 # Taiwan Traditional Chinese localization
 
-Status: translation draft, not deployed.
+Status: upstream integration draft.
 
-Based on the deployed public revision bba6a45f0d364cfd962ac59b3bdf2426a8222adb to avoid combining localization with a server upgrade.
+Scope: Taiwan Traditional Chinese catalogs, static UI literal localization, language selection and persisted locale preference. English remains the fallback. User-authored and API data remain unchanged.
 
-Completed: reuse existing i18next; import community static UI localization with attribution; create Taiwan catalogs and terminology overrides; language selector and persistence; focused tests; production UI build; typecheck and token gates; local login-page preview.
+The source changes were ported onto upstream master on 2026-10-18. Preserve upstream dependency versions when applying the localization changes. No deployment branding, server configuration or release tooling is part of this contribution.
 
-Completed follow-up: accounted for all 2,885 original missing candidates (2,843 translations and 42 reviewed technical/brand literals preserved). Fresh source scan: 13,176 catalog-matched positions, 45 preserved positions, zero missing static candidates. Runtime checks cover every added translation and preserved literal.
+The original audit resolved 2,885 distinct candidates: 2,843 translated and 42 preserved technical or brand literals. The inventory describes the original source baseline. It is not a coverage claim for later upstream pages.
 
-Remaining: review the converted catalog for meaning and Taiwan usage; connect labels outside static UI output positions; validate authenticated page journeys and server error messages; full repository verification; independent review; deployment with rollback; actual mobile acceptance.
+Remaining: contextual human review of converted catalogs; dynamic label and server-error coverage; full repository checks; authenticated and mobile acceptance on the upstream integration branch. Existing localization PRs overlap this implementation and require maintainer direction before merge. No prior Discord design agreement is claimed.
 
-Keep deployment branding and internal configuration outside any upstream contribution. Do not submit this draft as complete localization. Coordinate with the existing upstream i18n contributors before opening a competing upstream PR.
+Attribution and implementation details are in ui/src/i18n/README.md.
