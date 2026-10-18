@@ -1,3 +1,5 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
+import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PatchInstanceGeneralSettings, BackupRetentionPolicy } from "@paperclipai/shared";
@@ -21,6 +23,7 @@ import { useSignOut } from "@/hooks/useSignOut";
 const FEEDBACK_TERMS_URL = import.meta.env.VITE_FEEDBACK_TERMS_URL?.trim() || "https://paperclip.ing/tos";
 
 export function InstanceGeneralSettings({ embedded = false }: { embedded?: boolean }) {
+  const { i18n } = useTranslation();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -30,10 +33,10 @@ export function InstanceGeneralSettings({ embedded = false }: { embedded?: boole
   useEffect(() => {
     if (embedded) return;
     setBreadcrumbs([
-      { label: "Settings", href: "/company/settings" },
-      { label: "General" },
+      { label: translateUiLiteral("Settings"), href: "/company/settings" },
+      { label: translateUiLiteral("General") },
     ]);
-  }, [embedded, setBreadcrumbs]);
+  }, [embedded, setBreadcrumbs, i18n.resolvedLanguage]);
 
   const generalQuery = useQuery({
     queryKey: queryKeys.instance.generalSettings,
@@ -239,7 +242,7 @@ export function InstanceGeneralSettings({ embedded = false }: { embedded?: boole
                       })
                     }
                   >
-                    <div className="text-sm font-medium">{label}</div>
+                    <div className="text-sm font-medium">{translateUiLiteral(label)}</div>
                   </button>
                 );
               })}
@@ -269,7 +272,7 @@ export function InstanceGeneralSettings({ embedded = false }: { embedded?: boole
                       })
                     }
                   >
-                    <div className="text-sm font-medium">{label}</div>
+                    <div className="text-sm font-medium">{translateUiLiteral(label)}</div>
                   </button>
                 );
               })}
@@ -338,20 +341,16 @@ export function InstanceGeneralSettings({ embedded = false }: { embedded?: boole
                     })
                   }
                 >
-                  <div className="text-sm font-medium">{option.label}</div>
+                  <div className="text-sm font-medium">{translateUiLiteral(option.label)}</div>
                   <div className="text-xs text-muted-foreground">
-                    {option.description}
+                    {translateUiLiteral(option.description)}
                   </div>
                 </button>
               );
             })}
           </div>
           <p className="text-xs text-muted-foreground">
-            To retest the first-use prompt in local dev, remove the{" "}
-            <code>feedbackDataSharingPreference</code> key from the{" "}
-            <code>instance_settings.general</code> JSON row for this instance, or set it back to{" "}
-            <code>"prompt"</code>. Unset and <code>"prompt"</code> both mean no default has been
-            chosen yet.
+            {translateUiLiteral('In local development, reset feedbackDataSharingPreference in instance_settings.general to "prompt" or remove that key to show the first-use sharing prompt again.')}
           </p>
         </div>
       </section>
@@ -387,10 +386,11 @@ export function InstanceGeneralSettings({ embedded = false }: { embedded?: boole
 }
 
 function StatusBox({ label, value }: { label: string; value: string }) {
+  useUiLiteralLocale();
   return (
     <div className="space-y-1">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-sm font-medium">{value}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{translateUiLiteral(label)}</div>
+      <div className="text-sm font-medium">{translateUiLiteral(value)}</div>
     </div>
   );
 }
