@@ -1,3 +1,4 @@
+import { UiLocaleSelect } from "./UiLocaleSelect";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -270,6 +271,7 @@ export function SidebarAccountMenu({
                   </span>
                 </button>
               ) : null}
+              <UiLocaleSelect />
               <SidebarServerInfo />
             </div>
           </PopoverContent>
