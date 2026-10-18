@@ -27,6 +27,9 @@ export function RecoveryNoticeFixture({ state = "blocked", children }: {
       { runId: "stopped-run", agentId: "agent", status: state === "automatic" ? "running" : "failed" },
     ]);
     queryClient.setQueryData(queryKeys.issues.recoveryActions("storybook-recovery", "recovery", "stopped-run"), response);
+    queryClient.setQueryData(queryKeys.issues.attachments("storybook-recovery"), [
+      { id: "saved-source", originalFilename: "test-audit.patch", byteSize: 4096 },
+    ]);
     return queryClient;
   });
   useLayoutEffect(() => {

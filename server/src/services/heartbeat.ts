@@ -2173,7 +2173,7 @@ export function heartbeatService(
           await issuesSvc.checkout(
             issueId,
             agent.id,
-            ["todo", "backlog", "blocked"],
+            typeof context.workspaceReconstructionActionId === "string" ? ["todo"] : ["todo", "backlog", "blocked"],
             run.id,
           );
           context[PAPERCLIP_HARNESS_CHECKOUT_KEY] = true;
@@ -2844,6 +2844,7 @@ export function heartbeatService(
         if (
           !issueId ||
           (!isResolvedInteractionContinuationWakeContext(context) &&
+            typeof context.workspaceReconstructionActionId !== "string" &&
             !["native_safe_replacement", "native_provider_overloaded"].includes(run.scheduledRetryReason ?? ""))
         ) {
           return { dispatched: true, resultPromise: dispatch(() => {}) };

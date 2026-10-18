@@ -33,6 +33,7 @@ import {
 } from "../explicit-native-continuation.js";
 import { canRetryStoppedRun } from "../cancelled-native-startup.js";
 import { getExecutionBlocker, hasPendingRunCleanup } from "../execution-blocker.js";
+import { validateNativeWorkspaceReconstruction } from "../native-runtime/native-workspace-reconstruction.js";
 import { isConversationAdapter } from "../conversation-continuation.js";
 import { recordExecutionWait } from "../execution-wait.js";
 import {
@@ -3102,6 +3103,13 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             const [reconciledRun] = await tx.select().from(heartbeatRuns).where(and(
               eq(heartbeatRuns.companyId, issue.companyId), eq(heartbeatRuns.id, sourceRunId),
             ));
+            if (decision.workspaceReconstruction) {
+              await validateNativeWorkspaceReconstruction(tx as unknown as Db, {
+                companyId: issue.companyId, issueId: issue.id, runId: sourceRunId, actionId,
+              });
+              reconciledRestoreRetryCount = executionFailureRetryCount(reconciledRun!);
+              enrichedContextSnapshot.workspaceReconstructionActionId = action.id;
+            }
             if (hasWorkspaceRestoreFailure(reconciledRun?.resultJson)) {
               if ((readNonEmptyString(decision.workspaceRepairEvidence)?.length ?? 0) < 20)
                 return { kind: "skipped" as const };
@@ -3170,7 +3178,9 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           // A bound chat request has already rechecked its current principal
           // above. Treat its new user message like a board comment, but keep
           // failed-run retry actions on their separate exact-request path.
-          if (executionBlocker && !(await admitExplicitNativeContinuation({
+          const ownsReconstructionContinuation = reconciledSourceRunId && executionBlocker?.runId === reconciledSourceRunId
+            && executionBlocker.recoveryActionId === enrichedContextSnapshot.recoveryActionId;
+          if (executionBlocker && !ownsReconstructionContinuation && !(await admitExplicitNativeContinuation({
             db: tx as unknown as Db, companyId: issue.companyId, issueId: issue.id,
             agentId, actorType: opts.requestedByActorType, actorId: opts.requestedByActorId,
             reason: durableRequest && !failedChatRetry ? "issue_commented" : reason,
@@ -3968,7 +3978,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             queuedCommentInterruptId: opts.queuedCommentInterruptId,
             queuedCommentRequestId: opts.queuedCommentRequestId,
           });
-          if (!explicitContinuation && executionBlocker) return deferBlockedExecution(executionBlocker);
+          if (!explicitContinuation && executionBlocker && !ownsReconstructionContinuation) return deferBlockedExecution(executionBlocker);
           if (explicitContinuation) {
             enrichedContextSnapshot.forceFreshSession = true;
             enrichedContextSnapshot.previousRunId = explicitContinuation.previousRunId;
@@ -4013,7 +4023,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           // in separate turns, or finalization will deliver it a second time.
           const pendingComments =
             (executionWaitRequestId || canCoalesceComments) &&
-            !(await getExecutionBlocker(tx as unknown as Db, issue.companyId, issue.id))
+            (ownsReconstructionContinuation || !(await getExecutionBlocker(tx as unknown as Db, issue.companyId, issue.id)))
               ? await tx
                   .select()
                   .from(agentWakeupRequests)
@@ -4094,6 +4104,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             })
             .returning()
             .then((rows) => rows[0]);
+
+          if (ownsReconstructionContinuation) {
+            await tx.update(issueRecoveryActions).set({ evidence: sql`${issueRecoveryActions.evidence} || ${JSON.stringify({
+              continuationDelivery: "delivered", continuationRunId: newRun.id,
+            })}::jsonb` }).where(and(eq(issueRecoveryActions.companyId, issue.companyId),
+              eq(issueRecoveryActions.id, String(enrichedContextSnapshot.recoveryActionId)),
+              sql`${issueRecoveryActions.evidence}->>'continuationDelivery' = 'pending'`));
+          }
 
           await tx
             .update(agentWakeupRequests)

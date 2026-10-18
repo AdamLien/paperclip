@@ -13,7 +13,7 @@ vi.mock("../lib/router", () => ({
 }));
 vi.mock("../api/agents", () => ({ agentsApi: { retryFailedRun: vi.fn() } }));
 vi.mock("../api/activity", () => ({ activityApi: { runsForIssue: vi.fn() } }));
-vi.mock("../api/issues", () => ({ issuesApi: { recoveryActions: vi.fn() } }));
+vi.mock("../api/issues", () => ({ issuesApi: { recoveryActions: vi.fn(), listAttachments: vi.fn(), reconstructWorkspace: vi.fn() } }));
 
 describe("stopped task recovery notice", () => {
   let root: Root;
@@ -23,6 +23,7 @@ describe("stopped task recovery notice", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.mocked(issuesApi.recoveryActions).mockResolvedValue({ active: null, actions: [] });
+    vi.mocked(issuesApi.listAttachments).mockResolvedValue([]);
     container = document.createElement("div"); document.body.append(container);
     root = createRoot(container);
     client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -119,6 +120,24 @@ describe("stopped task recovery notice", () => {
     expect(container.querySelector("textarea, input")).toBeNull();
     expect(container.querySelector("a")?.textContent).toBe("Inspect run");
     expect(agentsApi.retryFailedRun).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("preserves source reconstruction and its queued state: %s", async pending => {
+    await act(async () => root.render(<QueryClientProvider client={client}>
+      <ExecutionBlockerNotice companyId="company" issueId="task" canManage issueStatus="blocked" onRetried={onRetried} blocker={{
+        recoveryActionId: "recovery", runId: "failed-run", agentId: "agent", cause: "native_workspace_sync_out_unrecoverable",
+        workspaceRepairRequired: true, canReconstructWorkspace: !pending, workspaceReconstructionPending: pending,
+        workspaceRecoveryStatusVersion: 1, nextAction: pending ? "Continuation from saved sources is queued and waiting for execution checks." : "Inspect surviving source attachments.",
+      }} />
+    </QueryClientProvider>));
+    expect(container.textContent).toContain(pending ? "Continuation queued." : "Continue from saved sources");
+    expect(container.textContent).not.toContain(pending ? "Work paused." : "recovered workspace files");
+    expect(container.querySelector("summary")?.closest("details")?.open).toBe(false);
+    expect(issuesApi.reconstructWorkspace).not.toHaveBeenCalled();
+    if (pending) {
+      expect(container.querySelector("textarea")).toBeNull();
+      expect(issuesApi.listAttachments).not.toHaveBeenCalled();
+    }
   });
 
   it.each(["running", "missed", "wrong-run", "replay-blocked", "delegated"])("uses observed recovery liveness, including for readers: %s", async state => {

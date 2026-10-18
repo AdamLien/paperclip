@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ExecutionBlocker, Issue } from "@paperclipai/shared";
+import { WorkspaceReconstructionRecovery } from "./WorkspaceReconstructionRecovery";
 import { agentsApi } from "../api/agents";
 import { activityApi } from "../api/activity";
 import { issuesApi } from "../api/issues";
@@ -62,9 +63,9 @@ export function ExecutionBlockerNotice({ companyId, issueId, issueStatus, canMan
   return (
     <div role="status" aria-label="Task recovery" className={cn("task-context-notice flex flex-wrap items-center justify-between gap-2", className)}>
       <div className="min-w-0 flex-1 break-words">
-        <p className="font-medium">{modelRejected ? "Model unavailable." : "Work paused."}</p>
+        <p className="font-medium">{blocker.workspaceReconstructionPending ? "Continuation queued." : modelRejected ? "Model unavailable." : "Work paused."}</p>
         {modelRejected && <p>Choose a supported model or clear the task's model override, then retry.</p>}
-        {blocker.workspaceRepairRequired ? (
+        {blocker.workspaceReconstructionPending ? <p>{blocker.nextAction}</p> : blocker.workspaceRepairRequired ? (
           <p>The workspace needs operator attention before work can continue.</p>
         ) : <p>{blocker.nextAction}</p>}
         {Boolean(blocker.savedMessageCount) && (
@@ -95,6 +96,8 @@ export function ExecutionBlockerNotice({ companyId, issueId, issueStatus, canMan
         {canManage && hold?.resolutionNote && <p>{hold.resolutionNote}</p>}
       </details>}
       {recoveryError && <p role="alert" className="w-full text-destructive">Unable to load recovery details: {recoveryError.message}</p>}
+      {blocker.canReconstructWorkspace && <WorkspaceReconstructionRecovery key={`reconstruct:${blocker.recoveryActionId}:${blocker.runId}`}
+        issueId={issueId} blocker={blocker} canManage={canManage} onRecorded={onRetried} />}
     </div>
   );
 }

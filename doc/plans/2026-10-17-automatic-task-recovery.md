@@ -64,3 +64,7 @@ map recipes where behavior changes.
   and duplicate-call controls. Other drivers recheck the turn after the context
   read. This PR's pending Copilot v21 declaration binds the updated shared
   sources; immutable v20 history and the qualification gate stay intact.
+- Master integration preserves the newer saved-source reconstruction path after
+  confirmed source destruction. The task keeps its collapsed operator decision
+  and a truthful queued status; automatic run recovery still shows no notice.
+  Production-component stories cover both reconstruction states as well.

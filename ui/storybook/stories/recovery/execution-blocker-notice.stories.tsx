@@ -78,3 +78,25 @@ export const RecoveryReadUnavailable: Story = {
   },
 };
 export const Mobile: Story = { args: { blocker: fileHold }, globals: { viewport: { value: "mobile", isRotated: false } }, play: noRepairForm };
+export const SourceReconstruction: Story = {
+  args: { blocker: { ...fileHold, canReconstructWorkspace: true, workspaceRecoveryStatusVersion: 1,
+    nextAction: "The original workspace was destroyed. Continue only from verified surviving source attachments." } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Continue from saved sources")).toBeVisible();
+    await expect(canvas.queryByRole("textbox")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByText("Continue from saved sources"));
+    await expect(canvas.getByText("test-audit.patch (4096 bytes)")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Rebuild and continue" })).toBeDisabled();
+  },
+};
+export const ReconstructionQueued: Story = {
+  args: { blocker: { ...fileHold, workspaceReconstructionPending: true,
+    nextAction: "Continuation from saved sources is queued and waiting for execution checks." } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Continuation queued.")).toBeVisible();
+    await expect(canvas.queryByText("Work paused.")).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("textbox")).not.toBeInTheDocument();
+  },
+};

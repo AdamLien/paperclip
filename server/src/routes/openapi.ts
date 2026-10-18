@@ -243,6 +243,7 @@ import {
   createAcceptedPlanDecompositionSchema,
   resolveIssueRecoveryActionSchema,
   retryWorkspaceExportSchema,
+  reconstructWorkspaceSchema,
   resumeWorkspaceFinalizationSchema,
   cancelIssueThreadInteractionSchema,
   // Secret provider configs and remote import
@@ -10665,6 +10666,15 @@ registerCurrentRoute({
   tags: ["issues"],
   summary: "Retry only workspace export for a repaired accepted native result",
   body: retryWorkspaceExportSchema,
+  responses: { 202: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
+});
+
+registerCurrentRoute({
+  method: "post",
+  path: "/api/issues/{id}/recovery-actions/reconstruct-workspace",
+  tags: ["issues"],
+  summary: "Continue from saved task attachments after confirmed destruction of the original workspace",
+  body: reconstructWorkspaceSchema,
   responses: { 202: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 
