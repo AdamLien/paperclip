@@ -48,6 +48,12 @@ map recipes where behavior changes.
   incomplete checks from incompatible artifacts, and holds after its own read
   budget is exhausted. Reattachment cannot renew that budget through an
   unchanged provider-attempt counter.
-- Next: finish OpenCode process-boundary and full workspace checks, then review
-  and publish the PR. The source incident remains held pending safe operator
-  inspection; this branch has not been deployed.
+- OpenCode process-boundary refusal and acceptance pass; all 218 selected
+  provider tests and 84 recovery UI tests pass. Workspace typecheck/build and
+  focused final server/UI checks pass. The standalone Storybook builds.
+- PR [#16686](https://github.com/paperclipai/paperclip/pull/16686) is published.
+  Its initial review found unchanged-poll expiry and cached-activity read errors;
+  both now have failing-baseline/passing-treatment regressions and fixes. The
+  latest review and CI are the delivery record. Full local verification is also
+  running. The source incident remains held pending safe operator inspection;
+  this branch has not been deployed.
