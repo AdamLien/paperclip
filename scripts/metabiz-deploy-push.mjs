@@ -95,7 +95,8 @@ async function clonePackageDependencies(sourcePackages, stagedRelease) {
     let sourceModulesRealpath;
     try {
       sourceModulesRealpath = await realpath(sourceModules);
-    } catch {
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
       throw new Error(`missing package-local dependencies: ${sourceModules}`);
     }
     await rm(stagedModules, { recursive: true, force: true });
