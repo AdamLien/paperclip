@@ -9,6 +9,7 @@ import { cn } from "../lib/utils";
 import { Link } from "../lib/router";
 import { deriveRecoveryDisplayState } from "../lib/recovery-display";
 import { readRecoveryRetryLineage } from "../lib/recovery-lineage";
+import { useSecondTick } from "../hooks/useSecondTick";
 
 export function ExecutionBlockerNotice({ companyId, issueId, issueStatus, canManage = false, blocker, onRetried, className }: {
   className?: string;
@@ -48,10 +49,14 @@ export function ExecutionBlockerNotice({ companyId, issueId, issueStatus, canMan
       }
     },
   });
-  // A live, source-bound recovery belongs to the normal Working presentation.
-  // A settled action or an unknown external outcome is still a blocker.
-  if (hold && !replayBlocked && deriveRecoveryDisplayState(hold) === "in_progress" &&
-    readRecoveryRetryLineage(hold)?.hasDurablePath) return null;
+  const now = Date.now();
+  const lineage = hold ? readRecoveryRetryLineage(hold, { now }) : null;
+  const recovering = Boolean(!recoveryError && !runsError && hold && !replayBlocked &&
+    deriveRecoveryDisplayState(hold, { now }) === "in_progress" && lineage?.hasDurablePath);
+  // Identical poll responses do not render again. Recheck a scheduled path's
+  // expiry with the shared clock, and stop ticking once it expires or starts.
+  useSecondTick(Boolean(recovering && lineage?.nextRetryAt && !lineage.liveRunId));
+  if (recovering) return null;
   const hasDetails = Boolean(blocker.runError || (blocker.workspaceRepairRequired && blocker.nextAction) ||
     (canManage && hold && (replayBlocked || hold.resolutionNote)));
   return (

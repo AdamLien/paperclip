@@ -4,18 +4,18 @@ import type { IssueRecoveryAction } from "@paperclipai/shared";
 import { queryKeys } from "@/lib/queryKeys";
 import { recoveryAction } from "../workspace-finalization-recovery/fixtures";
 
-export type RecoveryFixtureState = "blocked" | "automatic" | "expired" | "recorded" | "rejected";
+export type RecoveryFixtureState = "blocked" | "automatic" | "expired" | "recorded" | "rejected" | "unavailable";
 
 export function RecoveryNoticeFixture({ state = "blocked", children }: {
   state?: RecoveryFixtureState; children: ReactNode;
 }) {
   const action: IssueRecoveryAction = {
     ...recoveryAction, id: "recovery", sourceIssueId: "storybook-recovery",
-    evidence: { runId: "stopped-run", automaticRecovery: { replay: ["automatic", "expired"].includes(state) ? "held" : "blocked" } },
-    ...(state === "automatic" || state === "expired" ? {
+    evidence: { runId: "stopped-run", automaticRecovery: { replay: ["automatic", "expired", "unavailable"].includes(state) ? "held" : "blocked" } },
+    ...(["automatic", "expired", "unavailable"].includes(state) ? {
       status: "active", ownerType: "agent", attemptCount: 1, maxAttempts: 3,
       wakePolicy: { kind: "resume_native_run", runId: "stopped-run", attempt: 1, maxAttempts: 3, notBefore: "2020-01-01T00:00:00Z" },
-      nativeRunActivity: state === "automatic" ? { runId: "stopped-run", status: "running", workspaceOperationId: null } : null,
+      nativeRunActivity: state !== "expired" ? { runId: "stopped-run", status: "running", workspaceOperationId: null } : null,
     } : {}),
     resolutionNote: state === "recorded" ? "The recovered workspace was verified. External actions still require inspection before continuation."
       : state === "rejected" ? "The previous execution could not be verified stopped. The original workspace remains held." : null,
@@ -34,10 +34,13 @@ export function RecoveryNoticeFixture({ state = "blocked", children }: {
     const fixtureFetch: typeof window.fetch = async (input, init) => {
       const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       const path = new URL(rawUrl, window.location.origin).pathname;
-      if (path === "/api/issues/storybook-recovery/recovery-actions" && (!init?.method || init.method === "GET")) return Response.json(response);
+      if (path === "/api/issues/storybook-recovery/recovery-actions" && (!init?.method || init.method === "GET")) {
+        return state === "unavailable" ? Response.json({ error: "Recovery service unavailable" }, { status: 503 }) : Response.json(response);
+      }
       return originalFetch(input, init);
     };
     window.fetch = fixtureFetch;
+    if (state === "unavailable") void client.refetchQueries({ queryKey: queryKeys.issues.recoveryActions("storybook-recovery", "recovery", "stopped-run") });
     return () => { if (window.fetch === fixtureFetch) window.fetch = originalFetch; client.clear(); };
   }, [client, state]);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;

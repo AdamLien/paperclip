@@ -70,4 +70,11 @@ export const AutomaticRecovery: Story = {
   },
 };
 export const MissedRecovery: Story = { args: { blocker: fileHold }, parameters: { recoveryState: "expired" }, play: noRepairForm };
+export const RecoveryReadUnavailable: Story = {
+  args: { blocker: fileHold }, parameters: { recoveryState: "unavailable" },
+  play: async context => {
+    await expect(await within(context.canvasElement).findByRole("alert")).toHaveTextContent("Recovery service unavailable");
+    await noRepairForm(context);
+  },
+};
 export const Mobile: Story = { args: { blocker: fileHold }, globals: { viewport: { value: "mobile", isRotated: false } }, play: noRepairForm };

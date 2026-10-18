@@ -7,6 +7,7 @@ import { ExecutionBlockerNotice } from "./ExecutionBlockerNotice";
 import { agentsApi } from "../api/agents";
 import { activityApi } from "../api/activity";
 import { issuesApi } from "../api/issues";
+import { queryKeys } from "../lib/queryKeys";
 vi.mock("../lib/router", () => ({
   Link: ({ to, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => <a href={to} {...props} />,
 }));
@@ -145,6 +146,53 @@ describe("stopped task recovery notice", () => {
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
     expect(agentsApi.retryFailedRun).toHaveBeenCalledWith("agent", "failed-run", "company");
     expect(onRetried).toHaveBeenCalledOnce();
+  });
+
+  it("reveals a missed retry when every recovery poll returns identical data", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-18T00:00:00Z"));
+    try {
+      const action = { id: "recovery", kind: "active_run_watchdog", status: "active", ownerType: "agent", outcome: null,
+        evidence: { runId: "failed-run" }, attemptCount: 1, maxAttempts: 3,
+        wakePolicy: { kind: "resume_native_run", runId: "failed-run", attempt: 1, maxAttempts: 3,
+          notBefore: "2026-10-18T00:00:10Z" }, nativeRunActivity: null };
+      const response = { active: action, actions: [action] };
+      vi.mocked(issuesApi.recoveryActions).mockResolvedValue(response as never);
+      await act(async () => root.render(<QueryClientProvider client={client}>
+        <ExecutionBlockerNotice companyId="company" issueId="expiry-task" issueStatus="blocked" onRetried={onRetried} blocker={{
+          recoveryActionId: "recovery", runId: "failed-run", agentId: "agent",
+          cause: "native_continuation_requires_reconciliation", nextAction: "Inspect the missed recovery.",
+        }} />
+      </QueryClientProvider>));
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(container.querySelector('[aria-label="Task recovery"]')).toBeNull();
+      const before = vi.mocked(issuesApi.recoveryActions).mock.calls.length;
+      await act(async () => { await vi.advanceTimersByTimeAsync(41_000); });
+      expect(vi.mocked(issuesApi.recoveryActions).mock.calls.length).toBeGreaterThan(before);
+      expect(container.querySelector('[aria-label="Task recovery"]')).not.toBeNull();
+      expect(container.textContent).toContain("Inspect the missed recovery.");
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("shows a recovery refresh error instead of trusting cached activity", async () => {
+    const action = { id: "recovery", kind: "active_run_watchdog", status: "active", ownerType: "agent", outcome: null,
+      evidence: { runId: "failed-run" }, attemptCount: 1, maxAttempts: 3,
+      wakePolicy: { kind: "resume_native_run", runId: "failed-run" },
+      nativeRunActivity: { runId: "failed-run", status: "running", workspaceOperationId: null } };
+    vi.mocked(issuesApi.recoveryActions).mockResolvedValue({ active: action, actions: [action] } as never);
+    await act(async () => root.render(<QueryClientProvider client={client}>
+      <ExecutionBlockerNotice companyId="company" issueId="read-error-task" issueStatus="blocked" onRetried={onRetried} blocker={{
+        recoveryActionId: "recovery", runId: "failed-run", agentId: "agent",
+        cause: "native_continuation_requires_reconciliation", nextAction: "Inspect the current run.",
+      }} />
+    </QueryClientProvider>));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+    expect(container.querySelector('[aria-label="Task recovery"]')).toBeNull();
+    vi.mocked(issuesApi.recoveryActions).mockRejectedValue(new Error("Recovery service unavailable"));
+    await act(async () => { await client.refetchQueries({ queryKey: queryKeys.issues.recoveryActions("read-error-task", "recovery", "failed-run") }); });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Recovery service unavailable");
+    expect(container.textContent).toContain("Inspect the current run.");
   });
 
   it.each([
