@@ -77,13 +77,13 @@ describe("InteractionGovernancePanel", () => {
     const { host } = renderPanel();
     const copy = host.textContent ?? "";
 
-    expect(copy).toContain("Thread interactions are open by default");
-    expect(copy).toContain("the board or any agent, including the one that asked");
+    expect(copy).toContain("By default, anyone in the organization can respond");
+    expect(copy).toContain("including the requesting agent");
     expect(copy).not.toContain("Board only");
     expect(copy).not.toContain("always require the board");
     // Governed tool approvals keep their human-only guarantee.
-    expect(copy).toContain("Tool-approval confirmations always stay");
-    expect(copy).toContain("Human only");
+    expect(copy).toContain("Tool approvals always require a human");
+    expect(copy).toContain("it never grants extra access");
   });
 
   it("shows a stored narrowing override on the matching row", () => {

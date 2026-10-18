@@ -1,5 +1,7 @@
 "use client"
 
+import { translateUiLiteral } from "@/i18n/LegacyLiteralLocalizer";
+
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 import { SearchIcon, XIcon } from "lucide-react"
@@ -31,8 +33,8 @@ function Command({
 }
 
 function CommandDialog({
-  title = "Command Palette",
-  description = "Search for a command to run...",
+  title = translateUiLiteral("Command Palette"),
+  description = translateUiLiteral("Search for a command to run..."),
   children,
   className,
   showCloseButton = true,

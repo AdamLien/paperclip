@@ -7,6 +7,7 @@ import taiwan from "./keyed-zh-TW.json";
 import literals from "./legacy-zh-TW.json";
 import overrides from "./legacy-zh-TW.overrides.json";
 import completion from "./completion-zh-TW.json";
+import clarity from "./clarity-zh-TW.json";
 import inventory from "./pending-zh-TW.json";
 import { validateLocaleMessages } from "./locale-validation";
 
@@ -48,7 +49,7 @@ describe("Taiwan Traditional Chinese", () => {
   it("resolves every added message and retains reviewed technical literals", () => {
     setLocale("zh-TW");
     const interpolate = (value: string) => value.replace(/{{value(\d+)}}/g, "__sample_value_$1__");
-    for (const [source, translated] of Object.entries(completion)) {
+    for (const [source, translated] of Object.entries({ ...completion, ...clarity })) {
       expect(translateUiLiteral(interpolate(source)), source).toBe(interpolate(translated));
     }
     for (const { text } of inventory.preserved) {
@@ -58,7 +59,7 @@ describe("Taiwan Traditional Chinese", () => {
 
   it("preserves all keyed messages and interpolation contracts", () => {
     expect(validateLocaleMessages(taiwan, english)).toEqual([]);
-    for (const [source, translation] of Object.entries({ ...literals, ...overrides, ...completion })) {
+    for (const [source, translation] of Object.entries({ ...literals, ...overrides, ...completion, ...clarity })) {
       const placeholders = (value: string) => [...value.matchAll(/{{.*?}}/g)].map(([value]) => value).sort();
       expect(placeholders(translation), source).toEqual(placeholders(source));
     }

@@ -5,6 +5,7 @@ import legacyZhTW from "./legacy-zh-TW.json";
 import legacyZhTWOverrides from "./legacy-zh-TW.overrides.json";
 import completionZhTW from "./completion-zh-TW.json";
 import preservedZhTW from "./preserved-zh-TW.json";
+import clarityZhTW from "./clarity-zh-TW.json";
 import en from "./keyed-en.json";
 import zhTW from "./keyed-zh-TW.json";
 
@@ -40,6 +41,7 @@ const translations = {
   ...(legacyZhTW as LegacyTranslations),
   ...(legacyZhTWOverrides as LegacyTranslations),
   ...(completionZhTW as LegacyTranslations),
+  ...(clarityZhTW as LegacyTranslations),
 };
 
 // This source has no literal boundary and therefore matches arbitrary prose or

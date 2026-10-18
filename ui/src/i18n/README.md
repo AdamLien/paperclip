@@ -13,3 +13,9 @@ Original audit baseline: 13,221 static literal positions; 9,919 had catalog matc
 Verification: focused localization/transform tests; UI dependency build; UI typecheck; design token gates; local production-build browser login and EN/zh-TW switching. Full repository tests, authenticated production page journeys, deployment and mobile device acceptance remain pending.
 
 Completion verification: all 2,843 added messages are exercised through the runtime translator with representative interpolated values; all 42 preserved literals are checked unchanged. This also guards against template rules translating product-name suffixes such as Microsoft Teams. Remaining acceptance includes authenticated UI journeys and contextual human review.
+
+## Display-boundary follow-up
+
+The settings navigation, mobile navigation, governance choices, deployment status, backup units and feedback choices now translate their fixed display labels explicitly. `clarity-zh-TW.json` provides reviewed wording overrides after the original catalogs. Labels are translated at render time so saved locale changes do not require recreating module-level option arrays. Routes, option values, policy keys and user-authored names remain unchanged. Settings breadcrumb literals are translated at their source, leaving the organization name intact. The governance introduction is a complete sentence resource instead of separately translated fragments.
+
+Focused integration tests exercise language switching, unchanged routes and policy values, and the new-task callback. This follow-up does not establish full application translation coverage or server-error localization.

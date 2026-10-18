@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { Fragment } from "react";
 import {
   ISSUE_THREAD_INTERACTION_KINDS,
@@ -149,6 +150,7 @@ function GovernanceSelect({
   ariaLabel: string;
   mobileLabel: string;
 }) {
+  useUiLiteralLocale();
   const options = governanceOptions(field);
   return (
     <div className="min-w-0">
@@ -160,12 +162,12 @@ function GovernanceSelect({
        * screen-reader pairing. WCAG 2.1 SC 1.4.10 (Reflow) — design review R2.
        */}
       <span className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide sm:hidden">
-        {mobileLabel}
+        {translateUiLiteral(mobileLabel)}
       </span>
       <Select value={value} onValueChange={(v) => onChange(v as GovernanceSelectValue)} disabled={disabled}>
         <SelectTrigger
           size="sm"
-          aria-label={ariaLabel}
+          aria-label={translateUiLiteral(ariaLabel)}
           // 208px is sized for the longest label the control can hold —
           // `Anyone except creator` needs ~150px of text room, and 170px only
           // left 122px after padding, gap and chevron, so it clipped even once
@@ -182,7 +184,7 @@ function GovernanceSelect({
            * sets `valueNodeHasChildren`, which suppresses that portal, so the
            * trigger shows exactly the label and nothing else.
            */}
-          <SelectValue>{governanceValueLabel(field, value)}</SelectValue>
+          <SelectValue>{translateUiLiteral(governanceValueLabel(field, value))}</SelectValue>
         </SelectTrigger>
         {/*
          * Cap the option list so the effect sentences wrap instead of stretching
@@ -195,7 +197,7 @@ function GovernanceSelect({
               value={option.value}
               // Keyboard typeahead matches on `textValue` when given; without it
               // Radix would match against the effect prose too.
-              textValue={option.label}
+              textValue={translateUiLiteral(option.label)}
               className="text-xs"
             >
               {/*
@@ -204,9 +206,9 @@ function GovernanceSelect({
                * after saving (PAP-17280).
                */}
               <span className="flex min-w-0 flex-col gap-0.5">
-                <span>{option.label}</span>
+                <span>{translateUiLiteral(option.label)}</span>
                 <span className="text-(length:--text-micro) text-muted-foreground">
-                  {option.effect}
+                  {translateUiLiteral(option.effect)}
                 </span>
               </span>
             </SelectItem>
@@ -236,6 +238,7 @@ export function InteractionGovernancePanel({
   isPending?: boolean;
   errorMessage?: string | null;
 }) {
+  useUiLiteralLocale();
   return (
     <div className="space-y-4" data-testid="company-settings-interaction-governance-section">
       <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -243,15 +246,7 @@ export function InteractionGovernancePanel({
       </div>
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Thread interactions are open by default:{" "}
-          <span className="font-medium text-foreground">Anyone</span> in the organization — the
-          board or any agent, including the one that asked — can respond. Narrow a kind
-          only when you need to.{" "}
-          <span className="font-medium text-foreground">Default policy</span> is the
-          audience new cards get when the requester does not ask for one;{" "}
-          <span className="font-medium text-foreground">Cap</span> narrows every request of
-          that kind and can never widen one. Tool-approval confirmations always stay{" "}
-          <span className="font-medium text-foreground">Human only</span>.
+          {translateUiLiteral("By default, anyone in the organization can respond to an interaction, including the requesting agent. Default audience applies when a new request does not specify who can respond. Audience restriction limits who can respond to every request of that type; it never grants extra access. Tool approvals always require a human.")}
         </p>
         {/*
          * Responsive: below `sm` the row collapses to a single column so the
@@ -272,7 +267,7 @@ export function InteractionGovernancePanel({
           </div>
           {ISSUE_THREAD_INTERACTION_KINDS.map((kind) => {
             const entry = governance[kind] ?? {};
-            const kindLabel = INTERACTION_KIND_LABELS[kind];
+            const kindLabel = translateUiLiteral(INTERACTION_KIND_LABELS[kind]);
             return (
               <Fragment key={kind}>
                 <div className="text-sm font-medium sm:font-normal">{kindLabel}</div>
