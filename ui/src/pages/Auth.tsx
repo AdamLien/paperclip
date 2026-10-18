@@ -1,3 +1,4 @@
+import { UiLocaleSelect } from "@/components/UiLocaleSelect";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "@/lib/router";
@@ -102,6 +103,7 @@ export function AuthPage() {
   return (
     <div className="fixed inset-0 flex bg-background">
       <div className="absolute top-4 right-4 z-10">
+        <UiLocaleSelect />
         <ThemeToggle />
       </div>
       {/* Left half — form */}

@@ -1,3 +1,4 @@
+import { UiLocaleSelect } from "@/components/UiLocaleSelect";
 import { ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -217,6 +218,7 @@ export function CompanySettings() {
       <div className="flex items-center gap-2">
         <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
         <h1 className="text-lg font-semibold">General</h1>
+        <UiLocaleSelect />
       </div>
 
       {/* General */}
