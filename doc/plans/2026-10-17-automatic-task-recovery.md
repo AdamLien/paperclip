@@ -54,6 +54,13 @@ map recipes where behavior changes.
 - PR [#16686](https://github.com/paperclipai/paperclip/pull/16686) is published.
   Its initial review found unchanged-poll expiry and cached-activity read errors;
   both now have failing-baseline/passing-treatment regressions and fixes. The
-  latest review and CI are the delivery record. Full local verification is also
-  running. The source incident remains held pending safe operator inspection;
-  this branch has not been deployed.
+  latest review and CI are the delivery record. The unsharded local full-suite
+  attempt was incomplete and exposed an unrelated workspace port-reservation
+  fixture failure; focused changed-area tests pass, and final full-suite evidence
+  comes from the fresh CI matrix. The source incident remains held pending safe
+  operator inspection; this branch has not been deployed.
+- The production ACPX sidecar also resolves omitted continuation before strict
+  validation, with real MCP bridge acceptance/refusal, receipt, cancellation,
+  and duplicate-call controls. Other drivers recheck the turn after the context
+  read. This PR's pending Copilot v21 declaration binds the updated shared
+  sources; immutable v20 history and the qualification gate stay intact.

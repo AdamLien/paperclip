@@ -1,8 +1,8 @@
 # Copilot 1.0.88 rich ACP capability audit
 
 Current integration (2026-10-17): **Copilot profile v21 remains pending** with
-digest `sha256:ead654b4d9939485a1456f1f62f672fd2b096767b422082b47179fa722b714d6`.
-It binds the shared provider completion contract, direct driver, and controller
+digest `sha256:1dad3d26d91e66c6f911dbfa43e7963f36c0bbf0d7709f4bbb568029a8b4b46a`.
+It binds the shared provider completion contract, direct driver, production sidecar, and controller
 continuation resolver. Installation verification requires this generated v21
 identity. The permission policy, executable closure, and qualification gate are
 unchanged. This source declaration supplies no new paid qualification.

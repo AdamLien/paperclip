@@ -1138,6 +1138,10 @@ class CodexAcpxSession implements HarnessSession {
           tool: "get_task_context", callId: `${call.callId}:continuation`,
           providerSessionId: this.#host.identity().agentSessionId, turnId, arguments: {}, signal: call.signal,
         }) : undefined);
+      this.#assertOpen();
+      if (this.#activeTurnId !== turnId || this.#pendingTerminal || call.signal.aborted) {
+        throw new Error("The turn ended while resolving completion");
+      }
       const validation = validatePrpStructuredRunResult(completionInput);
       if (!validation.ok) throw new Error("Invalid semantic run result");
       const blocked = validation.result.reportedWorkDisposition === "blocked";

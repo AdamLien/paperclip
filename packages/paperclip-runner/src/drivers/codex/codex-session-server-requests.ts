@@ -195,6 +195,9 @@ async function handleServerRequestBody(
       } catch (error) {
         return rejectedToolCall(boundedText(error instanceof Error ? error.message : error));
       }
+      if (state.terminal || state.activeTurnId !== turnId) {
+        return rejectedToolCall("The turn ended while resolving completion. The result was not accepted.");
+      }
       const validation = validatePrpStructuredRunResult(completionInput);
       if (!validation.ok) {
         return {

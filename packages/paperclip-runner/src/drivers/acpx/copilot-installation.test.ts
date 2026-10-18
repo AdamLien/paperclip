@@ -199,7 +199,7 @@ describe("Copilot build-owned installation", () => {
     const prior = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v20-identity.json", import.meta.url), "utf8"));
     const current = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v21-identity.json", import.meta.url), "utf8"));
     expect(Object.keys(current.declaration).filter(key => current.declaration[key] !== prior.declaration[key]).sort()).toEqual([
-      "agentProfileVersion", "semanticCompletionContractSourceSha256", "semanticContinuationSourceSha256", "semanticDirectDriverSourceSha256",
+      "agentProfileVersion", "semanticCompletionContractSourceSha256", "semanticContinuationSourceSha256", "semanticDirectDriverSourceSha256", "semanticSidecarSourceSha256",
     ]);
     expect(Object.keys(current.declaration).filter(key => !Object.hasOwn(prior.declaration, key))).toEqual(["semanticContinuationSourceSha256"]);
     expect(Object.keys(prior.declaration).every(key => Object.hasOwn(current.declaration, key))).toBe(true);
