@@ -1,8 +1,182 @@
 {
   "total": 13221,
-  "covered": 9919,
-  "missingCount": 2885,
-  "missing": [
+  "baselineCovered": 9919,
+  "baselineMissingCount": 2885,
+  "translatedCount": 2843,
+  "preservedCount": 42,
+  "missingCount": 0,
+  "missing": [],
+  "preserved": [
+    {
+      "text": "OpenCode 1.18.34",
+      "reason": "Product name and version"
+    },
+    {
+      "text": "Claude Managed",
+      "reason": "Provider product name"
+    },
+    {
+      "text": "AWS AgentCore",
+      "reason": "Provider product name"
+    },
+    {
+      "text": "managed-primary",
+      "reason": "Profile key example"
+    },
+    {
+      "text": "agentcore-primary",
+      "reason": "Profile key example"
+    },
+    {
+      "text": "{{value1}} -p \"Respond with hello.\" --output-format stream-json",
+      "reason": "Executable CLI example; prompt and flags preserved verbatim"
+    },
+    {
+      "text": "KIMI_MODEL_NAME + KIMI_MODEL_API_KEY",
+      "reason": "Environment variable names"
+    },
+    {
+      "text": "kimi login",
+      "reason": "Executable CLI login command"
+    },
+    {
+      "text": "HTTPS",
+      "reason": "Transport protocol acronym"
+    },
+    {
+      "text": "&quot;",
+      "reason": "HTML quote entity"
+    },
+    {
+      "text": "null",
+      "reason": "JSON null literal"
+    },
+    {
+      "text": "SHA",
+      "reason": "Git hash acronym"
+    },
+    {
+      "text": "{{value1}} JSON",
+      "reason": "Interpolated label followed only by JSON format acronym; no English prose."
+    },
+    {
+      "text": "OpenRouter",
+      "reason": "產品／供應商品牌名稱，應維持原文。"
+    },
+    {
+      "text": "OpenAI",
+      "reason": "產品／供應商品牌名稱，應維持原文。"
+    },
+    {
+      "text": "Anthropic",
+      "reason": "產品／供應商品牌名稱，應維持原文。"
+    },
+    {
+      "text": "https://hermes.example.com",
+      "reason": "URL 或模型識別字，必須維持原文。"
+    },
+    {
+      "text": "kimi-for-coding",
+      "reason": "URL 或模型識別字，必須維持原文。"
+    },
+    {
+      "text": "https://github.com/your-org/repo",
+      "reason": "URL 或模型識別字，必須維持原文。"
+    },
+    {
+      "text": "GitHub",
+      "reason": "產品／供應商品牌名稱，應維持原文。"
+    },
+    {
+      "text": "Codex (app server)",
+      "reason": "產品／執行器名稱，必須維持原文。"
+    },
+    {
+      "text": "Claude (ACPX)",
+      "reason": "產品／介面卡名稱，必須維持原文。"
+    },
+    {
+      "text": "Grok Build (ACPX)",
+      "reason": "產品／介面卡名稱，必須維持原文。"
+    },
+    {
+      "text": "Paperclip Runner",
+      "reason": "產品名稱，必須維持原文。"
+    },
+    {
+      "text": "CSV ·",
+      "reason": "CSV 格式標記與分隔符號，屬於檔案類型識別字，必須維持原文。"
+    },
+    {
+      "text": "https://executor.sh/your-organization/integrations",
+      "reason": "URL 必須保持完全不變。"
+    },
+    {
+      "text": "Arcade-User-ID",
+      "reason": "HTTP 標頭名稱必須保持完全不變。"
+    },
+    {
+      "text": "README.md",
+      "reason": "檔名或產品品牌名稱，需保持原樣。"
+    },
+    {
+      "text": "notes.txt",
+      "reason": "檔名或產品品牌名稱，需保持原樣。"
+    },
+    {
+      "text": "Arcade",
+      "reason": "檔名或產品品牌名稱，需保持原樣。"
+    },
+    {
+      "text": "https://github.com/owner/repository",
+      "reason": "Example repository URL must remain exact."
+    },
+    {
+      "text": "Composio",
+      "reason": "品牌名稱，保留產品原名。"
+    },
+    {
+      "text": "Browser Use Cloud",
+      "reason": "產品名稱，保留品牌原名。"
+    },
+    {
+      "text": "bot_username",
+      "reason": "Telegram 機器人使用者名稱欄位識別字，屬程式碼字面。"
+    },
+    {
+      "text": "ssh.railway.com ssh-ed25519 …",
+      "reason": "known_hosts 主機金鑰資料，必須逐字保留。"
+    },
+    {
+      "text": "Webhooks · Active",
+      "reason": "GitHub 介面中的設定標籤，保留原文以便對照。"
+    },
+    {
+      "text": "Event Subscriptions",
+      "reason": "Slack 介面中的設定區段名稱，保留原文以便操作。"
+    },
+    {
+      "text": "Request URL",
+      "reason": "Slack 介面中的欄位名稱，保留原文以便操作。"
+    },
+    {
+      "text": "Microsoft Teams",
+      "reason": "產品與平台品牌名稱，保留原名。"
+    },
+    {
+      "text": "· GitHub ID",
+      "reason": "GitHub ID label or literal HTTP authorization header syntax."
+    },
+    {
+      "text": "Authorization: Bearer {{value1}}",
+      "reason": "GitHub ID label or literal HTTP authorization header syntax."
+    },
+    {
+      "text": "Authorization: Bearer pcgw_•••",
+      "reason": "GitHub ID label or literal HTTP authorization header syntax."
+    }
+  ],
+  "resolved": [
     {
       "text": "Default uses ACP. If ACP is unavailable, the run fails with a setup error. Choose CLI explicitly to use it.",
       "files": [
@@ -17553,5 +17727,7 @@
         "src/pages/tools/profiles/ProfileWizardRoute.tsx"
       ]
     }
-  ]
+  ],
+  "covered": 13176,
+  "preservedPositions": 45
 }

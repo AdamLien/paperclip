@@ -3,6 +3,8 @@ import { i18n } from ".";
 
 import legacyZhTW from "./legacy-zh-TW.json";
 import legacyZhTWOverrides from "./legacy-zh-TW.overrides.json";
+import completionZhTW from "./completion-zh-TW.json";
+import preservedZhTW from "./preserved-zh-TW.json";
 import en from "./keyed-en.json";
 import zhTW from "./keyed-zh-TW.json";
 
@@ -37,6 +39,7 @@ const translations = {
   ...collectKeyedTranslations(en, zhTW),
   ...(legacyZhTW as LegacyTranslations),
   ...(legacyZhTWOverrides as LegacyTranslations),
+  ...(completionZhTW as LegacyTranslations),
 };
 
 // This source has no literal boundary and therefore matches arbitrary prose or
@@ -68,6 +71,7 @@ function escapeRegExp(value: string) {
 
 const exactTranslations = new Map<string, string>();
 const templateTranslations: TemplateTranslation[] = [];
+const preservedLiterals = new Set(Object.keys(preservedZhTW).map(normalize));
 
 for (const [source, translation] of Object.entries(translations)) {
   const normalizedSource = normalize(source);
@@ -95,6 +99,7 @@ templateTranslations.sort((left, right) => right.expression.source.length - left
 export function translateLegacyLiteral(value: string) {
   const normalizedValue = normalize(value);
   if (!normalizedValue) return null;
+  if (preservedLiterals.has(normalizedValue)) return value;
 
   const exact = exactTranslations.get(normalizedValue);
   if (exact) return exact;
