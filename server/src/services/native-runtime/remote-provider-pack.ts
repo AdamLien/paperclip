@@ -11,7 +11,8 @@ type VerificationCommandResult = {
 /** Retry only these read-only probes, never provider work or artifact mutations.
  * Each transport call enforces its own 30s timeout; two attempts is the hard cap.
  * A completed, failing verifier is incompatible. An interrupted probe proves no
- * incompatibility and returns to the existing bounded native recovery budget.
+ * incompatibility. Exhaustion holds the original run: reattachment does not
+ * spend a new provider attempt, so scheduling another attach could loop.
  */
 export async function runRemoteProviderVerification(
   execute: () => Promise<VerificationCommandResult>,
@@ -34,7 +35,7 @@ export async function runRemoteProviderVerification(
     }
     return result;
   }
-  throw new Error(`provider_transport_failed: ${label} unavailable after 2 verification attempts (${diagnostic.slice(-1_536)})`);
+  throw new Error(`runner_remote_provider_verification_unavailable: ${label} unavailable after 2 verification attempts (${diagnostic.slice(-1_536)})`);
 }
 
 /** Reuse only a pack that passes the same full verification as a new upload. */

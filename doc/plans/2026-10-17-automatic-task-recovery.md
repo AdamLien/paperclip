@@ -45,7 +45,9 @@ map recipes where behavior changes.
 - The task form is removed. Production-component stories demonstrate quiet
   automatic recovery, unresolved/expired holds, reader access, and mobile.
 - Provider verification now retries interrupted reads once, distinguishes
-  incomplete checks from incompatible artifacts, and keeps the native retry cap.
+  incomplete checks from incompatible artifacts, and holds after its own read
+  budget is exhausted. Reattachment cannot renew that budget through an
+  unchanged provider-attempt counter.
 - Next: finish OpenCode process-boundary and full workspace checks, then review
   and publish the PR. The source incident remains held pending safe operator
   inspection; this branch has not been deployed.

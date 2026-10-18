@@ -14,10 +14,10 @@ describe("remote provider verification", () => {
     await expect(runRemoteProviderVerification(execute, "pack")).resolves.toEqual(ok);
     expect(execute).toHaveBeenCalledTimes(2);
   });
-  it("uses the existing native retry path after two inconclusive reads, including empty stderr", async () => {
+  it("exhausts its own read budget after two inconclusive reads, including empty stderr", async () => {
     const execute = vi.fn().mockResolvedValue({ ...ok, exitCode: null, timedOut: true });
     await expect(runRemoteProviderVerification(execute, "pack"))
-      .rejects.toThrow("provider_transport_failed: pack unavailable after 2 verification attempts (exitCode=null; timedOut=true");
+      .rejects.toThrow("runner_remote_provider_verification_unavailable: pack unavailable after 2 verification attempts (exitCode=null; timedOut=true");
     expect(execute).toHaveBeenCalledTimes(2);
   });
   it.each(["", "manifest mismatch", "dist tree digest mismatch"])("fails closed without retrying a completed rejection: %s", async stderr => {

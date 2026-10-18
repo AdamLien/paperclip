@@ -374,8 +374,10 @@ stop-receipt and evidence checks.
 Remote provider-pack verification retries an interrupted read at most once.
 Each command retains its 30-second transport timeout. A timeout, signal, absent
 exit status, or transport exception does not prove artifact incompatibility.
-Two inconclusive attempts return `provider_transport_failed` to the existing
-native retry budget. A completed nonzero verification, digest mismatch, or
+Two inconclusive attempts hold the original run with
+`runner_remote_provider_verification_unavailable`. Reattachment does not spend
+a new provider attempt, so it cannot renew this exhausted read budget. A
+completed nonzero verification, digest mismatch, or
 wrong OpenCode version remains incompatible and cannot authorize a new provider
 turn. Recovery retains the exact source workspace and existing ownership gates;
 these read-only retries do not replay tools or alter a retained pack.
