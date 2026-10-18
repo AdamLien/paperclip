@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, cp, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { access, cp, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -73,13 +73,33 @@ async function hashFile(path) {
 
 async function replacePackageBindings(stagedRelease) {
   for (const packageName of ["server", "db", "shared"]) {
-    const localModules = join(stagedRelease, packageName, "node_modules");
-    await rm(localModules, { recursive: true, force: true });
-    await mkdir(join(localModules, "@paperclipai"), { recursive: true });
+    const scope = join(stagedRelease, packageName, "node_modules/@paperclipai");
+    try {
+      if ((await lstat(scope)).isSymbolicLink()) await rm(scope, { recursive: true, force: true });
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    await mkdir(scope, { recursive: true });
   }
   for (const [consumer, dependency] of [["server", "db"], ["server", "shared"], ["db", "shared"]]) {
     const target = join(stagedRelease, consumer, "node_modules/@paperclipai", dependency);
+    await rm(target, { recursive: true, force: true });
     await symlink(relative(dirname(target), join(stagedRelease, dependency)), target);
+  }
+}
+
+async function clonePackageDependencies(sourcePackages, stagedRelease) {
+  for (const packageName of ["server", "db", "shared"]) {
+    const sourceModules = join(sourcePackages[packageName], "node_modules");
+    const stagedModules = join(stagedRelease, packageName, "node_modules");
+    let sourceModulesRealpath;
+    try {
+      sourceModulesRealpath = await realpath(sourceModules);
+    } catch {
+      throw new Error(`missing package-local dependencies: ${sourceModules}`);
+    }
+    await rm(stagedModules, { recursive: true, force: true });
+    await cp(sourceModulesRealpath, stagedModules, { recursive: true, dereference: true, preserveTimestamps: true });
   }
 }
 
@@ -169,6 +189,7 @@ async function main() {
     await Promise.all(Object.entries(resolvedRuntimePackages).map(([name, path]) => cp(path, join(stagedRelease, name), { recursive: true, preserveTimestamps: true })));
     await exec("ln", ["-s", join(runtime, "node_modules"), join(stagedRelease, "node_modules")]);
 
+    await clonePackageDependencies(resolvedRuntimePackages, stagedRelease);
     await replacePackageBindings(stagedRelease);
 
     const preservedBefore = Object.fromEntries(await Promise.all(PRESERVED_PATCH_FILES.map(async ([pkg, file]) => [file, await hashFile(join(resolvedRuntimePackages[pkg], file))])));
