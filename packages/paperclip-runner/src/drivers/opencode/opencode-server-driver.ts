@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { resolveCompletionContinuation } from "../completion-continuation.js";
 import { createHash, randomBytes } from "node:crypto";
 import { accessSync, constants, readFileSync, realpathSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -1040,7 +1041,12 @@ class OpenCodeHarnessSession implements HarnessSession {
       try {
         if (this.#closed || this.#completionSettlement)
           throw new Error("A completion is already settling or the session is closed");
-        const validation = validatePrpStructuredRunResult(call.arguments);
+        const completionInput = await resolveCompletionContinuation(call.arguments, this.#runId,
+          this.#dynamicToolHandler ? () => this.#dynamicToolHandler!({
+            tool: "get_task_context", callId: `${call.callId}:continuation`,
+            threadId: this.#providerSessionId, turnId, arguments: {},
+          }) : undefined);
+        const validation = validatePrpStructuredRunResult(completionInput);
         if (!validation.ok) throw new Error("Invalid semantic result");
         if (
           (tool === PRP_BLOCK_TOOL_NAME &&
