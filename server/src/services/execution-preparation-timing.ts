@@ -84,7 +84,7 @@ type RunScope = { runId: string; parent?: Context; ended: boolean; details: Map<
 const ownership = new AsyncLocalStorage<RunScope>();
 const endpointEnabled = () => Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim());
 
-const repositoryCacheOutcomes = ["disabled", "hit", "miss", "published", "already_present", "contended", "capacity", "invalid", "error"] as const;
+const repositoryCacheOutcomes = ["disabled", "hit", "miss", "published", "already_present", "contended", "capacity", "budget", "invalid", "error"] as const;
 export type RepositoryObjectCacheOutcome = typeof repositoryCacheOutcomes[number];
 
 export function recordRepositoryObjectCacheDetail(detail: {

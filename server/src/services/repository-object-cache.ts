@@ -16,6 +16,12 @@ const COMPANY_REPOSITORIES = 64;
 const CACHE_VERSION = 2;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
+class RepositoryObjectCacheSkip extends Error {
+  constructor(readonly outcome: "capacity" | "budget" | "invalid") {
+    super("Repository object cache skipped");
+  }
+}
+
 export interface RepositoryObjectCache {
   companyDirectory: string;
   directory: string;
@@ -69,12 +75,12 @@ export async function readRepositoryObjectCache(cache: RepositoryObjectCache): P
 async function storageBytes(directory: string, ceiling: number, budget: { entries: number; deadline: number }): Promise<number> {
   let bytes = 0;
   for await (const entry of await fs.opendir(directory)) {
-    if (--budget.entries < 0 || performance.now() > budget.deadline) throw new Error("Repository object cache work budget exhausted");
+    if (--budget.entries < 0 || performance.now() > budget.deadline) throw new RepositoryObjectCacheSkip("budget");
     const target = path.join(directory, entry.name);
     const stat = await fs.lstat(target);
-    if (stat.isSymbolicLink()) throw new Error("Invalid repository object cache entry");
+    if (stat.isSymbolicLink()) throw new RepositoryObjectCacheSkip("invalid");
     bytes += stat.isDirectory() ? await storageBytes(target, ceiling - bytes, budget) : stat.size;
-    if (bytes > ceiling) throw new Error("Repository object cache capacity exhausted");
+    if (bytes > ceiling) throw new RepositoryObjectCacheSkip("capacity");
   }
   return bytes;
 }
@@ -114,5 +120,9 @@ export async function publishRepositoryObjectCache(cache: RepositoryObjectCache,
       } finally { await fs.rm(temporary, { recursive: true, force: true }); }
     });
     recordRepositoryObjectCacheDetail({ outcome: outcome ?? "contended" });
-  } catch { recordRepositoryObjectCacheDetail({ outcome: "error" }); }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    recordRepositoryObjectCacheDetail({ outcome: error instanceof RepositoryObjectCacheSkip
+      ? error.outcome : code === "ENOSPC" || code === "workspace_git_scan_failed" ? "capacity" : "error" });
+  }
 }

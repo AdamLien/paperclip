@@ -323,7 +323,7 @@ The closed keys are declared in `EXECUTION_PREPARATION_SPAN_ATTRS` in
 `packages/adapter-utils/src/acpx-engine/startup-timing.ts`.
 Repository checkout cache phases also carry the closed
 `paperclip.execution.repositoryCache.outcome` value: `disabled`, `hit`, `miss`,
-`published`, `already_present`, `contended`, `capacity`, `invalid`, or `error`.
+`published`, `already_present`, `contended`, `capacity`, `budget`, `invalid`, or `error`.
 The clone span carries the boolean
 `paperclip.execution.repositoryCache.reference_supplied`, including `false` for
 a fallback clone. A lookup hit means a validated cache was found, and supplying
