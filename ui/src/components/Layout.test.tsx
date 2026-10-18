@@ -1363,6 +1363,17 @@ describe("Layout", () => {
     });
   });
 
+  it("keeps mobile toolbar below the device safe area without insetting desktop", async () => {
+    for (const isMobile of [true, false]) {
+      mockSidebarState.isMobile = isMobile;
+      const { root, rootEl } = await renderLayoutRoot();
+      const breadcrumb = Array.from(rootEl.querySelectorAll("div"))
+        .find((el) => el.textContent === "Breadcrumbs" && el.children.length === 0)!;
+      expect(breadcrumb.parentElement!.classList.contains("pt-(--sz-safe-top)")).toBe(isMobile);
+      await act(async () => { root.unmount(); });
+    }
+  });
+
   it("clips overflow on the desktop layout root", async () => {
     mockSidebarState.isMobile = false;
     const { root, rootEl } = await renderLayoutRoot();

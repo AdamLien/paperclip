@@ -1,0 +1,34 @@
+# metabiz push deployment preparation
+
+This runbook prepares a stage-only release for the installed npm Paperclip runtime on `metabiz-71-tailscale`. It does not SSH, stop Paperclip, run migrations, change `node_modules/@paperclipai/*`, or activate a release. The operator performs those actions only after review, backup, and acceptance.
+
+## Prepare the release
+
+Run from the pulled, committed source checkout on the host:
+
+```sh
+node scripts/metabiz-deploy-push.mjs \
+  --revision <push-commit> \
+  --base 90bca334 \
+  --runtime /home/metabiz-admin/Documents/workspace/metabiz/paperclip-local
+```
+
+The script archives exactly `<push-commit>`. Within `server/`, `packages/db/`, and `packages/shared/`, production changes must be exact members of the compile or migration source lists; only `*.test.ts` files are additionally allowed. `ui/`, `tests/`, `doc/`, and `docs/` changes are allowed because this stage does not overlay UI or documentation. Other root paths are refused. It copies the installed `server`, `db`, and `shared` packages into a new `releases/push-<sha>` directory, and compiles only the selected server/schema/shared files with the source checkout's esbuild. Existing runtime patches remain in the copied package files. It copies only migration `0306_persistent_push_notifications.sql` and the migration journal from the source snapshot.
+
+The output JSON and `metabiz-push-release.json` are the review record. The manifest retains both the exact resolved base commit and the literal `--base` argument passed by the parent deployment operator. Confirm the release directory is complete before any activation work. The UI release is a separate parent/backend/UI-agent responsibility and is deliberately not built here.
+
+The script resolves each installed package through `realpath` before copying, so a package symlink cannot make the stage operation write through to a live release. It clones each package's package-local `node_modules` from its realpath with nested symlinks dereferenced, preserving dependencies such as `acpx`; it then replaces only staged `@paperclipai/db` and `@paperclipai/shared` bindings. The staged package root has a fallback symlink to the runtime's existing `node_modules`; isolated bindings point `server` to the staged `db` and `shared`, and point `db` to the staged `shared`. It hashes `server/dist/services/heartbeat.js` and `server/dist/routes/agents.js` before and after staging and fails if either preserved runtime patch changes. Finally, it imports staged `server/dist/app.js`, `db/dist/schema/index.js`, and `shared/dist/index.js` in a child Node process without starting the server.
+
+## Required gates before activation
+
+1. Confirm the source revision, base diff, generated manifest, and package copies.
+2. Confirm the existing runtime patches under `root/patches/` remain present in the installed runtime and are represented in the copied package files.
+3. Run the backend/API and push acceptance checks against the staged release.
+4. Take and verify the operator's existing database backup procedure. This script intentionally does not guess a backup API or implement rollback SQL.
+5. Confirm no agent run is active and coordinate the service stop with the parent deployment operator.
+6. Activate using the existing service procedure, preserving the current release for rollback. Apply the migration through the existing Paperclip migration procedure; never hand-edit, drop, or roll back the push tables with ad hoc SQL.
+7. Verify health, agent heartbeat behavior, push-device registration, notification delivery, and rollback readiness separately from the stage result.
+
+## Push configuration
+
+FCM credentials and related external-provider environment values must remain in the existing runtime secret/environment mechanism. Do not put service-account JSON, private keys, device tokens, or customer data in Git, the release manifest, or this document. The activation operator must verify the exact environment variable names from the merged backend implementation and the host's existing secret configuration before starting the staged release.

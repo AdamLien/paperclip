@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
   Flag,
+  Bell,
   LogOut,
   Settings,
   type LucideIcon,
@@ -21,6 +22,10 @@ import { useSignOut } from "@/hooks/useSignOut";
 import { useStagingCommit } from "@/hooks/useStagingCommit";
 import { userProfilePath } from "@/lib/userProfileLinks";
 import { useSidebar } from "../context/SidebarContext";
+import { useCompany } from "../context/CompanyContext";
+import { useOptionalToastActions } from "../context/ToastContext";
+import { useNavigate } from "@/lib/router";
+import { usePushNotifications } from "@/lib/push-notifications";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -53,6 +58,7 @@ interface MenuActionProps {
    * the in-app router can never reach them.
    */
   topLevel?: boolean;
+  disabled?: boolean;
 }
 
 function deriveInitials(name: string) {
@@ -70,9 +76,10 @@ function MenuAction({
   href,
   external = false,
   topLevel = false,
+  disabled = false,
 }: MenuActionProps) {
   const className =
-    "flex h-(--profile-popover-row-height) w-full items-center gap-(--profile-popover-row-gap) rounded-lg px-2.5 text-left text-(length:--text-compact) font-medium leading-(--profile-popover-label-line-height) text-foreground transition-colors hover:bg-accent";
+    "flex h-(--profile-popover-row-height) w-full items-center gap-(--profile-popover-row-gap) rounded-lg px-2.5 text-left text-(length:--text-compact) font-medium leading-(--profile-popover-label-line-height) text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60";
 
   const content = (
     <>
@@ -108,7 +115,7 @@ function MenuAction({
   }
 
   return (
-    <button type="button" className={className} onClick={onClick}>
+    <button type="button" className={className} onClick={onClick} disabled={disabled}>
       {content}
     </button>
   );
@@ -142,6 +149,9 @@ export function SidebarAccountMenu({
     !hidesCompanyPage(hiddenSettings, "company.invites");
   const [internalOpen, setInternalOpen] = useState(false);
   const { isMobile, setSidebarOpen, collapsed, peeking } = useSidebar();
+  const { companies, selectedCompanyId } = useCompany();
+  const navigate = useNavigate();
+  const pushToast = useOptionalToastActions()?.pushToast;
   const rail = collapsed && !peeking && !forceExpanded;
   const open = controlledOpen ?? internalOpen;
   const stagingCommit = useStagingCommit(open);
@@ -152,7 +162,24 @@ export function SidebarAccountMenu({
     retry: false,
   });
 
-  const signOutMutation = useSignOut({ onSignedOut: closeNavigationChrome });
+  const push = usePushNotifications({
+    userId: session?.user.id ?? null,
+    companyId: selectedCompanyId,
+    companies,
+    navigate,
+    pushToast,
+  });
+
+  const signOutMutation = useSignOut({
+    onSignedOut: closeNavigationChrome,
+    onSignOutError: (error) => {
+      pushToast?.({
+        title: "無法安全登出",
+        body: error instanceof Error ? error.message : "通知註冊尚未撤銷，請確認網路後再試。",
+        tone: "error",
+      });
+    },
+  });
 
   const displayName = session?.user.name?.trim() || "Board";
   const secondaryLabel =
@@ -253,6 +280,14 @@ export function SidebarAccountMenu({
                 onClick={() => setOpen(false)}
               />
               <ThemeToggle variant="compact-menu-action" onAfterToggle={() => setOpen(false)} />
+              {push.available && session?.user.id && selectedCompanyId ? (
+                <MenuAction
+                  label={push.enabled ? "關閉自己的任務完成通知" : "啟用自己的任務完成通知"}
+                  icon={Bell}
+                  disabled={push.pending}
+                  onClick={() => void (push.enabled ? push.disable() : push.enable()).catch(() => undefined)}
+                />
+              ) : null}
               {deploymentMode === "authenticated" ? (
                 <button
                   type="button"

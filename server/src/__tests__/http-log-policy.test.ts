@@ -86,6 +86,33 @@ describe("isSecretSensitiveHttpRequest", () => {
       ),
     ).toBe(false);
   });
+
+  it("protects native push registration tokens while leaving reads and adjacent routes normal", () => {
+    expect(
+      isSecretSensitiveHttpRequest(
+        "POST",
+        "/api/companies/5cbe79ee-acb3-4597-896e-7662742593cd/push-devices",
+      ),
+    ).toBe(true);
+    expect(
+      isSecretSensitiveHttpRequest(
+        "POST",
+        "/api/companies/5cbe79ee-acb3-4597-896e-7662742593cd/push-devices/",
+      ),
+    ).toBe(true);
+    expect(
+      isSecretSensitiveHttpRequest(
+        "GET",
+        "/api/companies/5cbe79ee-acb3-4597-896e-7662742593cd/push-devices",
+      ),
+    ).toBe(false);
+    expect(
+      isSecretSensitiveHttpRequest(
+        "POST",
+        "/api/companies/5cbe79ee-acb3-4597-896e-7662742593cd/push-devices-extra",
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("shouldSilenceHttpSuccessLog", () => {
