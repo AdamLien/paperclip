@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { useMemo } from "react";
 import { NavLink, useLocation } from "@/lib/router";
 import {
@@ -39,6 +40,7 @@ interface MobileNavActionItem {
 type MobileNavItem = MobileNavLinkItem | MobileNavActionItem;
 
 export function MobileBottomNav({ visible }: MobileBottomNavProps) {
+  useUiLiteralLocale();
   const location = useLocation();
   const { selectedCompanyId } = useCompany();
   const { openNewIssue } = useDialogActions();
@@ -115,7 +117,7 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
                 )}
               >
                 <Icon className="h-(--sz-18px) w-(--sz-18px)" />
-                <span className="truncate">{item.label}</span>
+                <span className="truncate">{translateUiLiteral(item.label)}</span>
               </button>
             );
           }
@@ -145,7 +147,7 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
                       </Badge>
                     )}
                   </span>
-                  <span className="truncate">{item.label}</span>
+                  <span className="truncate">{translateUiLiteral(item.label)}</span>
                 </>
               )}
             </NavLink>

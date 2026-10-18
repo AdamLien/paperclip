@@ -1,3 +1,5 @@
+import { translateUiLiteral } from "@/i18n/LegacyLiteralLocalizer";
+import { useTranslation } from "react-i18next";
 import { UiLocaleSelect } from "@/components/UiLocaleSelect";
 import { ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -38,6 +40,7 @@ export function CompanySettings() {
     selectedCompanyId,
     setSelectedCompanyId
   } = useCompany();
+  const { i18n } = useTranslation();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -194,9 +197,9 @@ export function CompanySettings() {
   useEffect(() => {
     setBreadcrumbs([
       { label: selectedCompany?.name ?? "Company", href: "/dashboard" },
-      { label: "Settings" }
+      { label: translateUiLiteral("Settings") }
     ]);
-  }, [setBreadcrumbs, selectedCompany?.name]);
+  }, [setBreadcrumbs, selectedCompany?.name, i18n.resolvedLanguage]);
 
   if (!selectedCompany) {
     return (
