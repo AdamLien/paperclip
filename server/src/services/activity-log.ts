@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
-import { activityLog, agentApiKeys, companies, heartbeatRuns, issues } from "@paperclipai/db";
+import { activityLog, agentApiKeys, companies, heartbeatRuns, issues, pushCompletionEvents } from "@paperclipai/db";
 import { isUuidLike, PLUGIN_EVENT_TYPES, type PluginEventType } from "@paperclipai/shared";
 import type { PluginEvent } from "@paperclipai/plugin-sdk";
 import { publishLiveEvent } from "./live-events.js";
@@ -160,7 +160,7 @@ export function publishActivity(publication: ActivityPublication) {
 export async function persistActivity(db: Db, input: LogActivityInput) {
   const redactedDetails = await redactActivityDetails(db, input.details ?? null);
   const responsibleUserId = await resolveResponsibleUserIdForActivity(db, input);
-  const [activity] = await db.insert(activityLog).values({
+  const values = {
     companyId: input.companyId,
     actorType: input.actorType,
     actorId: input.actorId,
@@ -171,7 +171,39 @@ export async function persistActivity(db: Db, input: LogActivityInput) {
     runId: input.runId ?? null,
     responsibleUserId,
     details: redactedDetails,
-  }).returning({ id: activityLog.id });
+  };
+  const insertActivity = async (target: Pick<Db, "insert">) => {
+    const [activity] = await target.insert(activityLog).values(values).returning({ id: activityLog.id });
+    if (!activity) throw new Error("activity log insert returned no row");
+    return activity;
+  };
+  const details = redactedDetails as Record<string, unknown> | null;
+  const previous = details?._previous;
+  const previousStatus = previous && typeof previous === "object"
+    ? (previous as Record<string, unknown>).status
+    : undefined;
+  const shouldEnqueueCompletion = input.entityType === "issue" &&
+    input.action === "issue.updated" &&
+    typeof responsibleUserId === "string" &&
+    details?.status === "done" &&
+    typeof previousStatus === "string" &&
+    previousStatus !== "done";
+
+  let activity;
+  if (shouldEnqueueCompletion) {
+    activity = await db.transaction(async (tx) => {
+      const activity = await insertActivity(tx);
+      await tx.insert(pushCompletionEvents).values({
+        activityLogId: activity.id,
+        companyId: input.companyId,
+        issueId: input.entityId,
+        recipientUserId: responsibleUserId,
+      }).onConflictDoNothing();
+      return activity;
+    });
+  } else {
+    activity = await insertActivity(db);
+  }
 
   const payload = {
     actorType: input.actorType,

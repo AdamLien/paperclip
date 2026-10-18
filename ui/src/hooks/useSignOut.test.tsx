@@ -207,7 +207,11 @@ describe("useSignOut", () => {
 
     flushSync(() => captured?.mutate());
 
-    await vi.waitFor(() => expect(captured?.error?.message).toBe("Sign-out request failed"));
+    await vi.waitFor(() => {
+      const error = captured?.error;
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe("Sign-out request failed");
+    });
     expect(captured?.isPending).toBe(false);
     expect(onSignedOut).not.toHaveBeenCalled();
     // The account is still signed in, so its caches must survive intact —

@@ -3,6 +3,7 @@ import { authApi } from "@/api/auth";
 import { navigateTopLevel } from "@/lib/browserNavigation";
 import { queryKeys } from "@/lib/queryKeys";
 import { useCloudInstance } from "./useCloudInstance";
+import { revokePushNotifications } from "@/lib/push-notifications";
 
 const CLOUD_SIGN_OUT_PATH = "/cloud/logout";
 
@@ -29,6 +30,7 @@ export function isAccountScopedQueryKey(queryKey: readonly unknown[]): boolean {
 
 interface UseSignOutOptions {
   onSignedOut?: () => void;
+  onSignOutError?: (error: unknown) => void;
 }
 
 /**
@@ -40,12 +42,13 @@ interface UseSignOutOptions {
  * left here to clear. Authenticated self-hosted instances keep the local API
  * flow and drop the account-scoped caches afterward.
  */
-export function useSignOut({ onSignedOut }: UseSignOutOptions = {}) {
+export function useSignOut({ onSignedOut, onSignOutError }: UseSignOutOptions = {}) {
   const cloud = useCloudInstance();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async () => {
+      await revokePushNotifications();
       if (cloud) {
         onSignedOut?.();
         navigateTopLevel(CLOUD_SIGN_OUT_PATH);
@@ -109,5 +112,6 @@ export function useSignOut({ onSignedOut }: UseSignOutOptions = {}) {
       // INSTANCE_SCOPED_QUERY_ROOTS.
       await queryClient.invalidateQueries({ queryKey: queryKeys.health });
     },
+    onError: onSignOutError,
   });
 }

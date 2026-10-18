@@ -660,7 +660,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
           <div
             className={cn(
               !isMobile && useStreamlinedTaskDetailShell && "hidden",
-              isMobile && "sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85",
+              isMobile && "sticky top-0 z-20 bg-background/95 pt-(--sz-safe-top) backdrop-blur supports-[backdrop-filter]:bg-background/85",
             )}
           >
             <StandaloneBrowserControls mobile={isMobile} />
