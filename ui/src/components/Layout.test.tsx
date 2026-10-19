@@ -1369,7 +1369,12 @@ describe("Layout", () => {
       const { root, rootEl } = await renderLayoutRoot();
       const breadcrumb = Array.from(rootEl.querySelectorAll("div"))
         .find((el) => el.textContent === "Breadcrumbs" && el.children.length === 0)!;
-      expect(breadcrumb.parentElement!.classList.contains("pt-(--sz-safe-top)")).toBe(isMobile);
+      const header = breadcrumb.parentElement!;
+      // Layout already reserves the safe area. Padding here would add a second
+      // notch-height gap; the sticky offset must protect it after scrolling.
+      expect(header.classList.contains("pt-(--sz-safe-top)")).toBe(false);
+      expect(header.classList.contains("top-(--sz-safe-top)")).toBe(isMobile);
+      expect(rootEl.classList.contains("pt-(--sz-safe-top)")).toBe(true);
       await act(async () => { root.unmount(); });
     }
   });
