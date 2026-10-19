@@ -35,7 +35,7 @@ export function IssueApprovalBanner({ issue, currentUserId, userLabels, onDecisi
       setPending(false);
     }
   };
-  return <section aria-label={zh ? "任務核准" : "Task approval"} className="rounded-md border border-border bg-accent/30 p-3 space-y-3">
+  return <section aria-label={zh ? "任務核准" : "Task approval"} className="sticky top-14 z-20 rounded-md border border-border bg-background p-3 space-y-3">
     <p role="status" className="text-sm font-medium">{zh ? `等待 ${name} 核准` : `Waiting for ${name} to approve`}</p>
     {canDecide ? <>
       <Textarea aria-label={zh ? "審核意見" : "Decision comment"} placeholder={zh ? "請填寫核准意見或需修改的內容" : "Explain your approval or the required changes"} value={comment} onChange={(event) => setComment(event.target.value)} disabled={pending} />
