@@ -4,10 +4,20 @@ const DAY = 24 * HOUR;
 const WEEK = 7 * DAY;
 const MONTH = 30 * DAY;
 
-export function timeAgo(date: Date | string): string {
+export function timeAgo(date: Date | string, locale = "en-US"): string {
   const now = Date.now();
   const then = new Date(date).getTime();
   const seconds = Math.round((now - then) / 1000);
+
+  if (locale === "zh-TW") {
+    if (seconds < MINUTE) return "剛剛";
+    const relative = new Intl.RelativeTimeFormat("zh-TW", { numeric: "always" });
+    if (seconds < HOUR) return relative.format(-Math.floor(seconds / MINUTE), "minute");
+    if (seconds < DAY) return relative.format(-Math.floor(seconds / HOUR), "hour");
+    if (seconds < WEEK) return relative.format(-Math.floor(seconds / DAY), "day");
+    if (seconds < MONTH) return relative.format(-Math.floor(seconds / WEEK), "week");
+    return relative.format(-Math.floor(seconds / MONTH), "month");
+  }
 
   if (seconds < MINUTE) return "just now";
   if (seconds < HOUR) {

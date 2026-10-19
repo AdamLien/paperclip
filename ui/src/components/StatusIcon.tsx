@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { translateUiLiteral, useUiLiteralLocale } from "../i18n/LegacyLiteralLocalizer";
 import type { IssueBlockerAttention } from "@paperclipai/shared";
 import { cn } from "../lib/utils";
 import { StatusGlyph, type StatusGlyphSize } from "./StatusGlyph";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 const allStatuses = ["backlog", "todo", "in_progress", "in_review", "done", "cancelled", "blocked"];
 
 function statusLabel(status: string): string {
-  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return translateUiLiteral(status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
 }
 
 interface StatusIconProps {
@@ -79,6 +80,7 @@ function blockedAttentionLabel(blockerAttention: IssueBlockerAttention | null | 
  * still rides on the accessible label.
  */
 export function StatusIcon({ status, externalConversationState, blockerAttention, onChange, className, glyphContainerClassName, showLabel, size = "md" }: StatusIconProps) {
+  useUiLiteralLocale();
   const [open, setOpen] = useState(false);
   const displayStatus = status === "in_review" && externalConversationState === "waiting" ? "idle" : status;
   const isCoveredBlocked = status === "blocked" && blockerAttention?.state === "covered";

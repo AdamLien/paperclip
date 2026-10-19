@@ -8,6 +8,8 @@ import { AgentAvatar } from "@/components/AgentAvatar";
 import { normalizeLegacyRunnerProvider } from "@paperclipai/adapter-utils";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
+import { translateUiLiteral } from "../../i18n/LegacyLiteralLocalizer";
 import { PROPERTIES_PANE_HEADER_SLOT_ID } from "../PropertiesPanel";
 import { issueStatusText } from "@/lib/status-colors";
 import { copyTextToClipboard } from "@/lib/clipboard";
@@ -248,6 +250,7 @@ export function IssueProperties({
   const policyResult = useExecutionPolicy(issue.executionPolicy);
   const policyAvailable = policyResult.success;
   const executionPolicy = policyResult.success ? policyResult.data : null;
+  const { i18n } = useTranslation();
   const { selectedCompanyId } = useCompany();
   const { isMobile } = useSidebar();
   const queryClient = useQueryClient();
@@ -1341,7 +1344,7 @@ export function IssueProperties({
             <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
       ) : null}
           <span className="flex min-w-0 flex-col items-start">
-            <span className={cn("text-sm", monitorNextCheckAt ? "font-semibold text-foreground" : "text-muted-foreground")}>{monitorPrimary}</span>
+            <span className={cn("text-sm", monitorNextCheckAt ? "font-semibold text-foreground" : "text-muted-foreground")}>{translateUiLiteral(monitorPrimary)}</span>
             {monitorSecondary ? (
               <span className="text-xs text-muted-foreground">{monitorSecondary}</span>
             ) : null}
@@ -2913,32 +2916,32 @@ export function IssueProperties({
           </PropertyRow>
         ) : null}
         {issue.startedAt && (
-          <PropertyRow label="Started">
+          <PropertyRow label="Started at">
             <span
               className={streamlinedPropertiesEnabled ? "min-w-0 truncate whitespace-nowrap text-sm" : "text-sm"}
-              title={streamlinedPropertiesEnabled ? formatDateTime(issue.startedAt) : undefined}
-            >{formatDateTime(issue.startedAt)}</span>
+              title={streamlinedPropertiesEnabled ? formatDateTime(issue.startedAt, { locale: i18n.language }) : undefined}
+            >{formatDateTime(issue.startedAt, { locale: i18n.language })}</span>
           </PropertyRow>
         )}
         {issue.completedAt && (
-          <PropertyRow label="Completed">
+          <PropertyRow label="Completed at">
             <span
               className={streamlinedPropertiesEnabled ? "min-w-0 truncate whitespace-nowrap text-sm" : "text-sm"}
-              title={streamlinedPropertiesEnabled ? formatDateTime(issue.completedAt) : undefined}
-            >{formatDateTime(issue.completedAt)}</span>
+              title={streamlinedPropertiesEnabled ? formatDateTime(issue.completedAt, { locale: i18n.language }) : undefined}
+            >{formatDateTime(issue.completedAt, { locale: i18n.language })}</span>
           </PropertyRow>
         )}
-        <PropertyRow label="Created">
+        <PropertyRow label="Created at">
           <span
             className={streamlinedPropertiesEnabled ? "min-w-0 truncate whitespace-nowrap text-sm" : "text-sm"}
-            title={streamlinedPropertiesEnabled ? formatDateTime(issue.createdAt) : undefined}
-          >{formatDateTime(issue.createdAt)}</span>
+            title={streamlinedPropertiesEnabled ? formatDateTime(issue.createdAt, { locale: i18n.language }) : undefined}
+          >{formatDateTime(issue.createdAt, { locale: i18n.language })}</span>
         </PropertyRow>
         <PropertyRow label="Updated">
           <span
             className={streamlinedPropertiesEnabled ? "min-w-0 truncate whitespace-nowrap text-sm" : "text-sm"}
-            title={streamlinedPropertiesEnabled ? timeAgo(issue.updatedAt) : undefined}
-          >{timeAgo(issue.updatedAt)}</span>
+            title={streamlinedPropertiesEnabled ? timeAgo(issue.updatedAt, i18n.language) : undefined}
+          >{timeAgo(issue.updatedAt, i18n.language)}</span>
         </PropertyRow>
         {issue.archivedAt && issue.archivedByActorType === "agent" && issue.archivedByAgentId ? (
           (() => {
@@ -3008,18 +3011,18 @@ export function IssueProperties({
   const hasReferencesTab = streamlinedPropertiesEnabled
     && (panelReferencedTasks.length > 0 || panelMentionedInTasks.length > 0);
   const availablePaneTabs: IssuePaneTabDescriptor[] = [
-    { value: "properties", label: "Properties", closable: false },
+    { value: "properties", label: translateUiLiteral("Properties"), closable: false },
     ...(hasSubtasksTab
-      ? [{ value: "subtasks" as const, label: "Subtasks", count: childIssues.length, closable: true }]
+      ? [{ value: "subtasks" as const, label: translateUiLiteral("Subtasks"), count: childIssues.length, closable: true }]
       : []),
     ...(hasReferencesTab
-      ? [{ value: "references" as const, label: "References", closable: true }]
+      ? [{ value: "references" as const, label: translateUiLiteral("References"), closable: true }]
       : []),
     ...(hasPlanTab
-      ? [{ value: "plans" as const, label: "Plan", closable: true }]
+      ? [{ value: "plans" as const, label: translateUiLiteral("Plan"), closable: true }]
       : []),
     ...(hasArtifactsTab
-      ? [{ value: "artifacts" as const, label: "Artifacts", closable: true }]
+      ? [{ value: "artifacts" as const, label: translateUiLiteral("Artifacts"), closable: true }]
       : []),
   ];
   const visiblePaneTabs = availablePaneTabs.filter(
