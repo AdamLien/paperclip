@@ -60,9 +60,9 @@ export function formatDate(date: Date | string): string {
 
 export function formatDateTime(
   date: Date | string,
-  options: { includeSeconds?: boolean; includeYear?: boolean } = {},
+  options: { includeSeconds?: boolean; includeYear?: boolean; locale?: string } = {},
 ): string {
-  return new Date(date).toLocaleString("en-US", {
+  return new Date(date).toLocaleString(options.locale ?? "en-US", {
     month: "short",
     day: "numeric",
     ...(options.includeYear === false ? {} : { year: "numeric" as const }),
