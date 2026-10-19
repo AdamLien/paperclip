@@ -23,6 +23,7 @@ vi.mock("../context/SidebarContext", () => ({ useSidebar: () => ({ isMobile: sta
 vi.mock("../hooks/useInboxBadge", () => ({ useInboxBadge: () => ({ inbox: 3 }) }));
 vi.mock("../hooks/useAgentChatEnabled", () => ({ useAgentChatEnabled: () => ({ enabled: false }) }));
 vi.mock("../hooks/useCombinedInboxTasksEnabled", () => ({ useCombinedInboxTasksEnabled: () => ({ enabled: false }) }));
+vi.mock("../hooks/useFastResponsesEnabled", () => ({ useFastResponsesEnabled: () => ({ enabled: false }) }));
 vi.mock("../hooks/useCloudInstance", () => ({ useCloudInstance: () => null }));
 vi.mock("../hooks/useHiddenSettings", () => ({ useHiddenSettings: () => ({ hidden: new Set() }) }));
 
