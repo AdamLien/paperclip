@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "../i18n/LegacyLiteralLocalizer";
 import type { CSSProperties } from "react";
 import { cn } from "../lib/utils";
 import {
@@ -28,6 +29,7 @@ function sentenceCaseStatus(status: string): string {
 // design-allow(pill-pattern): DECISION-SHEET.md C8 - status badges keep the bespoke WCAG-tuned
 // .status-chip color-mix mechanic and do not wrap the Badge primitive.
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
+  useUiLiteralLocale();
   return (
     <span
       className={cn(
@@ -35,7 +37,7 @@ export function StatusBadge({ status, label }: { status: string; label?: string 
         statusBadge[status] ?? statusBadgeDefault
       )}
     >
-      {label ?? status.replace(/[_-]/g, " ")}
+      {label ?? translateUiLiteral(status.replace(/[_-]/g, " "))}
     </span>
   );
 }
@@ -46,6 +48,7 @@ export function StatusBadge({ status, label }: { status: string; label?: string 
  * renders as "idle" (alias for dead code).
  */
 export function AgentStatusBadge({ status }: { status: string }) {
+  useUiLiteralLocale();
   const cssVar = agentStatusVar[status] ?? agentStatusVarDefault;
   const label = status === "active" ? "idle" : status;
   return (
@@ -53,7 +56,7 @@ export function AgentStatusBadge({ status }: { status: string }) {
       className="status-chip inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium leading-none whitespace-nowrap shrink-0"
       style={scStyle(cssVar)}
     >
-      {label.replace(/_/g, " ")}
+      {translateUiLiteral(label.replace(/_/g, " "))}
     </span>
   );
 }
