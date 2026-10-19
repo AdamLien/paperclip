@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+import { translateUiLiteral } from "../i18n/LegacyLiteralLocalizer";
+import { timeAgo } from "../lib/timeAgo";
 import { useSelectedHeartbeatRun } from "../hooks/useSelectedHeartbeatRun";
 import { grokBotApi } from "@/api/grokBot";
 import { GrokBotWorkSummary } from "@/components/GrokBotWorkSummary";
@@ -767,6 +770,7 @@ function WorkspaceOperationsSection({
 }
 
 export function AgentDetail() {
+  const { i18n } = useTranslation();
   const { companyPrefix, agentId, tab: urlTab, runId: urlRunId } = useParams<{
     companyPrefix?: string;
     agentId: string;
@@ -1052,7 +1056,7 @@ export function AgentDetail() {
 
   useEffect(() => {
     const crumbs: { label: string; href?: string }[] = [
-      { label: "Agents", href: "/agents" },
+      { label: translateUiLiteral("Agents"), href: "/agents" },
     ];
     const agentName = agent?.name ?? routeAgentRef ?? "Agent";
     if (activeView === "overview" && !urlRunId) {
@@ -1060,17 +1064,17 @@ export function AgentDetail() {
     } else {
       crumbs.push({ label: agentName, href: agentDetailHref(canonicalAgentRef) });
       if (urlRunId) {
-        crumbs.push({ label: "Runs", href: agent?.id ? agentScopedAuditHref(agent.id, "runs") : undefined });
+        crumbs.push({ label: translateUiLiteral("Runs"), href: agent?.id ? agentScopedAuditHref(agent.id, "runs") : undefined });
         crumbs.push({ label: `Run ${urlRunId.slice(0, 8)}` });
       } else {
         const item = AGENT_DETAIL_NAVIGATION
           .flatMap((section) => section.items)
           .find((candidate) => candidate.value === activeView);
-        crumbs.push({ label: item?.label ?? "Overview" });
+        crumbs.push({ label: translateUiLiteral(item?.label ?? "Overview") });
       }
     }
     setBreadcrumbs(crumbs);
-  }, [setBreadcrumbs, agent, routeAgentRef, canonicalAgentRef, activeView, urlRunId]);
+  }, [setBreadcrumbs, agent, routeAgentRef, canonicalAgentRef, activeView, urlRunId, i18n.language]);
 
   useEffect(() => {
     closePanel();
@@ -1397,7 +1401,7 @@ export function AgentDetail() {
         </div>
       )}
 
-      {activeView !== "run-detail" && activeView !== "channels" && <h2 className="text-xl font-semibold">{activeView === "secrets" ? "Secrets & variables" : AGENT_DETAIL_NAVIGATION.flatMap(section => section.items).find(item => item.value === activeView)?.label}</h2>}
+      {activeView !== "run-detail" && activeView !== "channels" && <h2 className="text-xl font-semibold">{translateUiLiteral(activeView === "secrets" ? "Secrets & variables" : AGENT_DETAIL_NAVIGATION.flatMap(section => section.items).find(item => item.value === activeView)?.label ?? "Overview")}</h2>}
 
       {/* View content */}
       {activeView === "overview" && (
@@ -1580,6 +1584,7 @@ function LatestRunCard({
   agentId: string;
   issuesById: Map<string, LatestRunIssue>;
 }) {
+  const { i18n } = useTranslation();
   const sorted = useMemo(
     () =>
       [...runs].sort(
@@ -1701,7 +1706,7 @@ function LatestRunCard({
               </Badge>
             </>
           )}
-          <span className="ml-auto text-xs text-muted-foreground">{relativeTime(run.createdAt)}</span>
+          <span className="ml-auto text-xs text-muted-foreground">{timeAgo(run.createdAt, i18n.language)}</span>
         </div>
 
         {summary && (
@@ -1735,6 +1740,7 @@ export function AgentOverview({
   skillNames: string[];
   agentRouteId: string;
 }) {
+  const { i18n } = useTranslation();
   const issuesById = useMemo(() => {
     const map = new Map<string, (typeof assignedIssues)[number]>();
     for (const issue of assignedIssues) map.set(issue.id, issue);
@@ -1770,8 +1776,8 @@ export function AgentOverview({
             <StatusBadge status={agent.status} />
           </div>
           <div className="space-y-3">
-            <SummaryRow label="Role"><span className="text-sm">{roleLabels[agent.role] ?? agent.role}</span></SummaryRow>
-            <SummaryRow label="Title"><span className="text-sm">{agent.title ?? "Not set"}</span></SummaryRow>
+            <SummaryRow label="Agent role"><span className="text-sm">{translateUiLiteral(agent.role === "general" ? "General agent" : roleLabels[agent.role] ?? agent.role)}</span></SummaryRow>
+            <SummaryRow label="Agent title"><span className="text-sm">{agent.title ?? "Not set"}</span></SummaryRow>
             <SummaryRow label="Reports to">
               {reportsToAgent ? (
                 <Link className="text-sm hover:underline" to={agentDetailHref(agentRouteRef(reportsToAgent))}>
@@ -1808,11 +1814,11 @@ export function AgentOverview({
             <Link className="text-xs text-muted-foreground hover:text-foreground" to={agentDetailHref(agentRouteId, "runtime")}>Configure</Link>
           </div>
           <div className="space-y-3">
-            <SummaryRow label="Adapter"><span className="text-sm">{getAdapterDisplay(agentDisplayAdapterType(agent)).label}</span></SummaryRow>
+            <SummaryRow label="Agent adapter"><span className="text-sm">{getAdapterDisplay(agentDisplayAdapterType(agent)).label}</span></SummaryRow>
             {agent.adapterType === "paperclip_runner" && agent.adapterConfig.provider === "grok_bot" ? <><SummaryRow label="Execution"><span className="text-sm">Runs in Grok Bot</span></SummaryRow><SummaryRow label="Usage"><span className="text-sm">Not reported</span></SummaryRow></> : <SummaryRow label="Model"><span className="max-w-64 truncate text-sm font-mono">{configuredModel}</span></SummaryRow>}
-            <SummaryRow label="Session"><span className="max-w-64 truncate text-sm font-mono">{runtimeState?.sessionDisplayId ?? runtimeState?.sessionId ?? "No session"}</span></SummaryRow>
+            <SummaryRow label="Agent session"><span className="max-w-64 truncate text-sm font-mono">{runtimeState?.sessionDisplayId ?? runtimeState?.sessionId ?? "No session"}</span></SummaryRow>
             <SummaryRow label="Last run">
-              <span className="text-sm">{lastRun ? `${lastRun.status} · ${relativeTime(lastRun.createdAt)}` : "No runs"}</span>
+              <span className="text-sm">{lastRun ? `${translateUiLiteral(lastRun.status)} · ${timeAgo(lastRun.createdAt, i18n.language)}` : "No runs"}</span>
             </SummaryRow>
             {agent.adapterType === "paperclip_runner" && agent.adapterConfig.provider === "grok_bot" && <GrokBotWorkSummary companyId={agent.companyId} agentId={agent.id} />}
           </div>
@@ -1862,7 +1868,7 @@ export function AgentOverview({
                 key={issue.id}
                 issue={issue}
                 presentation="task"
-                metadata={<span className="text-xs text-muted-foreground">{relativeTime(issue.updatedAt)}</span>}
+                metadata={<span className="text-xs text-muted-foreground">{timeAgo(issue.updatedAt, i18n.language)}</span>}
                 showDivider
               />
             ))}
@@ -1884,7 +1890,7 @@ export function AgentOverview({
               to={agentScopedAuditHref(agent.id, section)}
               className="rounded-lg border border-border px-3 py-2 text-sm font-medium capitalize hover:bg-accent"
             >
-              {section}
+              {translateUiLiteral(section.charAt(0).toUpperCase() + section.slice(1))}
             </Link>
           ))}
         </div>

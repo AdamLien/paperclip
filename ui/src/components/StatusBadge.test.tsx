@@ -1,8 +1,9 @@
 // @vitest-environment node
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { AgentStatusBadge, IssueStatusBadge, StatusBadge } from "./StatusBadge";
+import { setLocale } from "../i18n";
 import { agentStatusVar, taskStatusVar } from "../lib/status-colors";
 
 /**
@@ -69,4 +70,14 @@ describe("StatusBadge", () => {
     expect(renderToStaticMarkup(<StatusBadge status="todo" />)).toContain("bg-amber-100");
     expect(renderToStaticMarkup(<StatusBadge status="in_progress" />)).toContain("bg-blue-100");
   });
+});
+
+
+afterEach(() => { setLocale("en"); });
+it("translates known runtime states while preserving explicit labels and custom states", () => {
+  setLocale("zh-TW");
+  expect(renderToStaticMarkup(<StatusBadge status="succeeded" />)).toContain("成功");
+  expect(renderToStaticMarkup(<AgentStatusBadge status="active" />)).toContain("待命");
+  expect(renderToStaticMarkup(<StatusBadge status="succeeded" label="Customer Success" />)).toContain("Customer Success");
+  expect(renderToStaticMarkup(<StatusBadge status="custom-state" />)).toContain("custom state");
 });

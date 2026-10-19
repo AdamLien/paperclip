@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@/lib/router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -213,6 +214,7 @@ export function AgentActionButtons({
   children?: React.ReactNode;
   className?: string;
 }) {
+  useUiLiteralLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { openNewIssue } = useDialogActions();
@@ -401,7 +403,7 @@ export function AgentActionButtons({
         title={workActionsDisabled ? workActionsDisabledReason : undefined}
       >
         <Plus className="h-3.5 w-3.5 sm:mr-1" />
-        <span className="hidden sm:inline">{assignLabel}</span>
+        <span className="hidden sm:inline">{translateUiLiteral(assignLabel)}</span>
       </Button>
       {showRun && <RunButton
         onClick={() => {
@@ -409,7 +411,7 @@ export function AgentActionButtons({
           agentAction.mutate("invoke");
         }}
         disabled={assignAndRunDisabled}
-        label={runLabel}
+        label={translateUiLiteral(runLabel)}
         size={size}
       />}
       {canRunWithProviderTrace && (

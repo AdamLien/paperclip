@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Agent } from "@paperclipai/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setLocale } from "@/i18n";
 import { AgentActionButtons } from "./AgentActionButtons";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -122,6 +123,7 @@ describe("AgentActionButtons", () => {
     queryClient.clear();
     container.remove();
     document.body.innerHTML = "";
+    setLocale("en");
     vi.clearAllMocks();
   });
 
@@ -155,6 +157,18 @@ describe("AgentActionButtons", () => {
       expect(buttons.find(button => button.textContent === "Run Heartbeat")!.disabled).toBe(true);
       expect(buttons.find(button => button.textContent === "Assign Task")!.disabled).toBe(true);
     }
+  });
+
+  it("localizes default action labels and keeps assigning to the same agent", async () => {
+    setLocale("zh-TW");
+    render(makeAgent(), { runLabel: undefined });
+    await flushReact();
+    expect(container.textContent).toContain("指派任務");
+    expect(container.textContent).toContain("立即執行");
+    const assign = [...container.querySelectorAll("button")].find(button => button.textContent?.includes("指派任務"));
+    await act(async () => assign?.click());
+    expect(mockOpenNewIssue).toHaveBeenCalledWith({ assigneeAgentId: makeAgent().id });
+    expect(mockAgentsApi.invoke).not.toHaveBeenCalled();
   });
 
   it("replaces the pause slot with Clear error for error agents", async () => {
