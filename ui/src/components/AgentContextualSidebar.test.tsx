@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { setLocale } from "@/i18n";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -66,4 +69,33 @@ describe("AgentContextualSidebar", () => {
     expect(markup).toContain("Harness / Runtime");
     expect(markup).toContain("Permissions / Trust");
   });
+});
+
+
+it("switches agent navigation labels live while preserving agent names and route targets", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  setLocale("en");
+  const client = new QueryClient();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<QueryClientProvider client={client}><MemoryRouter>
+      <AgentContextualSidebar agentRef="steve" agentId="agent-1" agentName="Steve Rogers" />
+    </MemoryRouter></QueryClientProvider>));
+    const routes = [...host.querySelectorAll("a")].map(a => a.getAttribute("href"));
+    expect(host.textContent).toContain("Overview");
+    await act(async () => { setLocale("zh-TW"); });
+    for (const label of ["概覽", "指示", "技能", "執行程式／執行環境", "金鑰與環境變數", "通訊管道", "權限與信任設定", "版本紀錄", "執行記錄"])
+      expect(host.textContent).toContain(label);
+    expect([...host.querySelectorAll("a")].map(a => a.getAttribute("href"))).toEqual(routes);
+    expect(host.querySelector("aside")?.getAttribute("data-title")).toBe("Steve Rogers");
+    await act(async () => { setLocale("en"); });
+    expect(host.textContent).toContain("Overview");
+  } finally {
+    await act(async () => root.unmount());
+    setLocale("en");
+    host.remove();
+    client.clear();
+  }
 });
