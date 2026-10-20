@@ -42,3 +42,23 @@ test('company memory integration: independent persistence and bidirectional deni
   }
   const r = await request({ token: 'unknown' }, '/v4/search', {}); assert.equal(r.status, 401);
 });
+
+test('administrator front preserves authenticated APIs and rejects unauthenticated legacy access', async t => {
+  let calls = 0;
+  const server = createGateway({ upstreamUrl: 'http://127.0.0.1:6770', upstreamKey: 'master-secret', tenants, allowAdminProxy: true }, async (url, options) => {
+    calls++;
+    assert.equal(url.origin, 'http://127.0.0.1:6770');
+    assert.equal(options.headers.Authorization, 'Bearer master-secret');
+    return new Response(JSON.stringify({ ok: true }), { status: 201 });
+  });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  for (const token of ['', 'wrong', tenants[0].token]) {
+    const r = await fetch(base + '/v3/documents', { headers: { Authorization: `Bearer ${token}` } });
+    assert.equal(r.status, token === tenants[0].token ? 404 : 401);
+  }
+  assert.equal(calls, 0);
+  assert.equal((await fetch(base + '/v3/documents', { headers: { Authorization: 'Bearer master-secret' } })).status, 201);
+  assert.equal(calls, 1);
+});

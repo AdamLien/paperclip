@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import urllib.request
 import urllib.error
+import subprocess
 
 c = json.loads(Path('/run/crew-memory/client.json').read_text())
 own = os.environ['CREW_MEMORY_CONTAINER']
@@ -43,8 +44,16 @@ result = {
     'otherCompanyHomeVisible': Path(str(Path(os.environ['CODEX_HOME']).parents[1] / other.removeprefix('crew_company_'))).exists(),
     'metabizWikiVisible': Path('/mnt/obsidian/metabiz/INDEX/index.md').exists(),
 }
+rpc = [
+    {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {'protocolVersion': '2024-11-05'}},
+    {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call', 'params': {'name': 'context', 'arguments': {'containerTag': own, 'query': 'connection verification'}}},
+]
+bridge = subprocess.run(['/usr/bin/node', '/usr/local/lib/crew-company-memory/mcp.cjs'], input=''.join(json.dumps(r) + '\n' for r in rpc), text=True, capture_output=True, timeout=40)
+responses = [json.loads(line) for line in bridge.stdout.splitlines() if line.strip()]
+result['mcpContextSucceeded'] = any(r.get('id') == 2 and 'result' in r and not r['result'].get('isError') for r in responses)
 print(json.dumps(result))
 assert result['ownMemoryHTTP'] == 200
+assert result['mcpContextSucceeded']
 assert result['otherCompanyMemoryHTTP'] == 403
 assert result['administratorFrontWithCompanyKeyHTTP'] == 403
 assert result['directStorageWithCompanyKeyHTTP'] == 'network-blocked'
