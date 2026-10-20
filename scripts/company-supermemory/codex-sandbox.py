@@ -29,6 +29,7 @@ def build_command(policy, env, cwd, args):
         raise ValueError('Only the current agent managed workspace is allowed')
     if not home.is_dir() or not cwd.is_dir():
         raise ValueError('Managed home/workspace missing')
+    config = tomllib.loads((home / 'config.toml').read_text()) if (home / 'config.toml').exists() else {}
     # Start from an empty mount tree: never expose the host root or /home.
     cmd = ['/usr/bin/bwrap', '--unshare-all', '--unshare-user', '--share-net', '--disable-userns',
            '--die-with-parent', '--new-session', '--cap-drop', 'ALL', '--clearenv']
@@ -38,6 +39,13 @@ def build_command(policy, env, cwd, args):
     cmd += ['--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/home',
             '--dir', '/run', '--dir', '/run/crew-memory', '--dir', '/var', '--dir', '/mnt']
     cmd += ['--bind', str(home), str(home), '--bind', str(workspace), str(workspace)]
+    # OCX seeds its public model catalog as an absolute host path. Expose only
+    # that file, never the surrounding host Codex home or credentials.
+    catalog = config.get('model_catalog_json')
+    if catalog:
+        if catalog != '/home/metabiz-admin/.codex/opencodex-catalog.json':
+            raise ValueError('Unapproved model catalog path')
+        cmd += ['--ro-bind', catalog, catalog]
     instructions = company_root / 'agents' / agent / 'instructions'
     if instructions.is_dir():
         cmd += ['--ro-bind', str(instructions), str(instructions)]
@@ -74,7 +82,6 @@ def build_command(policy, env, cwd, args):
     cmd += ['--dir', '/home/crew', '--chdir', str(cwd)]
     if args == ['--company-memory-probe']:
         return cmd + ['/usr/bin/python3', '/usr/local/lib/crew-company-memory/probe.py']
-    config = tomllib.loads((home / 'config.toml').read_text()) if (home / 'config.toml').exists() else {}
     overrides = []
     for name, entry in config.get('mcp_servers', {}).items():
         if name != 'supermemory' and 'command' in entry:

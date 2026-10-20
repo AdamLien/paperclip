@@ -33,7 +33,7 @@ class CompanySandboxTest(unittest.TestCase):
         self.assertIn('--clearenv', cmd)
         self.assertNotIn('must-not-inherit', cmd)
         self.assertNotIn('--ro-bind / /', ' '.join(cmd))
-        self.assertIn('mcp_servers."host".enabled=false', cmd)
+        self.assertIn('mcp_servers.host.enabled=false', cmd)
         self.assertIn('mcp_servers.supermemory.env_vars=["SUPERMEMORY_CONFIG_PATH"]', cmd)
 
     def test_cross_company_home_denied(self):

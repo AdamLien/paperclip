@@ -38,8 +38,14 @@ Deploy code by fetching/checking out the exact Git commit, then install the
 service and non-Git credential files on the target host. Never rsync runtime
 state or commit keys. Back up old adapter configs/instruction bundles before
 PATCHing through the authenticated Paperclip API. To roll back an agent,
-restore its previous command/config through that API. Do not stop the existing
-Supermemory service or delete its original data.
+restore its previous command/config through that API. Preserve the original
+data and service definition. The old user service is disabled after a graceful
+stop; `crew-supermemory-storage.service` runs the same binary/data as
+`metabiz-admin` with the dedicated primary group `crew-memory-store`. That
+group is not assigned to agent processes. The firewall permits the storage
+server's startup self-request while denying ordinary UID 1000 processes.
+The storage unit requires the network guard; the gateway does too. On rollback,
+stop the new services before restoring the user service and its original port.
 
 ## Verification
 
