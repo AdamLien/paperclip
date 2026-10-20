@@ -1,0 +1,18 @@
+[Unit]
+Description=Supermemory private storage for Crew
+After=network-online.target crew-memory-network-guard.service
+Requires=crew-memory-network-guard.service
+[Service]
+Type=simple
+User=metabiz-admin
+Group=crew-memory-store
+WorkingDirectory=/home/metabiz-admin/Documents/workspace/metabiz
+Environment=HOME=/home/metabiz-admin
+Environment=SUPERMEMORY_DATA_DIR=/home/metabiz-admin/Documents/workspace/metabiz/.supermemory
+Environment=SUPERMEMORY_PORT=6770
+Environment=SUPERMEMORY_HIDE_API_KEY_IN_LOGS=1
+ExecStart=/home/metabiz-admin/.local/bin/supermemory-server
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

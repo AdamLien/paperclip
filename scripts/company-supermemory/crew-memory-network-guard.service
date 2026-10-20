@@ -1,0 +1,9 @@
+[Unit]
+Description=Prevent bypass of Crew private Supermemory backend
+Before=crew-company-memory.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh /usr/local/lib/crew-company-memory/network-guard.sh start
+[Install]
+WantedBy=multi-user.target

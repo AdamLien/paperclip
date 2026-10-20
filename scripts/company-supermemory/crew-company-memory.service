@@ -1,0 +1,19 @@
+[Unit]
+Description=Crew company-scoped Supermemory gateway
+After=network.target crew-memory-network-guard.service
+Requires=crew-memory-network-guard.service
+[Service]
+Type=simple
+DynamicUser=yes
+LoadCredential=server.json:/etc/crew-company-memory/server.json
+ExecStart=/usr/bin/node /usr/local/lib/crew-company-memory/gateway.mjs %d/server.json
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0077
+[Install]
+WantedBy=multi-user.target

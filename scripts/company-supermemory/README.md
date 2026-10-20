@@ -23,6 +23,10 @@ secret store, automation registry and administrative credentials are absent.
 Unmanaged host stdio MCP servers are disabled; Supermemory uses the company
 bridge instead. Unknown companies or unexpected workspace/home paths fail
 closed. No host-shell fallback is allowed if the sandbox cannot start.
+The outer Bubblewrap boundary owns confinement; the nested Codex workspace
+sandbox is disabled to avoid attempting prohibited nested user namespaces.
+The public OCX model catalog is exposed read-only as one explicitly allowed
+file, while its surrounding host Codex home remains hidden.
 
 ## Configuration (not committed)
 
@@ -71,3 +75,28 @@ Customer data remains disabled until the customer runtime is provisioned and
 verified. Agents must not create alternative unconfined runners or change the
 memory connection. The control plane must retain operator control over runtime
 configuration and agent provisioning before untrusted customer access.
+
+## Verified deployment, 2026-10-20
+
+All five existing metabiz agents use `/usr/local/bin/crew-company-codex` and
+have a company-memory instruction section. Their previous adapter settings
+and instructions are saved in the host-only rollback directory; native API
+changes also retain Paperclip revisions. Existing role/skill/provider settings
+were retained. The new customer company exists but has no customer agent,
+member invitation, mCRM grant, or imported business data yet. Provision any
+future agent through this runner and re-run the company probe before use;
+the company-creation wizard alone does not enforce a runner for future agents.
+
+Live probes passed for all five metabiz agents and the isolated customer
+fixture: MCP context succeeds, own-scope HTTP 200, cross-scope 403, direct
+backend blocked, host credentials absent. Customer fixture cannot see the
+metabiz Wiki. Each company's durable boundary policy was written and read back
+without the other company's policy appearing. The existing Mac context call
+continues to work; incorrect keys on the legacy API now return 401.
+
+Steve's native Crew run `ddb225be-c220-4241-8ee1-b093c350c40f` succeeded and its
+event log records `supermemory.context` completed without error. The temporary
+verification prompt was removed afterward. Other agents passed their actual
+sandbox MCP probes; they were not assigned duplicate business tasks to test
+connectivity. Earlier compatibility probes failed before the final fixes;
+those native run records are retained for audit.
