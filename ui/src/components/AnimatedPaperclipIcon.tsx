@@ -1,5 +1,6 @@
 import type { SVGProps } from "react";
 import { cn } from "../lib/utils";
+import "./metabiz-crew-loading.css";
 
 export function AnimatedPaperclipIcon({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
@@ -33,11 +34,16 @@ export function PaperclipLoading({ className }: { className?: string }) {
         <img
           src="/metabiz-crew-logo.png"
           alt=""
-          className="h-24 w-24 object-contain motion-safe:animate-pulse"
+          className="metabiz-crew-loading-logo h-24 w-24 object-contain"
         />
-        <span className="absolute -right-4 top-1 whitespace-nowrap text-xl font-bold tracking-widest text-red-500">CREW</span>
+        <span className="metabiz-crew-loading-name absolute -right-4 top-1 whitespace-nowrap text-xl font-bold tracking-widest text-red-500">CREW</span>
       </div>
       <span className="text-lg font-semibold tracking-wide">metabiz Crew</span>
+      <div className="metabiz-crew-loading-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
       <span className="sr-only">正在載入…</span>
     </div>
   );
