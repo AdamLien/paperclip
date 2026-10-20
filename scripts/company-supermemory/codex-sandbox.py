@@ -29,7 +29,7 @@ def build_command(policy, env, cwd, args):
     if not home.is_dir() or not cwd.is_dir():
         raise ValueError('Managed home/workspace missing')
     # Start from an empty mount tree: never expose the host root or /home.
-    cmd = ['/usr/bin/bwrap', '--unshare-all', '--share-net', '--disable-userns',
+    cmd = ['/usr/bin/bwrap', '--unshare-all', '--unshare-user', '--share-net', '--disable-userns',
            '--die-with-parent', '--new-session', '--cap-drop', 'ALL', '--clearenv']
     for root in ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc', '/opt']:
         if Path(root).exists():
@@ -55,7 +55,7 @@ def build_command(policy, env, cwd, args):
     cmd += ['--ro-bind', client, '/run/crew-memory/client.json']
     # Shared login symlinks must not expose the host's subscription identity.
     # OCX authenticates through the existing, resolved OCX_API_KEY environment.
-    cmd += ['--ro-bind', policy['emptyAuth'], str(home / 'auth.json')]
+    cmd += ['--ro-bind', policy['emptyAuth'], str((home / 'auth.json').resolve())]
     safe_env = {
         'HOME': '/home/crew', 'CODEX_HOME': str(home), 'PATH': '/usr/local/bin:/usr/bin:/bin',
         'LANG': 'C.UTF-8', 'TERM': 'dumb', 'TMPDIR': '/tmp',
