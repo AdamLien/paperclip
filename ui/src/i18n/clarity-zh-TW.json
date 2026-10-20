@@ -119,5 +119,15 @@
   "API Keys": "API 金鑰",
   "Agent session": "工作階段",
   "Agent adapter": "執行介接器",
-  "Identity": "身分"
+  "Identity": "身分",
+  "You&apos;ve been invited to join metabiz Crew": "您已受邀加入 metabiz Crew",
+  "Set up metabiz Crew": "設定 metabiz Crew",
+  "this metabiz Crew organization": "此 metabiz Crew 工作區",
+  "That email and password did not match an existing metabiz Crew account. Check both fields, or create an account first if you are new here.": "電子郵件或密碼不正確。請確認登入資料；若尚未註冊，請先建立 metabiz Crew 帳號。",
+  "Create your metabiz Crew account first. If you already have one, switch to sign in and continue the invite with the same email.": "請先建立 metabiz Crew 帳號；已有帳號請切換至登入，並使用原本的電子郵件接受邀請。",
+  "Start with a metabiz Crew account. After that, you'll come right back here to accept the invite for {{value1}}.": "請先註冊 metabiz Crew 帳號，完成後會返回此頁，接受 {{value1}} 的邀請。",
+  "Use the metabiz Crew account that already matches this invite. If you do not have one yet, switch back to create account.": "請使用對應此邀請的 metabiz Crew 帳號登入；尚無帳號請切換至建立帳號。",
+  "Already signed up before? Use the existing-account option instead so the invite lands on the right metabiz Crew user.": "已經註冊過？請選擇現有帳號，將邀請加入正確的 metabiz Crew 帳號。",
+  "finish setting up metabiz Crew": "完成 metabiz Crew 設定",
+  "歡迎使用 metabiz Crew。 Set up your first organization and agent to get started.": "歡迎使用 metabiz Crew。建立第一個工作區與 AI 代理即可開始使用。"
 }

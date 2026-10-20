@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Bell,
   BookOpen,
   Flag,
   LogOut,
@@ -8,7 +9,10 @@ import {
   UserPlus,
 } from "lucide-react";
 import { hidesCompanyPage, type DeploymentMode } from "@paperclipai/shared";
-import { Link } from "@/lib/router";
+import { Link, useNavigate } from "@/lib/router";
+import { useCompany } from "@/context/CompanyContext";
+import { useOptionalToastActions } from "@/context/ToastContext";
+import { usePushNotifications } from "@/lib/push-notifications";
 import { authApi } from "@/api/auth";
 import { queryKeys } from "@/lib/queryKeys";
 import { useCloudInstance } from "@/hooks/useCloudInstance";
@@ -44,6 +48,7 @@ interface MenuActionProps {
   href?: string;
   /** Opens `href` in a new tab (docs and other off-product links). */
   external?: boolean;
+  disabled?: boolean;
   /**
    * Leaves the app in the current tab with a full navigation. Cloud links
    * must use this: the cloud harness shadows those paths on tenant hosts, so
@@ -67,6 +72,7 @@ function MenuAction({
   onClick,
   href,
   external = false,
+  disabled = false,
   topLevel = false,
 }: MenuActionProps) {
   const className =
@@ -109,7 +115,7 @@ function MenuAction({
   }
 
   return (
-    <button type="button" className={className} onClick={onClick}>
+    <button type="button" className={className} disabled={disabled} onClick={onClick}>
       {content}
     </button>
   );
@@ -142,6 +148,9 @@ export function SidebarAccountMenu({
     !hidesCompanyPage(hiddenSettings, "company.invites");
   const [internalOpen, setInternalOpen] = useState(false);
   const { isMobile, setSidebarOpen, collapsed, peeking } = useSidebar();
+  const { companies, selectedCompanyId } = useCompany();
+  const navigate = useNavigate();
+  const pushToast = useOptionalToastActions()?.pushToast;
   const rail = collapsed && !peeking;
   const open = controlledOpen ?? internalOpen;
   const stagingCommit = useStagingCommit(open);
@@ -152,7 +161,21 @@ export function SidebarAccountMenu({
     retry: false,
   });
 
-  const signOutMutation = useSignOut({ onSignedOut: closeNavigationChrome });
+  const push = usePushNotifications({
+    userId: session?.user.id ?? null,
+    companyId: selectedCompanyId,
+    companies,
+    navigate,
+    pushToast,
+  });
+  const signOutMutation = useSignOut({
+    onSignedOut: closeNavigationChrome,
+    onSignOutError: (error) => pushToast?.({
+      title: "無法安全登出",
+      body: error instanceof Error ? error.message : "請確認網路後再試。",
+      tone: "error",
+    }),
+  });
 
   const displayName = session?.user.name?.trim() || "Board";
   const secondaryLabel =
@@ -249,6 +272,15 @@ export function SidebarAccountMenu({
                 onClick={() => setOpen(false)}
               />
               <ThemeToggle variant="menu-action" onAfterToggle={() => setOpen(false)} />
+              {push.available && session?.user.id && selectedCompanyId ? (
+                <MenuAction
+                  label={push.enabled ? "關閉自己的任務完成通知" : "啟用自己的任務完成通知"}
+                  description="任務完成時，通知目前登入的帳號。"
+                  icon={Bell}
+                  disabled={push.pending}
+                  onClick={() => void (push.enabled ? push.disable() : push.enable()).catch(() => undefined)}
+                />
+              ) : null}
               {deploymentMode === "authenticated" ? (
                 <button
                   type="button"
@@ -273,6 +305,10 @@ export function SidebarAccountMenu({
                 </button>
               ) : null}
               <SidebarServerInfo />
+              <p className="px-3 pt-3 text-xs text-muted-foreground">
+                metabiz Crew · 基於{" "}
+                <a href="https://github.com/paperclipai/paperclip" target="_blank" rel="noreferrer" className="underline">Paperclip</a>
+              </p>
             </div>
           </div>
         </PopoverContent>
