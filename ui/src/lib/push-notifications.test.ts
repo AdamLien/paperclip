@@ -151,6 +151,26 @@ describe("push notifications", () => {
     await act(async () => nextRoot.unmount());
   });
 
+  it("does not re-register on resume while logout is revoking the device", async () => {
+    const { app } = installNative();
+    const root = createRoot(document.createElement("div"));
+    const Harness = () => {
+      usePushNotifications({ userId: "user-1", companyId: "company-1", companies: [], navigate: vi.fn() });
+      return null;
+    };
+    await act(async () => root.render(createElement(Harness)));
+    post.mockClear();
+    const onResume = app.addListener.mock.calls[0]?.[1] as unknown as (state: unknown) => void;
+    await act(async () => {
+      const revoking = revokePushNotifications();
+      onResume({ isActive: true });
+      await revoking;
+    });
+    expect(post).not.toHaveBeenCalled();
+    expect(getStoredPushBinding()).toBeNull();
+    await act(async () => root.unmount());
+  });
+
   it("does not bind a token when the session changes during permission registration", async () => {
     installNative();
     getSession.mockResolvedValue({ user: { id: "user-2" } } as Awaited<ReturnType<typeof authApi.getSession>>);

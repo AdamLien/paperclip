@@ -42,6 +42,7 @@ const UAT_APP_ID = "work.metabiz.crew.uat" as const;
 const PRODUCTION_APP_ID = "work.metabiz.crew" as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 let pushOperation: Promise<void> = Promise.resolve();
+let automaticRegistrationBlocked = false;
 
 function withPushOperation<T>(operation: () => Promise<T>): Promise<T> {
   const next = pushOperation.then(operation, operation);
@@ -170,10 +171,12 @@ async function enablePushNotificationsInternal(input: { userId: string; companyI
 }
 
 export function enablePushNotifications(input: { userId: string; companyId: string }): Promise<PushBinding> {
+  automaticRegistrationBlocked = false;
   return withPushOperation(() => enablePushNotificationsInternal(input));
 }
 
 export function revokePushNotifications(): Promise<void> {
+  automaticRegistrationBlocked = true;
   return withPushOperation(revokePushNotificationsInternal);
 }
 
@@ -271,6 +274,7 @@ export function usePushNotifications(input: {
   useEffect(() => {
     const revision = ++lifecycleRevision.current;
     if (!isNativePushAvailable() || !current.userId || !current.companyId) return;
+    automaticRegistrationBlocked = false;
     const userId = current.userId;
     const companyId = current.companyId;
     let active = true;
@@ -309,9 +313,9 @@ export function usePushNotifications(input: {
       }
       handles = registeredHandles;
       const reconcile = () => withPushOperation(async () => {
-        if (!active || revision !== lifecycleRevision.current) return;
+        if (!active || automaticRegistrationBlocked || revision !== lifecycleRevision.current) return;
         const session = await authApi.getSession();
-        if (session?.user.id !== userId) return;
+        if (!active || automaticRegistrationBlocked || session?.user.id !== userId) return;
         const permission = await native.messaging.checkPermissions?.();
         if (!permission) return;
         if (permission.receive === "denied") {
@@ -321,7 +325,7 @@ export function usePushNotifications(input: {
         }
         if (localStorage.getItem(`${OPT_OUT_KEY}:${userId}`) === "disabled") return;
         const result = await api.get<PushDevice[] | { devices?: PushDevice[] }>(devicePath(companyId));
-        if (!active || revision !== lifecycleRevision.current) return;
+        if (!active || automaticRegistrationBlocked || revision !== lifecycleRevision.current) return;
         const devices = Array.isArray(result) ? result : result.devices ?? [];
         const registered = devices.some((device) => device.installationId === readBinding()?.installationId);
         if (!registered) {
