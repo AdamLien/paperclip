@@ -14,6 +14,7 @@ import { type InstallState } from "@/lib/tool-installs";
 import { QuarantinedActionsReview } from "./SetupPanel";
 import { ActionTestDialog } from "./ActionTestDialog";
 import type { AccessDraft, AppDetailSectionProps } from "./types";
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 
 type ActionPermission = "off" | "ask" | "allowed";
 type ActionKindFilter = "all" | "read" | "write";
@@ -114,6 +115,7 @@ function AgentAccessSection({
   disabled: boolean;
   onSave: (next: AccessDraft) => void;
 }) {
+  useUiLiteralLocale();
   const liveAgents = agents.filter((agent) => agent.status !== "terminated");
   const canManage = capabilities?.canConfigure ?? false;
   const editableAgentIds = capabilities?.editableAgentIds;
@@ -158,7 +160,7 @@ function AgentAccessSection({
                 title: "Any agent",
                 description: "Available across your company.",
               },
-            ]}
+            ].map((option) => ({ ...option, title: translateUiLiteral(option.title), description: translateUiLiteral(option.description) }))}
           />
 
           {access.mode === "specific" ? (
@@ -387,6 +389,7 @@ function ActionGroup({
   canConfigure: boolean;
   onSetPermission: (ids: string[], next: ActionPermission) => void;
 }) {
+  useUiLiteralLocale();
   if (actions.length === 0) return null;
   const groupValue = (() => {
     const first = actionPermission(actions[0]!.id, enabledIds, askFirstIds);
@@ -418,7 +421,7 @@ function ActionGroup({
             >
               {groupValue === "" ? <option value="">Mixed</option> : null}
               {PERMISSION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{`Set all: ${option.label}`}</option>
+                <option key={option.value} value={option.value}>{`${translateUiLiteral("Set all")}: ${translateUiLiteral(option.label)}`}</option>
               ))}
             </select>
           </label>
@@ -474,8 +477,11 @@ function ActionRow({
   onSetPermission: (ids: string[], next: ActionPermission) => void;
 }) {
   const rowRef = useRef<HTMLDivElement | null>(null);
+  useUiLiteralLocale();
   const [testOpen, setTestOpen] = useState(false);
-  const title = action.title ?? action.toolName;
+  const title = action.toolName.startsWith("metabiz_mcrm_")
+    ? translateUiLiteral(action.title ?? action.toolName)
+    : action.title ?? action.toolName;
 
   useEffect(() => {
     if (focused) rowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -501,11 +507,11 @@ function ActionRow({
               className="rounded-full border border-border px-1.5 py-px text-xs font-medium uppercase tracking-wide text-muted-foreground"
               title={`Paperclip classified this action as ${action.riskLevel}`}
             >
-              {action.riskLevel}
+              {translateUiLiteral(({ read: "Read only", write: "Write", destructive: "Destructive", unknown: "Unknown" } as Record<string, string>)[action.riskLevel] ?? action.riskLevel)}
             </span>
           </div>
           {action.description ? (
-            <div className="truncate text-xs text-muted-foreground">{action.description}</div>
+            <div className="truncate text-xs text-muted-foreground">{action.toolName.startsWith("metabiz_mcrm_") ? translateUiLiteral(action.description) : action.description}</div>
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -526,7 +532,7 @@ function ActionRow({
                         type="button"
                         role="radio"
                         aria-checked={selected}
-                        aria-label={`${title}: ${option.label}`}
+                        aria-label={`${title}: ${translateUiLiteral(option.label)}`}
                         disabled={disabled}
                         onClick={() => onSetPermission([action.id], option.value)}
                         className={cn(
@@ -540,7 +546,7 @@ function ActionRow({
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      <span className="font-medium">{option.label}</span> — {option.description}
+                      <span className="font-medium">{translateUiLiteral(option.label)}</span> — {translateUiLiteral(option.description)}
                     </TooltipContent>
                   </Tooltip>
                 );

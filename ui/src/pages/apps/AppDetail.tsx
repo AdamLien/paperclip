@@ -43,6 +43,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { AppLogo } from "./AppLogo";
 import { UnverifiedServerBadge } from "./UnverifiedServerBadge";
+import { ConnectionCompanyScope } from "./ConnectionCompanyScope";
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import {
   appApplicationSourceSlug,
   appConnectionSourceSlug,
@@ -100,6 +102,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
   const { pushToast } = useToast();
   const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
+  const uiLocale = useUiLiteralLocale();
 
   const activeTab: AppTabKey | null = isAppTabKey(tab) ? tab : null;
   const needsCatalog = activeTab === "review" || activeTab === "permissions";
@@ -251,12 +254,12 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
   useEffect(() => {
     if (!activeTab) return;
     setBreadcrumbs([
-      { label: "Connectors", href: "/apps" },
+      { label: translateUiLiteral("Connectors"), href: "/apps" },
       { label: appName, href: appTabHref(connectionId, "permissions") },
       { label: appTabLabel(activeTab) },
     ]);
     return () => setBreadcrumbs([]);
-  }, [setBreadcrumbs, appName, connectionId, activeTab]);
+  }, [setBreadcrumbs, appName, connectionId, activeTab, uiLocale]);
 
   const catalog = catalogQuery.data?.catalog ?? [];
   const profile = useMemo(
@@ -836,6 +839,7 @@ export function AppDetailHeader({
             {unverifiedHost ? <UnverifiedServerBadge host={unverifiedHost} /> : null}
             <ConnectionProvenanceChip connection={connection} />
           </div>
+          <ConnectionCompanyScope connection={connection} />
         </div>
       </div>
     </header>
@@ -895,6 +899,7 @@ function statusFor(connection: ToolConnection): StatusInfo {
 }
 
 function StatusBadge({ status }: { status: StatusInfo }) {
+  useUiLiteralLocale();
   const klass: Record<StatusInfo["tone"], string> = {
     connected: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
     attention: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
@@ -908,7 +913,7 @@ function StatusBadge({ status }: { status: StatusInfo }) {
       )}
     >
       {status.tone === "connected" && <Check className="h-3 w-3" />}
-      {status.label}
+      {translateUiLiteral(status.label)}
     </span>
   );
 }
