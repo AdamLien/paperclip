@@ -29,6 +29,7 @@ export function PaperclipLoading({ className }: { className?: string }) {
       role="status"
       className={cn("flex min-h-dvh w-full flex-col items-center justify-center gap-4", className)}
     >
+      <span className="text-3xl font-bold tracking-widest text-red-500">CREW</span>
       <img
         src="/metabiz-crew-logo.png"
         alt=""
