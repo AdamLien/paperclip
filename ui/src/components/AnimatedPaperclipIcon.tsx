@@ -35,7 +35,7 @@ export function PaperclipLoading({ className }: { className?: string }) {
           alt=""
           className="h-24 w-24 object-contain motion-safe:animate-pulse"
         />
-        <span className="absolute left-full top-1 ml-2 whitespace-nowrap text-xl font-bold tracking-widest text-red-500">CREW</span>
+        <span className="absolute -right-4 top-1 whitespace-nowrap text-xl font-bold tracking-widest text-red-500">CREW</span>
       </div>
       <span className="text-lg font-semibold tracking-wide">metabiz Crew</span>
       <span className="sr-only">正在載入…</span>
