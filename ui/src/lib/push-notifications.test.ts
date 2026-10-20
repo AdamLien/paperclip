@@ -29,7 +29,7 @@ function installNative(overrides: Record<string, unknown> = {}) {
     addListener: vi.fn().mockResolvedValue({ remove: vi.fn().mockResolvedValue(undefined) }),
     ...((overrides.messaging as Record<string, unknown> | undefined) ?? {}),
   };
-  const app = { getInfo: vi.fn().mockResolvedValue({ id: "work.metabiz.crew.uat" }) };
+  const app = { getInfo: vi.fn().mockResolvedValue({ id: "work.metabiz.crew.uat" }), addListener: vi.fn<(event: string, callback: (payload: unknown) => void) => Promise<{ remove: () => Promise<void> }>>().mockResolvedValue({ remove: vi.fn().mockResolvedValue(undefined) }) };
   Object.defineProperty(window, "Capacitor", {
     configurable: true,
     value: {
@@ -78,11 +78,12 @@ describe("push notifications", () => {
     expect(messaging.addListener).toHaveBeenCalledWith("tokenReceived", expect.any(Function));
     expect(getStoredPushBinding()).toMatchObject({ userId: "user-1", companyId: "company-1", environment: "uat" });
     installNative();
+    getSession.mockResolvedValue({ user: { id: "user-2" } } as Awaited<ReturnType<typeof authApi.getSession>>);
     await enablePushNotifications({ userId: "user-2", companyId: "company-1" });
     expect(getStoredPushBinding()).toMatchObject({ userId: "user-2", companyId: "company-1" });
   });
 
-  it("mounts the native lifecycle before the first opt-in", async () => {
+  it("requests permission and registers automatically after the first native login", async () => {
     const { messaging } = installNative();
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -100,13 +101,66 @@ describe("push notifications", () => {
     await act(async () => root.render(createElement(Harness)));
     expect(messaging.addListener).toHaveBeenCalledWith("apnsTokenReceived", expect.any(Function));
     expect(messaging.addListener).toHaveBeenCalledWith("tokenReceived", expect.any(Function));
-    await act(async () => { await controls?.enable(); });
+    expect(messaging.requestPermissions).toHaveBeenCalledOnce();
+    expect(post).toHaveBeenCalledOnce();
+    expect(controls?.enabled).toBe(true);
     expect(getStoredPushBinding()).toMatchObject({ userId: "user-1", companyId: "company-1" });
     await act(async () => root.unmount());
     container.remove();
   });
 
+  it("does not register before login or when native permission is denied", async () => {
+    const { messaging } = installNative({ messaging: { checkPermissions: vi.fn().mockResolvedValue({ receive: "denied" }) } });
+    const root = createRoot(document.createElement("div"));
+    const Harness = ({ userId }: { userId: string | null }) => {
+      usePushNotifications({ userId, companyId: "company-1", companies: [], navigate: vi.fn() });
+      return null;
+    };
+    await act(async () => root.render(createElement(Harness, { userId: null })));
+    expect(messaging.checkPermissions).not.toHaveBeenCalled();
+    await act(async () => root.render(createElement(Harness, { userId: "user-1" })));
+    expect(messaging.checkPermissions).toHaveBeenCalledOnce();
+    expect(messaging.requestPermissions).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("retries registration on resume but preserves a manual opt-out across remounts", async () => {
+    const { app } = installNative();
+    post.mockRejectedValueOnce(new Error("offline"));
+    const pushToast = vi.fn();
+    let controls: ReturnType<typeof usePushNotifications> | undefined;
+    const Harness = () => {
+      controls = usePushNotifications({ userId: "user-1", companyId: "company-1", companies: [], navigate: vi.fn(), pushToast });
+      return null;
+    };
+    const root = createRoot(document.createElement("div"));
+    await act(async () => root.render(createElement(Harness)));
+    expect(getStoredPushBinding()).toBeNull();
+    expect(pushToast).toHaveBeenCalledWith(expect.objectContaining({ title: "手機通知尚未啟用" }));
+    const onResume = app.addListener.mock.calls[0]?.[1] as unknown as (state: unknown) => void;
+    await act(async () => onResume({ isActive: true }));
+    expect(getStoredPushBinding()).toMatchObject({ userId: "user-1", companyId: "company-1" });
+    await act(async () => { await controls?.disable(); });
+    await act(async () => root.unmount());
+    post.mockClear();
+    const nextRoot = createRoot(document.createElement("div"));
+    await act(async () => nextRoot.render(createElement(Harness)));
+    expect(post).not.toHaveBeenCalled();
+    expect(controls?.enabled).toBe(false);
+    await act(async () => nextRoot.unmount());
+  });
+
+  it("does not bind a token when the session changes during permission registration", async () => {
+    installNative();
+    getSession.mockResolvedValue({ user: { id: "user-2" } } as Awaited<ReturnType<typeof authApi.getSession>>);
+    await expect(enablePushNotifications({ userId: "user-1", companyId: "company-1" })).rejects.toThrow("登入帳號已變更");
+    expect(post).not.toHaveBeenCalled();
+    expect(getStoredPushBinding()).toBeNull();
+  });
+
   it("serializes enable and disable so a double tap cannot leave a binding behind", async () => {
+    localStorage.setItem("paperclip.push-opt-out-user:user-1", "disabled");
     const { messaging } = installNative();
     let resolveToken: ((value: { token: string }) => void) | undefined;
     messaging.getToken = vi.fn().mockReturnValue(new Promise((resolve) => { resolveToken = resolve; }));

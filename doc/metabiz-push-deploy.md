@@ -32,3 +32,14 @@ The script resolves each installed package through `realpath` before copying, so
 ## Push configuration
 
 FCM credentials and related external-provider environment values must remain in the existing runtime secret/environment mechanism. Do not put service-account JSON, private keys, device tokens, or customer data in Git, the release manifest, or this document. The activation operator must verify the exact environment variable names from the merged backend implementation and the host's existing secret configuration before starting the staged release.
+
+
+## Native app registration and acceptance
+
+The installed iOS/Android app requests notification permission after the first authenticated login with a selected company. FCM supplies the device token; iOS delivery uses FCM to APNs. Browser/PWA sessions do not register native tokens. Returning to the app retries a failed registration or reconciles a permission change. A manual opt-out is remembered per user on that installation and can be reversed in the account menu. Both standard and production layouts expose the controls.
+
+Registration is tied to the authenticated user, company, installation and native app ID. Logout revokes the server binding before clearing the native token. Switching user/company revokes the old binding before registering the new one; a changed login session prevents token registration under a stale user identity.
+
+The current backend queues real task transitions into `done` for the responsible user and sends only to that user's active company registrations. It does not forward every inbox entry, replay historical completion events to newly registered installations, or broadcast to all company members. Review requests and other inbox categories require their own recipient/event contract before they are added.
+
+Acceptance: install the native app, sign in, allow notifications, then confirm device metadata is registered without exposing the token. Complete a newly created test task owned by that user, verify the delivery record and physical receipt, and tap the notification to confirm company-scoped navigation. Verify denial, manual opt-out and logout suppress delivery. A successful web build or provider response alone does not establish physical receipt.

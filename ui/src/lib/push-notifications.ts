@@ -37,6 +37,7 @@ interface CapacitorRuntime {
 }
 
 const STORAGE_KEY = "paperclip.push-binding";
+const OPT_OUT_KEY = "paperclip.push-opt-out-user";
 const UAT_APP_ID = "work.metabiz.crew.uat" as const;
 const PRODUCTION_APP_ID = "work.metabiz.crew" as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -154,6 +155,8 @@ async function enablePushNotificationsInternal(input: { userId: string; companyI
     environment,
     appId,
   };
+  const session = await authApi.getSession();
+  if (session?.user.id !== input.userId) throw new Error("登入帳號已變更，請重新啟用通知。");
   await api.post(devicePath(input.companyId), {
     installationId: binding.installationId,
     token,
@@ -162,6 +165,7 @@ async function enablePushNotificationsInternal(input: { userId: string; companyI
     environment,
   });
   writeBinding(binding);
+  localStorage.removeItem(`${OPT_OUT_KEY}:${input.userId}`);
   return binding;
 }
 
@@ -260,6 +264,8 @@ export function usePushNotifications(input: {
   const lifecycleRevision = useRef(0);
   const companiesRef = useRef(input.companies);
   companiesRef.current = input.companies;
+  const callbacksRef = useRef(input);
+  callbacksRef.current = input;
   const current = useMemo(() => ({ userId: input.userId, companyId: input.companyId }), [input.userId, input.companyId]);
 
   useEffect(() => {
@@ -293,7 +299,7 @@ export function usePushNotifications(input: {
           : undefined;
         const path = pushIssuePath(notification?.data ?? payload, companiesRef.current, userId);
         if (active && path) void authApi.getSession().then((session) => {
-          if (active && session?.user.id === userId) input.navigate(path);
+          if (active && session?.user.id === userId) callbacksRef.current.navigate(path);
         }).catch(() => undefined);
       }),
       ]);
@@ -302,11 +308,51 @@ export function usePushNotifications(input: {
         return;
       }
       handles = registeredHandles;
-      const result = await api.get<PushDevice[] | { devices?: PushDevice[] }>(devicePath(companyId));
-      if (active && revision === lifecycleRevision.current) {
+      const reconcile = () => withPushOperation(async () => {
+        if (!active || revision !== lifecycleRevision.current) return;
+        const session = await authApi.getSession();
+        if (session?.user.id !== userId) return;
+        const permission = await native.messaging.checkPermissions?.();
+        if (!permission) return;
+        if (permission.receive === "denied") {
+          await revokePushNotificationsInternal();
+          if (active) setEnabled(false);
+          return;
+        }
+        if (localStorage.getItem(`${OPT_OUT_KEY}:${userId}`) === "disabled") return;
+        const result = await api.get<PushDevice[] | { devices?: PushDevice[] }>(devicePath(companyId));
+        if (!active || revision !== lifecycleRevision.current) return;
         const devices = Array.isArray(result) ? result : result.devices ?? [];
-        setEnabled(Boolean(devices.find((device) => device.installationId === readBinding()?.installationId)));
+        const registered = devices.some((device) => device.installationId === readBinding()?.installationId);
+        if (!registered) {
+          setPending(true);
+          try {
+            await enablePushNotificationsInternal({ userId, companyId });
+          } finally {
+            if (active) setPending(false);
+          }
+        }
+        if (active && revision === lifecycleRevision.current) setEnabled(true);
+      });
+      const reportError = (error: unknown) => {
+        if (!active) return;
+        setEnabled(false);
+        callbacksRef.current.pushToast?.({
+          title: "手機通知尚未啟用",
+          body: error instanceof Error ? error.message : "請在帳號選單重新啟用通知。",
+          tone: "error",
+        });
+      };
+      if (native.app.addListener) {
+        const handle = await native.app.addListener("appStateChange", (state) => {
+          if (state && typeof state === "object" && "isActive" in state && state.isActive) {
+            void reconcile().catch(reportError);
+          }
+        });
+        if (!active) await handle.remove();
+        else handles.push(handle);
       }
+      await reconcile().catch(reportError);
     };
     void setup().catch(() => {
       if (active && revision === lifecycleRevision.current) setEnabled(false);
@@ -315,7 +361,7 @@ export function usePushNotifications(input: {
       active = false;
       void Promise.all(handles.map((handle) => handle.remove()));
     };
-  }, [current.userId, current.companyId, input.navigate]);
+  }, [current.userId, current.companyId]);
 
   const enable = useCallback(async () => {
     if (!current.userId || !current.companyId) return;
@@ -336,6 +382,7 @@ export function usePushNotifications(input: {
     setPending(true);
     try {
       await revokePushNotifications();
+      if (current.userId) localStorage.setItem(`${OPT_OUT_KEY}:${current.userId}`, "disabled");
       setEnabled(false);
       input.pushToast?.({ title: "已關閉任務完成通知", tone: "success" });
     } catch (error) {
@@ -344,7 +391,7 @@ export function usePushNotifications(input: {
     } finally {
       setPending(false);
     }
-  }, [input.pushToast]);
+  }, [current.userId, input.pushToast]);
 
   return { available: isNativePushAvailable(), enabled, pending, enable, disable };
 }

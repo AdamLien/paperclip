@@ -308,6 +308,10 @@ export function SidebarAccountMenu({
               ) : null}
               <UiLocaleSelect />
               <SidebarServerInfo />
+              <p className="px-3 pt-3 text-xs text-muted-foreground">
+                metabiz Crew · 基於{" "}
+                <a href="https://github.com/paperclipai/paperclip" target="_blank" rel="noreferrer" className="underline">Paperclip</a>
+              </p>
             </div>
           </PopoverContent>
         </Popover>

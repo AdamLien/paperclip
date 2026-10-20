@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Paperclip",
-  "short_name": "Paperclip",
-  "description": "AI-powered project management and agent coordination platform",
+  "name": "metabiz Crew",
+  "short_name": "Crew",
+  "description": "metabiz AI 團隊協作與任務管理平台，基於 Paperclip。",
   "start_url": "/",
   "scope": "/",
   "display": "browser",
@@ -11,20 +11,9 @@
   "background_color": "#18181b",
   "icons": [
     {
-      "src": "/android-chrome-192x192.png",
-      "sizes": "192x192",
+      "src": "/metabiz-crew-logo.png",
+      "sizes": "1024x1024",
       "type": "image/png"
-    },
-    {
-      "src": "/android-chrome-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "/android-chrome-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ]
 }
