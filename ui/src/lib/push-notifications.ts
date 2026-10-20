@@ -230,10 +230,10 @@ function waitForApnsToken(): Promise<void> {
 
 export async function syncPushToken(token: string, expected?: { userId: string; companyId: string }) {
   const binding = readBinding();
-  if (!binding || !token) return;
+  if (automaticRegistrationBlocked || !binding || !token) return;
   if (expected && (binding.userId !== expected.userId || binding.companyId !== expected.companyId)) return;
   const session = await authApi.getSession();
-  if (!session || session.user.id !== binding.userId || (expected && session.user.id !== expected.userId)) return;
+  if (automaticRegistrationBlocked || !session || session.user.id !== binding.userId || (expected && session.user.id !== expected.userId)) return;
   await api.post(devicePath(binding.companyId), {
     installationId: binding.installationId,
     token,
