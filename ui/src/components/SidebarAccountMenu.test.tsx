@@ -41,6 +41,7 @@ vi.mock("@/api/access", async (importOriginal) => {
 
 vi.mock("@/context/CompanyContext", () => ({
   useOptionalCompany: () => ({ selectedCompanyId: "company-1" }),
+  useCompany: () => ({ selectedCompanyId: "company-1", companies: [{ id: "company-1", issuePrefix: "META" }] }),
 }));
 
 vi.mock("@/lib/browserNavigation", () => ({
@@ -56,6 +57,7 @@ vi.mock("../api/instanceSettings", () => ({
 }));
 
 vi.mock("@/lib/router", () => ({
+  useNavigate: () => vi.fn(),
   Link: ({ children, to, ...props }: { children: React.ReactNode; to: string }) => (
     <a href={to} {...props}>{children}</a>
   ),
