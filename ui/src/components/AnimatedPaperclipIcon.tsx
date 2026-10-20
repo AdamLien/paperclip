@@ -29,13 +29,13 @@ export function PaperclipLoading({ className }: { className?: string }) {
       role="status"
       className={cn("flex min-h-dvh w-full flex-col items-center justify-center gap-4", className)}
     >
-      <div className="flex items-start gap-2">
+      <div className="relative">
         <img
           src="/metabiz-crew-logo.png"
           alt=""
           className="h-24 w-24 object-contain motion-safe:animate-pulse"
         />
-        <span className="mt-1 text-xl font-bold tracking-widest text-red-500">CREW</span>
+        <span className="absolute left-full top-1 ml-2 whitespace-nowrap text-xl font-bold tracking-widest text-red-500">CREW</span>
       </div>
       <span className="text-lg font-semibold tracking-wide">metabiz Crew</span>
       <span className="sr-only">正在載入…</span>
