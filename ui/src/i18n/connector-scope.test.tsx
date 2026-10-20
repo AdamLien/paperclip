@@ -70,9 +70,9 @@ it("localizes catalog filters while preserving source identifiers", async () => 
   await act(async () => all.click()); expect(onChange).toHaveBeenCalledWith("all");
 });
 
-it("covers all 82 shipped mCRM descriptions and preserves protocol values", () => {
+it("covers all 82 shipped mCRM descriptions and the distinct conversation title and preserves protocol values", () => {
   setLocale("zh-TW");
-  expect(Object.keys(mcrm)).toHaveLength(82);
+  expect(Object.keys(mcrm)).toHaveLength(83);
   for (const [english, chinese] of Object.entries(mcrm)) expect(translateUiLiteral(english)).toBe(chinese);
   expect(translateUiLiteral("metabiz_mcrm_auth_status")).toBe("metabiz_mcrm_auth_status");
   expect(translateUiLiteral("read")).toBe("read");

@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -88,6 +89,7 @@ export function ActionTestDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  useUiLiteralLocale();
   const testAgentsQuery = useQuery({
     queryKey: queryKeys.tools.testAgents(connectionId),
     queryFn: () => toolsApi.listTestAgents(connectionId),
@@ -123,7 +125,7 @@ export function ActionTestDialog({
     ));
     return tool?.decision ?? "off";
   }, [entry.toolName, selectedAgent]);
-  const title = entry.title ?? entry.toolName;
+  const title = entry.toolName.startsWith("metabiz_mcrm_") ? translateUiLiteral(entry.title ?? entry.toolName) : entry.title ?? entry.toolName;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -205,6 +207,7 @@ const DECISION_META: Record<ToolConnectionTestDecision, DecisionMeta> = {
 };
 
 function DecisionBadge({ decision }: { decision: ToolConnectionTestDecision }) {
+  useUiLiteralLocale();
   const meta = DECISION_META[decision];
   return (
     <span
@@ -213,7 +216,7 @@ function DecisionBadge({ decision }: { decision: ToolConnectionTestDecision }) {
         meta.className,
       )}
     >
-      {meta.label}
+      {translateUiLiteral(meta.label)}
     </span>
   );
 }
@@ -543,7 +546,7 @@ function ActionTester({
         <p className="text-xs text-muted-foreground">This action takes no inputs.</p>
       )}
 
-      <p className="text-xs text-muted-foreground">{GUT_CHECK[decision](appName, agent.name)}</p>
+      <p className="text-xs text-muted-foreground">{translateUiLiteral(GUT_CHECK[decision](appName, agent.name))}</p>
 
       <div className="flex items-center gap-2">
         <Button onClick={onRun} disabled={running || !!outcome?.result.upstreamPending?.resumeTool || outcome?.result.decision === "ask_first"} size="sm">
@@ -598,7 +601,7 @@ function RunningCard({
   elapsedMs: number;
   onCancel: () => void;
 }) {
-  const verb = entry.isReadOnly ? "Reading from" : entry.isWrite ? "Writing to" : "Calling";
+  const verb = translateUiLiteral(entry.isReadOnly ? "Reading from" : entry.isWrite ? "Writing to" : "Calling");
   return (
     <div className="rounded-md border border-border bg-muted/30 p-4">
       <div className="flex items-center gap-2">
@@ -863,7 +866,7 @@ function AllowedResult({
     <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-4">
       <div className="flex items-center gap-2">
         <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        <span className="text-sm font-medium text-foreground">{successHeadline(preview.summary, entry, appName)}</span>
+        <span className="text-sm font-medium text-foreground">{translateUiLiteral(successHeadline(preview.summary, entry, appName))}</span>
       </div>
       <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
         <Clock className="h-3 w-3" />
@@ -1209,7 +1212,7 @@ function AskFirstResult({
       <dl className="mt-3 space-y-1.5 text-sm">
         <div className="flex gap-3">
           <dt className="w-16 shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Action</dt>
-          <dd className="text-foreground">{entry.title ?? entry.toolName}</dd>
+          <dd className="text-foreground">{entry.toolName.startsWith("metabiz_mcrm_") ? translateUiLiteral(entry.title ?? entry.toolName) : entry.title ?? entry.toolName}</dd>
         </div>
         {where && (
           <div className="flex gap-3">
@@ -1266,7 +1269,7 @@ function OffExplanation({
   allAgents: ToolConnectionTestAgent[];
   onSelectAgent: (agentId: string) => void;
 }) {
-  const title = entry.title ?? entry.toolName;
+  const title = entry.toolName.startsWith("metabiz_mcrm_") ? translateUiLiteral(entry.title ?? entry.toolName) : entry.title ?? entry.toolName;
   const permHref = `${appTabHref(connectionId, "permissions")}?focus=${encodeURIComponent(entry.id)}`;
 
   // Other agents are intentionally not summarized up front. Selecting one
