@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const routes = new Set(['/v4/profile', '/v4/search', '/v4/memories']);
@@ -81,7 +81,7 @@ export function createGateway(config, fetchImpl = fetch) {
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
   createGateway(config).listen(config.port ?? 6768, '127.0.0.1', () => console.log('Crew company memory gateway ready'));
 }
