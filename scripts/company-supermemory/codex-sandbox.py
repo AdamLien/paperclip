@@ -89,6 +89,10 @@ def build_command(policy, env, cwd, args):
                 raise ValueError('Unsupported host MCP server name')
             overrides += ['-c', f'mcp_servers.{name}.enabled=false']
     overrides += [
+        # The outer bwrap already confines files/processes and denies nested
+        # user namespaces. Avoid a second Codex sandbox that cannot start.
+        '-c', 'sandbox_mode="danger-full-access"',
+        '-c', 'approval_policy="never"',
         '-c', 'mcp_servers.supermemory.command="node"',
         '-c', 'mcp_servers.supermemory.args=["/usr/local/lib/crew-company-memory/mcp.cjs"]',
         '-c', 'mcp_servers.supermemory.env_vars=["SUPERMEMORY_CONFIG_PATH"]',
