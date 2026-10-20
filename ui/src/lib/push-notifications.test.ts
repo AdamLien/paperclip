@@ -244,6 +244,21 @@ describe("push notifications", () => {
     expect(post).not.toHaveBeenCalled();
   });
 
+  it("does not rebind a refreshed token while logout waits for server revocation", async () => {
+    installNative();
+    await enablePushNotifications({ userId: "user-1", companyId: "company-1" });
+    post.mockClear();
+    let finishRevoke: (() => void) | undefined;
+    del.mockImplementationOnce(() => new Promise<void>((resolve) => { finishRevoke = resolve; }));
+    const revoking = revokePushNotifications();
+    await Promise.resolve();
+    await syncPushToken("refreshed-token");
+    expect(post).not.toHaveBeenCalled();
+    finishRevoke?.();
+    await revoking;
+    expect(getStoredPushBinding()).toBeNull();
+  });
+
   it("keeps the binding when server revoke fails, so logout can be retried", async () => {
     installNative();
     await enablePushNotifications({ userId: "user-1", companyId: "company-1" });
