@@ -41,6 +41,13 @@ export function isMarkdownAttachment(
   return isMarkdownAttachmentContent(attachment);
 }
 
+export function isHtmlAttachment(attachment: { contentType: string; originalFilename?: string | null }) {
+  const type = normalizedContentType(attachment);
+  return type === "text/html"
+    || (["", "application/octet-stream", "text/plain"].includes(type)
+      && /\.html?$/i.test(attachment.originalFilename ?? ""));
+}
+
 export function isTextAttachment(attachment: {
   contentType: string;
   originalFilename?: string | null;
@@ -50,5 +57,5 @@ export function isTextAttachment(attachment: {
     || type.startsWith("text/")
     || /^(application\/(json|xml|javascript|x-yaml|yaml)|application\/[\w.-]+\+json)$/.test(type)
     || (["", "application/octet-stream"].includes(type)
-      && /\.(txt|log|csv|json|yaml|yml|toml|ini|sh|ts|tsx|js|jsx|py|css|html)$/i.test(attachment.originalFilename ?? ""));
+      && /\.(txt|log|csv|json|yaml|yml|toml|ini|sh|ts|tsx|js|jsx|py|css|html?)$/i.test(attachment.originalFilename ?? ""));
 }

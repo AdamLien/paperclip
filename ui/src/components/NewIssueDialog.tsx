@@ -957,15 +957,24 @@ export function NewIssueDialog() {
     if (!newIssueOpen || !effectiveCompanyId || !defaultAssigneePendingRef.current
       || !agents || !sessionFetched || !membersFetched) return;
     defaultAssigneePendingRef.current = false;
-    const available = new Set(assigneeOptions.map((option) => option.id));
+    const targets = agents.filter((agent) => isAgentTaskTarget(agent)
+      && agent.status !== "paused" && agent.status !== "error");
+    const available = new Set(targets.map((agent) => assigneeValueFromSelection({ assigneeAgentId: agent.id })));
     const scopedRecents = getRecentAssigneeSelectionIds(effectiveCompanyId);
     // Older history has no company key. Agent IDs identify their company;
     // human IDs can belong to several companies and cannot be migrated safely.
     const recents = scopedRecents.length ? scopedRecents
       : getRecentAssigneeSelectionIds().filter((value) => value.startsWith("agent:"));
-    const recent = recents.find((value) => available.has(value));
-    const targets = agents.filter(isAgentTaskTarget);
-    const fallback = targets.find((agent) => agent.role === "ceo") ?? targets[0];
+    // A remembered human is useful in the picker, but cannot execute a new AI
+    // request. Explicit human assignments above are still preserved.
+    const recent = recents.find((value) => value.startsWith("agent:") && available.has(value));
+    const reportCounts = new Map<string, number>();
+    for (const agent of targets) {
+      if (agent.reportsTo) reportCounts.set(agent.reportsTo, (reportCounts.get(agent.reportsTo) ?? 0) + 1);
+    }
+    const coordinator = targets.reduce<typeof targets[number] | undefined>((best, agent) =>
+      (reportCounts.get(agent.id) ?? 0) > (best ? reportCounts.get(best.id) ?? 0 : 0) ? agent : best, undefined);
+    const fallback = targets.find((agent) => agent.role === "ceo") ?? coordinator ?? targets[0];
     setAssigneeValue(recent ?? (fallback ? assigneeValueFromSelection({ assigneeAgentId: fallback.id }) : ""));
   }, [newIssueOpen, effectiveCompanyId, agents, assigneeOptions, sessionFetched, membersFetched]);
   useEffect(() => {

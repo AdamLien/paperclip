@@ -470,7 +470,7 @@ describe("NewIssueDialog", () => {
   it.each([
     { recent: "", expected: "CEO" },
     { recent: "agent:worker", expected: "Worker" },
-    { recent: "user:user-1", expected: "Me" },
+    { recent: "user:user-1", expected: "CEO" },
     { recent: "agent:deleted", expected: "CEO" },
   ])("defaults to $expected for recent selection $recent without inserting a mention", async ({ recent, expected }) => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
@@ -494,6 +494,25 @@ describe("NewIssueDialog", () => {
     const next = renderDialog(container);
     await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("CEO"));
     act(() => next.root.unmount());
+  });
+
+  it("defaults to the company coordinator when no CEO or recent agent is available", async () => {
+    mockAgentsApi.list.mockResolvedValue([
+      { ...defaultAgents[0], id: "assistant", role: "general", reportsTo: null },
+      { ...defaultAgents[0], id: "coordinator", name: "Coordinator", role: "general", reportsTo: null },
+      { ...defaultAgents[0], id: "specialist", reportsTo: "coordinator" },
+    ]);
+    const { root } = renderDialog(container);
+    await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("Coordinator"));
+    act(() => root.unmount());
+  });
+
+  it.each(["paused", "error", "terminated", "pending_approval"])("does not automatically route a request to a %s agent", async (status) => {
+    mockAgentsApi.list.mockResolvedValue(defaultAgents.map((agent) => agent.id === "worker" ? { ...agent, status } : agent));
+    trackRecentAssignee("worker", "company-1");
+    const { root } = renderDialog(container);
+    await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("CEO"));
+    act(() => root.unmount());
   });
 
   it("uses older agent history only when the agent belongs to the current company", async () => {

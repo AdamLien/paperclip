@@ -5,7 +5,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskAttachmentPanel, TextAttachmentPreview, readTextPreview, TEXT_PREVIEW_MAX_BYTES } from "./TaskAttachmentPanel";
-import { isTextAttachment } from "@/lib/issue-attachments";
+import { isHtmlAttachment, isTextAttachment } from "@/lib/issue-attachments";
 import { readTaskSidePanelState, taskPanelAttachmentTab, writeTaskSidePanelState } from "@/lib/task-side-panel-state";
 vi.mock("@/components/MarkdownBody", () => ({ MarkdownBody: ({ children }: { children: string }) => <article data-rendered>{children}</article> }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -30,6 +30,9 @@ describe("text attachment tabs", () => {
     for (const [contentType, originalFilename] of [["text/plain", "notes.txt"], ["application/octet-stream", "AGENTS.md"], ["application/json", "report.json"]]) expect(isTextAttachment({ contentType, originalFilename })).toBe(true);
     expect(isTextAttachment({ contentType: "application/pdf", originalFilename: "report.pdf" })).toBe(false);
     expect(isTextAttachment({ contentType: "image/png", originalFilename: "fake.txt" })).toBe(false);
+    expect(isHtmlAttachment({ contentType: "text/html; charset=utf-8", originalFilename: "report" })).toBe(true);
+    expect(isHtmlAttachment({ contentType: "application/octet-stream", originalFilename: "report.htm" })).toBe(true);
+    expect(isHtmlAttachment({ contentType: "image/png", originalFilename: "fake.html" })).toBe(false);
   });
   it("retains attachment tabs when workspace browsing is disabled", () => {
     const tab = taskPanelAttachmentTab("file-1", "AGENTS.md");
@@ -61,6 +64,27 @@ describe("text attachment tabs", () => {
     expect(host.querySelector("pre")?.textContent).toContain("<script>");
     expect(host.querySelector('[aria-label="Markdown view"]')).toBeNull();
     expect(host.querySelector('a[aria-label="Download notes.txt"] svg')).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+  it("renders HTML reports in an opaque, offline sandbox and retains source/download controls", async () => {
+    const host = document.createElement("div"); const root = createRoot(host);
+    const html = '<h1>申皇報告</h1><style>h1{color:red}</style><script>parent.document.body.remove()</script><meta http-equiv="refresh" content="0;url=https://example.com"><a href="https://example.com" ping="https://example.com">link</a><img src="https://example.com/private"><form action="https://example.com"><input></form>';
+    await act(async () => root.render(<TextAttachmentPreview title="report.html" markdown={false} html text={html} downloadUrl="/download" />));
+    const frame = host.querySelector("iframe")!;
+    expect(frame).not.toBeNull();
+    expect(frame.getAttribute("sandbox")).toBe("");
+    expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
+    const preview = new DOMParser().parseFromString(frame.getAttribute("srcdoc")!, "text/html");
+    expect(preview.querySelector("h1")?.textContent).toBe("申皇報告");
+    expect([...preview.querySelectorAll("style")].some((style) => style.textContent?.includes("color:red"))).toBe(true);
+    expect(preview.querySelector("script,form,meta[http-equiv=refresh]")).toBeNull();
+    expect(preview.querySelector("a")?.hasAttribute("href")).toBe(false);
+    expect(preview.querySelector("img")?.hasAttribute("src")).toBe(false);
+    expect(preview.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute("content")).toContain("default-src 'none'");
+    await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="Raw"]')!.click());
+    expect(host.querySelector("pre")?.textContent).toBe(html);
+    expect(host.querySelector("iframe")).toBeNull();
+    expect(host.querySelector("a")?.getAttribute("href")).toBe("/download");
     await act(async () => root.unmount());
   });
   it("rejects HTTP errors, oversized responses and binary data", async () => {
