@@ -100,3 +100,36 @@ verification prompt was removed afterward. Other agents passed their actual
 sandbox MCP probes; they were not assigned duplicate business tasks to test
 connectivity. Earlier compatibility probes failed before the final fixes;
 those native run records are retained for audit.
+
+## Odoo finance MCP (opt-in per agent)
+
+`odoo-finance-mcp.py` is a separate stdio MCP for the CFO. It uses the Odoo
+external XML-RPC API at the fixed company ERP, database `odoo16`, company 1.
+It does not reuse a browser session or the writable CRM/quotation connector.
+The only tools are `finance_health` and `finance_read`. Accounting dates,
+allowlisted models/fields, bounded pagination, and a fixed company domain are
+enforced by code. No caller-selected RPC method, domain, fields or context.
+
+Add only the CFO agent UUID to its tenant's `odooFinanceAgents` runtime policy.
+The runner then registers `odoo_finance` and forwards only that agent's
+`ODOO_FINANCE_LOGIN` and `ODOO_FINANCE_API_KEY` environment bindings. Provision
+the API key through Crew's encrypted secret store, not config files, Git,
+task comments, chat, or shell command text. Other agents do not inherit it.
+
+Use a dedicated service account limited to company 1 and read-only accounting
+ACLs. Every tool call rechecks its company membership and accounting ACLs;
+create/write/unlink permission on any supported accounting model fails closed.
+Account moves and journal lines must be readable; missing optional payment or
+bank-statement access is reported as incomplete coverage. Checks do not attempt
+actual financial writes. Odoo faults are redacted before returning to agents.
+
+Leave the daily Crew routine paused and its trigger disabled until a real key
+passes health, model reads, company-scope and account-permission checks. A
+successful protocol handshake without credentials only verifies installation.
+Read the full necessary history for opening balances/overdue items and paginate
+to the returned total before claiming coverage. A missing model or failed call
+must never produce an "all clear" report. Deduplicate exception notifications
+to Adam; do not send daily messages for unchanged results.
+
+Tests cover the stdio MCP handshake/tool calls, scope/argument/mutation denial,
+broad-account rejection, pagination, redaction, and per-agent sandbox opt-in.

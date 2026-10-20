@@ -41,6 +41,16 @@ class CompanySandboxTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             sandbox.build_command(self.policy, self.env, self.cwd, [])
 
+    def test_finance_mcp_and_credentials_only_for_provisioned_agent(self):
+        self.env.update({'ODOO_FINANCE_LOGIN': 'finance-fixture', 'ODOO_FINANCE_API_KEY': 'finance-secret'})
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertNotIn('finance-secret', cmd)
+        self.assertNotIn('mcp_servers.odoo_finance.enabled=true', cmd)
+        self.policy['tenants'][self.company]['odooFinanceAgents'] = [self.agent]
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertIn('finance-secret', cmd)
+        self.assertIn('mcp_servers.odoo_finance.enabled=true', cmd)
+
     def test_global_workspace_and_unprovisioned_tenant_denied(self):
         with self.assertRaises(ValueError):
             sandbox.build_command(self.policy, self.env, self.root, [])

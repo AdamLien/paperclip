@@ -76,6 +76,9 @@ def build_command(policy, env, cwd, args):
                'PAPERCLIP_RUN_ID', 'PAPERCLIP_TASK_ID', 'PAPERCLIP_WAKE_REASON',
                'PAPERCLIP_WAKE_COMMENT_ID', 'PAPERCLIP_WAKEUP_REQUEST_ID',
                'PAPERCLIP_APPROVAL_ID', 'PAPERCLIP_APPROVAL_STATUS', 'PAPERCLIP_LINKED_ISSUE_IDS']
+    finance_enabled = agent in tenant.get('odooFinanceAgents', [])
+    if finance_enabled:
+        allowed += ['ODOO_FINANCE_LOGIN', 'ODOO_FINANCE_API_KEY']
     safe_env.update({k: env[k] for k in allowed if k in env})
     for key, value in safe_env.items():
         cmd += ['--setenv', key, value]
@@ -103,6 +106,13 @@ def build_command(policy, env, cwd, args):
         '-c', 'model_providers.ocx.env_http_headers={"x-opencodex-api-key"="OCX_API_KEY"}',
         '-c', 'model_providers.ocx.wire_api="responses"',
     ]
+    if finance_enabled:
+        overrides += [
+            '-c', 'mcp_servers.odoo_finance.enabled=true',
+            '-c', 'mcp_servers.odoo_finance.command="python3"',
+            '-c', 'mcp_servers.odoo_finance.args=["/usr/local/lib/crew-company-memory/odoo-finance-mcp.py"]',
+            '-c', 'mcp_servers.odoo_finance.env_vars=["ODOO_FINANCE_LOGIN","ODOO_FINANCE_API_KEY"]',
+        ]
     return cmd + ['/usr/local/bin/codex'] + args + overrides
 
 
