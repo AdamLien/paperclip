@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { htmlReportPreviewDocument } from "@/lib/html-report-preview";
+import { isHtmlAttachment } from "@/lib/issue-attachments";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -241,6 +243,8 @@ type MarkdownPreviewMode = "raw" | "rendered";
 export function FileContentViewer({ content, highlightedLine, onLoaded }: FileContentViewerProps) {
   const { resource } = content;
   const isMarkdown = resource.previewKind === "text" && content.content.encoding === "utf8" && isMarkdownResource(resource);
+  const isHtml = resource.previewKind === "text" && content.content.encoding === "utf8" && isHtmlAttachment({ contentType: resource.contentType ?? "", originalFilename: resource.title });
+  const htmlDocument = useMemo(() => isHtml ? htmlReportPreviewDocument(content.content.data) : null, [isHtml, content.content.data]);
   const [markdownMode, setMarkdownMode] = useState<MarkdownPreviewMode>("rendered");
   const lines = useMemo(() => {
     if (resource.previewKind === "text") {
@@ -253,8 +257,8 @@ export function FileContentViewer({ content, highlightedLine, onLoaded }: FileCo
   const highlightedLineRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMarkdownMode(isMarkdown ? "rendered" : "raw");
-  }, [isMarkdown, resource.displayPath, resource.title, resource.contentType]);
+    setMarkdownMode(isMarkdown || isHtml ? "rendered" : "raw");
+  }, [isMarkdown, isHtml, resource.displayPath, resource.title, resource.contentType]);
 
   useEffect(() => {
     if (!lines) return;
@@ -373,7 +377,7 @@ export function FileContentViewer({ content, highlightedLine, onLoaded }: FileCo
     </div>
   );
 
-  if (!isMarkdown) {
+  if (!isMarkdown && !isHtml) {
     return rawSourceView;
   }
 
@@ -382,14 +386,14 @@ export function FileContentViewer({ content, highlightedLine, onLoaded }: FileCo
       <div className="absolute right-3 top-3 z-20">
         <div
           role="group"
-          aria-label="Markdown preview mode"
+          aria-label={isHtml ? "HTML preview mode" : "Markdown preview mode"}
           className="inline-flex rounded-md border border-border bg-background/95 p-0.5 shadow-sm backdrop-blur"
         >
           <Button
             type="button"
             variant={markdownMode === "rendered" ? "secondary" : "ghost"}
             size="icon-sm"
-            aria-label="Show rendered Markdown"
+            aria-label={isHtml ? "預覽報告" : "Show rendered Markdown"}
             title="Rendered Markdown"
             aria-pressed={markdownMode === "rendered"}
             onClick={() => setMarkdownMode("rendered")}
@@ -404,7 +408,7 @@ export function FileContentViewer({ content, highlightedLine, onLoaded }: FileCo
             type="button"
             variant={markdownMode === "raw" ? "secondary" : "ghost"}
             size="icon-sm"
-            aria-label="Show raw Markdown"
+            aria-label={isHtml ? "檢視原始碼" : "Show raw Markdown"}
             title="Raw Markdown"
             aria-pressed={markdownMode === "raw"}
             onClick={() => setMarkdownMode("raw")}
@@ -419,6 +423,8 @@ export function FileContentViewer({ content, highlightedLine, onLoaded }: FileCo
       </div>
       {markdownMode === "raw" ? (
         rawSourceView
+      ) : isHtml ? (
+        <iframe title={resource.title} sandbox="" referrerPolicy="no-referrer" srcDoc={htmlDocument ?? ""} className="min-h-0 w-full flex-1 bg-white pt-12" />
       ) : (
         <div
           role="region"

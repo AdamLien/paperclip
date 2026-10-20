@@ -1,5 +1,6 @@
 import { DispositionRecoveryNotice, useDispositionRecoverySnapshot } from "./DispositionRecoveryNotice";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { completedThreadHistoryStart } from "@/lib/completed-thread-history";
 import type { ComposerRunSettings } from "./task-chat/composer-run-settings";
 import { ComposerRunSettingsPicker } from "./task-chat/ComposerRunSettingsPicker";
 import { ComposerAddMenu, ComposerModeChip } from "./task-chat/ComposerAddMenu";
@@ -6012,6 +6013,12 @@ export function IssueChatThread({
     stableMessageCacheRef.current = stabilized.cache;
     return stabilized.messages;
   }, [rawMessages]);
+  const [expandedHistoryIssueId, setExpandedHistoryIssueId] = useState<string | null | undefined>();
+  const historyStart = issueStatus === "done" && activeRunIds.size === 0 &&
+    !interactions.some((interaction) => interaction.status === "pending") &&
+    (!location.hash || location.hash.startsWith("#document-")) && expandedHistoryIssueId !== issueId
+    ? completedThreadHistoryStart(messages) : 0;
+  const visibleMessages = historyStart > 0 ? messages.slice(historyStart) : messages;
   const latestMessagesRef = useRef<readonly ThreadMessage[]>(messages);
   latestMessagesRef.current = messages;
 
@@ -6591,6 +6598,11 @@ export function IssueChatThread({
                 data-testid="thread-viewport"
                 className={variant === "embedded" ? "space-y-3" : "space-y-4"}
               >
+                {historyStart > 0 ? (
+                  <button type="button" className="w-full rounded-md border border-border p-3 text-sm text-muted-foreground" onClick={() => setExpandedHistoryIssueId(issueId)}>
+                    已顯示最新交付 · 展開先前 {historyStart} 則紀錄
+                  </button>
+                ) : null}
                 {messages.length === 0 ? (
                   <Card
                     className={cn(
@@ -6602,10 +6614,10 @@ export function IssueChatThread({
                   >
                     {resolvedEmptyMessage}
                   </Card>
-                ) : messages.length >= VIRTUALIZED_THREAD_ROW_THRESHOLD ? (
+                ) : visibleMessages.length >= VIRTUALIZED_THREAD_ROW_THRESHOLD ? (
                   <VirtualizedIssueChatThreadList
                     ref={virtualizedThreadRef}
-                    messages={messages}
+                    messages={visibleMessages}
                     feedbackVoteByTargetId={feedbackVoteByTargetId}
                     activeRunIds={activeRunIds}
                     stoppingRunId={stoppingRunId}
@@ -6616,7 +6628,7 @@ export function IssueChatThread({
                   // Keep transcript rendering independent from assistant-ui's
                   // index-scoped message providers; live transcripts can shrink
                   // or regroup while the runtime still holds stale indices.
-                  messages.map((message) => (
+                  visibleMessages.map((message) => (
                     <IssueChatMessageRow
                       key={message.id}
                       message={message}

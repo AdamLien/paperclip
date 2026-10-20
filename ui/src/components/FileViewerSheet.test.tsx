@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { WorkspaceFileContent } from "@paperclipai/shared";
@@ -75,6 +76,17 @@ describe("FileContentViewer", () => {
     const markup = renderToStaticMarkup(<FileContentViewer content={content()} highlightedLine={null} />);
     expect(markup).toContain("whitespace-pre-wrap");
     expect(markup).toContain("break-words");
+  });
+
+  it("previews workspace HTML reports rather than showing markup", () => {
+    const markup = renderToStaticMarkup(<FileContentViewer content={content({
+      resource: { ...content().resource, title: "report.html", displayPath: "report.html", contentType: "text/html" },
+      content: { encoding: "utf8", data: '<h1>申皇報告</h1><script>alert(1)</script>' },
+    })} highlightedLine={null} />);
+    expect(markup).toContain('<iframe');
+    expect(markup).toContain('sandbox=""');
+    expect(markup).toContain('申皇報告');
+    expect(markup).not.toContain('alert(1)');
   });
 
   it("reserves code gutter space for at least four digit line numbers", () => {
