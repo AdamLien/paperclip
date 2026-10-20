@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "metabiz Crew",
-  "short_name": "Crew",
+  "name": "mCrew",
+  "short_name": "mCrew",
   "description": "metabiz AI 團隊協作與任務管理平台，基於 Paperclip。",
   "start_url": "/",
   "scope": "/",

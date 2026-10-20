@@ -297,7 +297,7 @@ export function Dashboard() {
       return (
         <EmptyState
           icon={LayoutDashboard}
-          message="歡迎使用 metabiz Crew。 Set up your first organization and agent to get started."
+          message="歡迎使用 mCrew。 Set up your first organization and agent to get started."
           action="Get Started"
           onAction={openOnboarding}
         />

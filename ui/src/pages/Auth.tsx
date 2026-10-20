@@ -113,7 +113,7 @@ export function AuthPage() {
           </div>
 
           <h1 className="text-xl font-semibold">
-            {mode === "sign_in" ? "登入 metabiz Crew" : "建立 metabiz Crew 帳號"}
+            {mode === "sign_in" ? "登入 mCrew" : "建立 mCrew 帳號"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "sign_in"

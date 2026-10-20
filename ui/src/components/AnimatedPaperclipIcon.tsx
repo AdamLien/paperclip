@@ -23,7 +23,7 @@ export function AnimatedPaperclipIcon({ className, ...props }: SVGProps<SVGSVGEl
   );
 }
 
-/** Full-page loading state using the metabiz Crew product branding. */
+/** Full-page loading state using the mCrew product branding. */
 export function PaperclipLoading({ className }: { className?: string }) {
   return (
     <div
@@ -38,7 +38,7 @@ export function PaperclipLoading({ className }: { className?: string }) {
         />
         <span className="metabiz-crew-loading-name absolute -right-4 top-1 whitespace-nowrap text-xl font-bold tracking-widest text-red-500">CREW</span>
       </div>
-      <span className="text-lg font-semibold tracking-wide">metabiz Crew</span>
+      <span className="text-lg font-semibold tracking-wide">mCrew</span>
       <div className="metabiz-crew-loading-dots" aria-hidden="true">
         <span />
         <span />

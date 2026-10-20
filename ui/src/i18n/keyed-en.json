@@ -1678,7 +1678,7 @@
       "unknownProject": "Unknown project"
     },
     "auth": {
-      "paperclip": "Paperclip",
+      "paperclip": "mCrew",
       "signInToPaperclip": "Sign in to Paperclip",
       "createPaperclipAccount": "Create your Paperclip account",
       "signInSubtitle": "Use your email and password to access this instance.",

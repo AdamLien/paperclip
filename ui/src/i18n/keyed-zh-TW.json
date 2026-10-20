@@ -1678,7 +1678,7 @@
       "unknownProject": "未知專案"
     },
     "auth": {
-      "paperclip": "Paperclip",
+      "paperclip": "mCrew",
       "signInToPaperclip": "登入 Paperclip",
       "createPaperclipAccount": "建立 Paperclip 帳號",
       "signInSubtitle": "使用電子郵件和密碼存取此執行個體。",
