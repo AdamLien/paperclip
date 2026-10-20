@@ -35,6 +35,7 @@ class CompanySandboxTest(unittest.TestCase):
         self.assertNotIn('--ro-bind / /', ' '.join(cmd))
         self.assertIn('mcp_servers.host.enabled=false', cmd)
         self.assertIn('mcp_servers.supermemory.env_vars=["SUPERMEMORY_CONFIG_PATH"]', cmd)
+        self.assertIn('features.apps=false', cmd)
 
     def test_cross_company_home_denied(self):
         self.env['CODEX_HOME'] = str(self.root / 'companies' / 'other' / 'codex-home')

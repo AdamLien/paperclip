@@ -111,6 +111,8 @@ def build_command(policy, env, cwd, args):
         # user namespaces. Avoid a second Codex sandbox that cannot start.
         '-c', 'sandbox_mode="danger-full-access"',
         '-c', 'approval_policy="never"',
+        # OCX uses company-governed MCP connections, not subscription Apps.
+        '-c', 'features.apps=false',
         '-c', 'mcp_servers.supermemory.command="node"',
         '-c', 'mcp_servers.supermemory.args=["/usr/local/lib/crew-company-memory/mcp.cjs"]',
         '-c', 'mcp_servers.supermemory.env_vars=["SUPERMEMORY_CONFIG_PATH"]',
