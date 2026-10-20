@@ -1,3 +1,4 @@
+import { applyOcxSolPricing } from "./ocx-sol-pricing.js";
 import { retryIdempotentDatabaseOperation } from "../database-retry.js";
 import { prepareConnectionInstructionDelivery } from "./connection-instructions.js";
 import { resolveAssignedConnectionInstructionsForRun } from "./native-runtime/assigned-mcp-tools.js";
@@ -5349,6 +5350,7 @@ function normalizeBilledCostCents(
 
 export function resolveLedgerCostStatus(input: {
   costUsd: number | null | undefined;
+  estimated?: boolean;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -5358,7 +5360,7 @@ export function resolveLedgerCostStatus(input: {
   return typeof input.costUsd === "number" &&
     Number.isFinite(input.costUsd) &&
     input.costUsd >= 0
-    ? "reported"
+    ? (input.estimated ? "estimated" : "reported")
     : "unpriced";
 }
 
@@ -20015,6 +20017,7 @@ export function heartbeatService(
       inputTokens > 0 || outputTokens > 0 || cachedInputTokens > 0;
     const costStatus = resolveLedgerCostStatus({
       costUsd: billedCostUsd,
+      estimated: parseObject(result.resultJson?.pricing).estimated === true,
       inputTokens,
       cachedInputTokens,
       outputTokens,
@@ -25523,6 +25526,7 @@ export function heartbeatService(
           usageBasis: adapterResult.usageBasis ?? null,
         });
         const normalizedUsage = sessionUsageResolution.normalizedUsage;
+        adapterResult = applyOcxSolPricing(adapterResult, normalizedUsage, agent.adapterType, parseObject(agent.adapterConfig));
         const runErrorMessage =
           outcome === "cancelled"
             ? redactCurrentUserText(latestRun?.error ?? adapterResult.errorMessage ?? "Cancelled", currentUserRedactionOptions)
@@ -25630,6 +25634,7 @@ export function heartbeatService(
                   : {}),
                 costStatus: resolveLedgerCostStatus({
                   costUsd: cacheAdjustedCostUsd,
+                  estimated: parseObject(adapterResult.resultJson?.pricing).estimated === true,
                   inputTokens: normalizedUsage?.inputTokens ?? 0,
                   cachedInputTokens: normalizedUsage?.cachedInputTokens ?? 0,
                   outputTokens: normalizedUsage?.outputTokens ?? 0,

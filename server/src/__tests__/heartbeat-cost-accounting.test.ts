@@ -5,6 +5,9 @@ import {
 } from "../services/heartbeat.js";
 
 describe("heartbeat cost accounting", () => {
+  it("keeps calculated list prices distinct from provider receipts", () => {
+    expect(resolveLedgerCostStatus({ costUsd: 0.022016, estimated: true, inputTokens: 10628, cachedInputTokens: 0, outputTokens: 76 })).toBe("estimated");
+  });
   it.each([null, undefined, Number.NaN, Number.POSITIVE_INFINITY, -1])(
     "keeps a paused run without a valid cost receipt unpriced (%s)",
     (costUsd) => {
