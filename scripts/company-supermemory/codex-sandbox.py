@@ -100,6 +100,12 @@ def build_command(policy, env, cwd, args):
         entry = config.get('mcp_servers', {}).get(name, {})
         if 'command' not in entry and entry.get('url') == f'https://crew.metabiz.work{endpoint}':
             overrides += ['-c', f'mcp_servers.{name}.url="http://127.0.0.1:3100{endpoint}"']
+    assigned = config.get('mcp_servers', {}).get('paperclip-assigned', {})
+    assigned_url = assigned.get('url', '')
+    if 'command' not in assigned and isinstance(assigned_url, str):
+        match = re.fullmatch(r'https://crew\.metabiz\.work(/mcp/gateways/gw_[a-f0-9]+)', assigned_url)
+        if match:
+            overrides += ['-c', f'mcp_servers.paperclip-assigned.url="http://127.0.0.1:3100{match[1]}"']
     overrides += [
         # The outer bwrap already confines files/processes and denies nested
         # user namespaces. Avoid a second Codex sandbox that cannot start.

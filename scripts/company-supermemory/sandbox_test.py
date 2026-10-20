@@ -61,6 +61,28 @@ class CompanySandboxTest(unittest.TestCase):
         self.assertFalse(any('mcp_servers.paperclip-connections.url=' in value for value in cmd))
         self.assertFalse(any('mcp_servers.paperclip-projects.url=' in value for value in cmd))
 
+    def test_assigned_gateway_uses_local_transport_with_original_run_credentials(self):
+        endpoint = '/mcp/gateways/gw_61b65f90dce54da0a8e65d16511435e8'
+        config = ('[mcp_servers.paperclip-assigned]\n'
+                  f'url="https://crew.metabiz.work{endpoint}"\n'
+                  'http_headers={Authorization="Bearer assigned-run-fixture"}\n')
+        (self.home / 'config.toml').write_text(config)
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertIn(f'mcp_servers.paperclip-assigned.url="http://127.0.0.1:3100{endpoint}"', cmd)
+        self.assertNotIn('assigned-run-fixture', cmd)
+        self.assertEqual((self.home / 'config.toml').read_text(), config)
+
+    def test_assigned_gateway_rejects_unrelated_origins_paths_and_commands(self):
+        for url in ['https://example.com/mcp/gateways/gw_abc',
+                    'https://crew.metabiz.work/api/admin',
+                    'https://crew.metabiz.work/mcp/gateways/gw_abc?scope=other',
+                    'https://crew.metabiz.work.evil.test/mcp/gateways/gw_abc']:
+            with self.subTest(url=url):
+                (self.home / 'config.toml').write_text(
+                    f'[mcp_servers.paperclip-assigned]\nurl="{url}"\n')
+                cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+                self.assertFalse(any('mcp_servers.paperclip-assigned.url=' in value for value in cmd))
+
     def test_finance_mcp_and_credentials_only_for_provisioned_agent(self):
         self.env.update({'ODOO_FINANCE_LOGIN': 'finance-fixture', 'ODOO_FINANCE_API_KEY': 'finance-secret'})
         cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
