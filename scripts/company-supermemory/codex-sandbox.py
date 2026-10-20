@@ -2,6 +2,7 @@
 """Fail-closed company filesystem boundary around the existing OCX Codex CLI."""
 import json
 import os
+import re
 from pathlib import Path
 import sys
 import tomllib
@@ -77,7 +78,9 @@ def build_command(policy, env, cwd, args):
     overrides = []
     for name, entry in config.get('mcp_servers', {}).items():
         if name != 'supermemory' and 'command' in entry:
-            overrides += ['-c', f'mcp_servers.{json.dumps(name)}.enabled=false']
+            if not re.fullmatch(r'[A-Za-z0-9_-]+', name):
+                raise ValueError('Unsupported host MCP server name')
+            overrides += ['-c', f'mcp_servers.{name}.enabled=false']
     overrides += [
         '-c', 'mcp_servers.supermemory.command="node"',
         '-c', 'mcp_servers.supermemory.args=["/usr/local/lib/crew-company-memory/mcp.cjs"]',
