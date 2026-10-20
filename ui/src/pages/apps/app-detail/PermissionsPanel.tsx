@@ -232,6 +232,7 @@ export function ActionsSection({
   onReviewQuarantined: (enabledIds: string[]) => void;
   onRefreshActions: () => void;
 }) {
+  useUiLiteralLocale();
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<ActionKindFilter>("all");
   const [showPermissionChangeWarning, setShowPermissionChangeWarning] = useState(false);
@@ -242,8 +243,9 @@ export function ActionsSection({
   const matches = (entry: ToolCatalogEntry) => {
     const needle = query.trim().toLowerCase();
     if (!needle) return true;
-    return (entry.title ?? entry.toolName).toLowerCase().includes(needle)
-      || (entry.description ?? "").toLowerCase().includes(needle);
+    const text = [entry.toolName, entry.title ?? "", entry.description ?? ""];
+    if (entry.toolName.startsWith("metabiz_mcrm_")) text.push(...text.map(translateUiLiteral));
+    return text.some((value) => value.toLowerCase().includes(needle));
   };
   const visibleRead = kindFilter === "write" ? [] : sortedRead.filter(matches);
   const visibleWrite = kindFilter === "read" ? [] : sortedWrite.filter(matches);

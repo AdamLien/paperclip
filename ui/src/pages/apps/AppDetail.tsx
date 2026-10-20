@@ -256,7 +256,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     setBreadcrumbs([
       { label: translateUiLiteral("Connectors"), href: "/apps" },
       { label: appName, href: appTabHref(connectionId, "permissions") },
-      { label: appTabLabel(activeTab) },
+      { label: translateUiLiteral(appTabLabel(activeTab)) },
     ]);
     return () => setBreadcrumbs([]);
   }, [setBreadcrumbs, appName, connectionId, activeTab, uiLocale]);
@@ -774,6 +774,7 @@ export function AppDetailHeader({
   onRenameCancel: () => void;
   onRenameSubmit: (value: string) => void;
 }) {
+  useUiLiteralLocale();
   const unverifiedHost = unverifiedRemoteHost(connection);
   return (
     <header>
@@ -828,7 +829,7 @@ export function AppDetailHeader({
             <StatusBadge status={status} />
             {connection.config?.provider !== "agentmail" && actionCount !== null && (
               <span className="text-xs text-muted-foreground">
-                {actionCount} {actionCount === 1 ? "action" : "actions"} available
+                {translateUiLiteral(`${actionCount} ${actionCount === 1 ? "action" : "actions"} available`)}
               </span>
             )}
             {connectionDisplaySecondaryHint(connection) ? (
