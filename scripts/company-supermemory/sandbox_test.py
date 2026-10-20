@@ -41,6 +41,26 @@ class CompanySandboxTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             sandbox.build_command(self.policy, self.env, self.cwd, [])
 
+    def test_governed_mcp_uses_local_transport_without_replacing_credentials(self):
+        config = ('[mcp_servers.paperclip-connections]\n'
+                  'url="https://crew.metabiz.work/mcp/runtime-tools"\n'
+                  'http_headers={Authorization="Bearer company-run-fixture"}\n'
+                  '[mcp_servers.paperclip-projects]\n'
+                  'url="https://crew.metabiz.work/api/mcp/project-tools"\n')
+        (self.home / 'config.toml').write_text(config)
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertIn('mcp_servers.paperclip-connections.url="http://127.0.0.1:3100/mcp/runtime-tools"', cmd)
+        self.assertIn('mcp_servers.paperclip-projects.url="http://127.0.0.1:3100/api/mcp/project-tools"', cmd)
+        self.assertNotIn('company-run-fixture', cmd)
+        self.assertEqual((self.home / 'config.toml').read_text(), config)
+
+    def test_mcp_transport_does_not_add_servers_or_redirect_external_services(self):
+        (self.home / 'config.toml').write_text(
+            '[mcp_servers.paperclip-connections]\nurl="https://example.com/mcp"\n')
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertFalse(any('mcp_servers.paperclip-connections.url=' in value for value in cmd))
+        self.assertFalse(any('mcp_servers.paperclip-projects.url=' in value for value in cmd))
+
     def test_finance_mcp_and_credentials_only_for_provisioned_agent(self):
         self.env.update({'ODOO_FINANCE_LOGIN': 'finance-fixture', 'ODOO_FINANCE_API_KEY': 'finance-secret'})
         cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])

@@ -91,6 +91,15 @@ def build_command(policy, env, cwd, args):
             if not re.fullmatch(r'[A-Za-z0-9_-]+', name):
                 raise ValueError('Unsupported host MCP server name')
             overrides += ['-c', f'mcp_servers.{name}.enabled=false']
+    # Keep managed company/run credentials; only avoid the public edge for
+    # these existing gateways hosted by the same Crew backend.
+    for name, endpoint in {
+        'paperclip-connections': '/mcp/runtime-tools',
+        'paperclip-projects': '/api/mcp/project-tools',
+    }.items():
+        entry = config.get('mcp_servers', {}).get(name, {})
+        if 'command' not in entry and entry.get('url') == f'https://crew.metabiz.work{endpoint}':
+            overrides += ['-c', f'mcp_servers.{name}.url="http://127.0.0.1:3100{endpoint}"']
     overrides += [
         # The outer bwrap already confines files/processes and denies nested
         # user namespaces. Avoid a second Codex sandbox that cannot start.
