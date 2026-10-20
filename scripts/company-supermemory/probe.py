@@ -19,6 +19,8 @@ def request(base, tag):
             return r.status
     except urllib.error.HTTPError as e:
         return e.code
+    except urllib.error.URLError:
+        return 'network-blocked'
 
 def readable(p):
     try:
@@ -33,7 +35,8 @@ result = {
     'agentId': os.environ['PAPERCLIP_AGENT_ID'],
     'ownMemoryHTTP': request(c['baseUrl'], own),
     'otherCompanyMemoryHTTP': request(c['baseUrl'], other),
-    'directStorageWithCompanyKeyHTTP': request('http://127.0.0.1:6767', own),
+    'administratorFrontWithCompanyKeyHTTP': request('http://127.0.0.1:6767', other),
+    'directStorageWithCompanyKeyHTTP': request('http://127.0.0.1:6770', own),
     'hostAdminMemoryKeyReadable': readable('/home/metabiz-admin/.codex/supermemory.json'),
     'gatewayAdminConfigReadable': readable('/etc/crew-company-memory/server.json'),
     'hostProcVisible': Path('/proc/1/root/home/metabiz-admin/.codex/supermemory.json').exists(),
@@ -43,5 +46,6 @@ result = {
 print(json.dumps(result))
 assert result['ownMemoryHTTP'] == 200
 assert result['otherCompanyMemoryHTTP'] == 403
-assert result['directStorageWithCompanyKeyHTTP'] == 401
+assert result['administratorFrontWithCompanyKeyHTTP'] == 403
+assert result['directStorageWithCompanyKeyHTTP'] == 'network-blocked'
 assert not any(result[k] for k in ['hostAdminMemoryKeyReadable', 'gatewayAdminConfigReadable', 'hostProcVisible', 'otherCompanyHomeVisible'])

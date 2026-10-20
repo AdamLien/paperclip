@@ -54,6 +54,26 @@ export function createGateway(config, fetchImpl = fetch) {
     try {
       if (req.method === 'GET' && req.url === '/healthz') return reply(200, { status: 'ok' });
       const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+      // Preserve the existing administrator API address while putting the
+      // legacy backend (which trusts localhost) behind an authenticated front.
+      if (config.allowAdminProxy && equal(token, config.upstreamKey)) {
+        const target = new URL(req.url, upstream);
+        if (!req.url.startsWith('/') || req.url.startsWith('//') || target.origin !== upstream.origin) throw invalid(400, 'Invalid API path');
+        let bytes = 0, chunks = [];
+        for await (const chunk of req) {
+          bytes += chunk.length;
+          if (bytes > 8 * 1024 * 1024) throw invalid(413, 'API request too large');
+          chunks.push(chunk);
+        }
+        const response = await fetchImpl(target, {
+          method: req.method,
+          headers: { Authorization: `Bearer ${config.upstreamKey}`, 'Content-Type': req.headers['content-type'] ?? 'application/json' },
+          ...(!['GET', 'HEAD'].includes(req.method) ? { body: Buffer.concat(chunks) } : {}),
+          redirect: 'error', signal: AbortSignal.timeout(30000),
+        });
+        res.writeHead(response.status, { 'Content-Type': response.headers.get('content-type') ?? 'application/json', 'Cache-Control': 'no-store' });
+        return res.end(Buffer.from(await response.arrayBuffer()));
+      }
       const tenant = config.tenants.find(t => equal(token, t.token));
       if (!tenant) throw invalid(401, 'Unauthorized');
       if (req.method !== 'POST' || !routes.has(req.url)) throw invalid(404, 'Memory route unavailable');
@@ -84,4 +104,5 @@ export function createGateway(config, fetchImpl = fetch) {
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
   createGateway(config).listen(config.port ?? 6768, '127.0.0.1', () => console.log('Crew company memory gateway ready'));
+  if (config.adminPort) createGateway(config).listen(config.adminPort, '0.0.0.0', () => console.log('Supermemory authenticated administrator front ready'));
 }

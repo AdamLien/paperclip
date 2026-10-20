@@ -1,6 +1,10 @@
 # Crew company-scoped Supermemory
 
-Keep the existing self-hosted Supermemory on port 6767. A loopback gateway on
+Keep the existing self-hosted Supermemory data and move its legacy backend to
+port 6770. The v0.0.8 API implicitly trusts localhost, so `network-guard.sh`
+blocks the agent host UID from this private port and blocks external ingress.
+An authenticated front retains the administrator's original port 6767 and key.
+A loopback gateway on
 6768 authenticates different random company credentials and only permits
 `context`, `recall`, and `memory` operations in the credential's exact
 `crew_company_<company UUID>` container. No global search, arbitrary memory IDs,
@@ -46,7 +50,8 @@ for sandbox policy checks. All test commands must use the repository RTK prefix.
 
 On Linux, launch `crew-company-codex --company-memory-probe` with each agent's
 real company ID, agent ID, managed CODEX_HOME and workspace. This tests own-scope
-HTTP 200, cross-company HTTP 403, direct upstream HTTP 401 with the company key,
+HTTP 200, cross-company HTTP 403 (including through the administrator front),
+direct upstream network rejection,
 hidden host credentials and isolated `/proc`. A customer fixture must additionally
 prove the metabiz Wiki is absent. Then run the actual Codex MCP client inside
 the same boundary and verify the three tools; a real agent run is required to
