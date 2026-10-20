@@ -22,15 +22,20 @@ export function AnimatedPaperclipIcon({ className, ...props }: SVGProps<SVGSVGEl
   );
 }
 
-/** Full-page loading state: a large, centered, gray animated paperclip. */
+/** Full-page loading state using the metabiz Crew product branding. */
 export function PaperclipLoading({ className }: { className?: string }) {
   return (
     <div
       role="status"
-      className={cn("flex min-h-dvh w-full items-center justify-center", className)}
+      className={cn("flex min-h-dvh w-full flex-col items-center justify-center gap-4", className)}
     >
-      <AnimatedPaperclipIcon className="h-24 w-24 text-muted-foreground" />
-      <span className="sr-only">Loading…</span>
+      <img
+        src="/metabiz-crew-logo.png"
+        alt=""
+        className="h-24 w-24 object-contain motion-safe:animate-pulse"
+      />
+      <span className="text-lg font-semibold tracking-wide">metabiz Crew</span>
+      <span className="sr-only">正在載入…</span>
     </div>
   );
 }
