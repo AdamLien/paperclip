@@ -1,5 +1,4 @@
 import { TextAttachmentContext } from "@/context/TextAttachmentContext";
-import { isTextAttachment } from "@/lib/issue-attachments";
 import { useContext, useMemo, useState, type DragEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { IssueAttachment } from "@paperclipai/shared";
@@ -58,7 +57,7 @@ function AttachmentActions({
   onPreview?: (attachment: IssueAttachment) => void;
 }) {
   const openText = useContext(TextAttachmentContext);
-  const canPreviewText = openText && isTextAttachment(attachment);
+  const canPreview = Boolean(openText);
   const filename = attachmentFilename(attachment);
   return (
     <div className="flex shrink-0 items-center gap-1">
@@ -73,7 +72,7 @@ function AttachmentActions({
           <Maximize2 className="h-4 w-4" />
         </Button>
       ) : null}
-      {onPreview || canPreviewText ? (
+      {onPreview || canPreview ? (
         <Button variant="ghost" size="icon-sm" title="Preview" aria-label={`Open ${filename}`}
           onClick={() => onPreview ? onPreview(attachment) : openText!(attachment.id, filename)}>
           <Maximize2 className="h-4 w-4" />
@@ -124,7 +123,7 @@ function MarkdownAttachmentCard({
   deletePending?: boolean;
 }) {
   const openText = useContext(TextAttachmentContext);
-  const canPreviewText = openText && isTextAttachment(attachment);
+  const canPreview = Boolean(openText);
   const filename = attachmentFilename(attachment);
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.issues.attachmentPreview(attachment.id),
@@ -137,7 +136,7 @@ function MarkdownAttachmentCard({
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-            {canPreviewText ? (
+            {canPreview ? (
               <button type="button" onClick={() => openText!(attachment.id, filename)} className="truncate text-sm font-medium hover:underline" title={filename}>{filename}</button>
             ) : (
               <a href={attachmentOpenPath(attachment)} className="truncate text-sm font-medium hover:underline" title={filename}>{filename}</a>
@@ -205,13 +204,13 @@ function GenericAttachmentRow({
   deletePending?: boolean;
 }) {
   const openText = useContext(TextAttachmentContext);
-  const canPreviewText = openText && isTextAttachment(attachment);
+  const canPreview = Boolean(openText);
   const filename = attachmentFilename(attachment);
   return (
     <Card id={`attachment-${attachment.id}`} className="flex-row scroll-mt-20 items-center gap-2.5 p-2">
       <OutputFileTile contentType={attachment.contentType} />
       <div className="min-w-0 flex-1">
-        {canPreviewText ? (
+        {canPreview ? (
           <button type="button" onClick={() => openText!(attachment.id, filename)}
             className="block max-w-full truncate text-left text-sm font-medium text-foreground hover:underline" title={filename}>{filename}</button>
         ) : (

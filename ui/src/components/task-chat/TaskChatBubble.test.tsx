@@ -72,7 +72,7 @@ describe("TaskChatBubble attachment chips", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it.each([["html", "text/html"], ["md", "text/markdown"]])("opens %s inside the app without exposing a link to native download capture", (extension, contentType) => {
+  it.each([["html", "text/html"], ["md", "text/markdown"], ["mp3", "audio/mpeg"], ["mmd", "text/plain"], ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]])("opens %s inside the app without exposing a link to native download capture", (extension, contentType) => {
     const openText = vi.fn();
     const report = attachment({ id: "report", originalFilename: `report.${extension}`, contentType });
     flushSync(() => root!.render(

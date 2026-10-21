@@ -5,7 +5,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskAttachmentPanel, TextAttachmentPreview, readTextPreview, TEXT_PREVIEW_MAX_BYTES } from "./TaskAttachmentPanel";
-import { isHtmlAttachment, isTextAttachment } from "@/lib/issue-attachments";
+import { isAudioAttachment, isMermaidAttachment, isHtmlAttachment, isTextAttachment } from "@/lib/issue-attachments";
 import { readTaskSidePanelState, taskPanelAttachmentTab, writeTaskSidePanelState } from "@/lib/task-side-panel-state";
 vi.mock("@/components/MarkdownBody", () => ({ MarkdownBody: ({ children }: { children: string }) => <article data-rendered>{children}</article> }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -26,6 +26,36 @@ describe("text attachment tabs", () => {
     await act(async () => root.unmount()); client.clear();
   });
 
+  it("previews audio with native controls only after resolving the task attachment", async () => {
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
+    client.setQueryData(queryKeys.issues.attachments("task"), [{
+      id: "audio", originalFilename: "meeting.mp3", contentType: "audio/mpeg", byteSize: TEXT_PREVIEW_MAX_BYTES + 1,
+      contentPath: "/api/attachments/audio/content",
+    }]);
+    const host = document.createElement("div"); const root = createRoot(host);
+    await act(async () => root.render(<QueryClientProvider client={client}><TaskAttachmentPanel issueId="task" attachmentId="audio" /></QueryClientProvider>));
+    const audio = host.querySelector("audio");
+    expect(audio?.getAttribute("src")).toBe("/api/attachments/audio/content");
+    expect(audio?.hasAttribute("controls")).toBe(true);
+    expect(audio?.hasAttribute("autoplay")).toBe(false);
+    expect(host.querySelector("a")?.getAttribute("href")).toContain("download=1");
+    expect(fetch).not.toHaveBeenCalled();
+    await act(async () => audio!.dispatchEvent(new Event("error")));
+    expect(host.querySelector('[role="status"]')?.textContent).toContain("無法播放");
+    await act(async () => root.render(<QueryClientProvider client={client}><TaskAttachmentPanel issueId="task" attachmentId="other-company-audio" /></QueryClientProvider>));
+    expect(host.querySelector("audio")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    await act(async () => root.unmount()); client.clear();
+  });
+  it("recognizes audio and Mermaid without overriding a specific conflicting MIME type", () => {
+    expect(isAudioAttachment({ contentType: "audio/mpeg" })).toBe(true);
+    expect(isAudioAttachment({ contentType: "application/octet-stream", originalFilename: "meeting.m4a" })).toBe(true);
+    expect(isAudioAttachment({ contentType: "image/png", originalFilename: "fake.mp3" })).toBe(false);
+    expect(isMermaidAttachment({ contentType: "text/plain", originalFilename: "flow.mmd" })).toBe(true);
+    expect(isMermaidAttachment({ contentType: "application/vnd.mermaid" })).toBe(true);
+    expect(isMermaidAttachment({ contentType: "application/zip", originalFilename: "fake.mmd" })).toBe(false);
+  });
   it("classifies text without treating PDF or images as text", () => {
     for (const [contentType, originalFilename] of [["text/plain", "notes.txt"], ["application/octet-stream", "AGENTS.md"], ["application/json", "report.json"]]) expect(isTextAttachment({ contentType, originalFilename })).toBe(true);
     expect(isTextAttachment({ contentType: "application/pdf", originalFilename: "report.pdf" })).toBe(false);

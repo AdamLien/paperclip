@@ -1,5 +1,4 @@
 import { TextAttachmentContext } from "@/context/TextAttachmentContext";
-import { isTextAttachment } from "@/lib/issue-attachments";
 import { ArtifactPreview } from "@/components/artifacts/ArtifactCard";
 import { isVideoLikeOutput } from "@/lib/issue-output";
 import { AgentAvatar, type AvatarAgent } from "../AgentAvatar";
@@ -315,7 +314,7 @@ function TaskChatBubbleContent({
               const KindIcon = kind.icon;
               const size = formatFileSize(ref.byteSize);
               const video = isVideoLikeOutput(ref.contentType, ref.name);
-              const textPreview = openText && ref.id && isTextAttachment({ contentType: ref.contentType ?? "", originalFilename: ref.name });
+              const panelPreview = openText && ref.id;
               return (
                 <Attachment key={ref.url} size="sm">
                   <AttachmentMedia className={video ? "aspect-video group-data-[size=sm]/attachment:w-20" : undefined}>
@@ -332,7 +331,7 @@ function TaskChatBubbleContent({
                   <AttachmentTrigger
                     aria-label={`Open ${ref.name}`}
                     onClick={video ? () => openImage(ref.url) : undefined}
-                    render={video ? <button type="button" /> : textPreview ?
+                    render={video ? <button type="button" /> : panelPreview ?
                       <button type="button" onClick={() => openText!(ref.id!, ref.name)} /> :
                       <a
                         href={ref.openPath ?? ref.url}

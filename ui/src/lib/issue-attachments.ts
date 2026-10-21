@@ -59,3 +59,17 @@ export function isTextAttachment(attachment: {
     || (["", "application/octet-stream"].includes(type)
       && /\.(txt|log|csv|json|yaml|yml|toml|ini|sh|ts|tsx|js|jsx|py|css|html?)$/i.test(attachment.originalFilename ?? ""));
 }
+
+export function isAudioAttachment(attachment: { contentType: string; originalFilename?: string | null }) {
+  const type = normalizedContentType(attachment);
+  return type.startsWith("audio/")
+    || (["", "application/octet-stream"].includes(type)
+      && /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(attachment.originalFilename ?? ""));
+}
+
+export function isMermaidAttachment(attachment: { contentType: string; originalFilename?: string | null }) {
+  const type = normalizedContentType(attachment);
+  return ["text/vnd.mermaid", "application/vnd.mermaid"].includes(type)
+    || (["", "text/plain", "application/octet-stream"].includes(type)
+      && /\.(mmd|mermaid)$/i.test(attachment.originalFilename ?? ""));
+}
