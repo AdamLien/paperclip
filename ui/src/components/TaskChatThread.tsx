@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import {
   ISSUE_DETAIL_CONTENT_PAINT_MARK,
   ISSUE_DETAIL_CONTENT_MEASURE,
@@ -487,6 +488,7 @@ function durableInputLabel(
  * folded row. flag-OFF remains byte-for-byte IssueChatThread.
  */
 export function TaskChatThread(props: TaskChatThreadProps) {
+  useUiLiteralLocale();
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
   const {
     initialHistoryPending = false,
@@ -3036,7 +3038,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
                       </div>
                     ) : null}
                     <div className="px-3 py-10 text-center text-sm text-muted-foreground">
-                      {emptyMessage}
+                      {translateUiLiteral(emptyMessage)}
                     </div>
                     {bottomBlockerLinks ? (
                       <div

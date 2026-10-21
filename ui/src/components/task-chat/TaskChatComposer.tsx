@@ -1,4 +1,5 @@
 import { AgentAvatar } from "../AgentAvatar";
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import {
   useEffect,
   useRef,
@@ -645,9 +646,10 @@ export function TaskChatComposer({
     reassignOptions?.find((o) => o.id === assigneeValue)?.label ?? "Unassigned";
   const assigneeName =
     assigneeLabel === "Unassigned" ? "the agent" : assigneeLabel;
-  const effectivePlaceholder = queuedEdit
+  useUiLiteralLocale();
+  const effectivePlaceholder = translateUiLiteral(queuedEdit
     ? "Edit queued message…"
-    : (placeholder ?? modePlaceholder(pendingMode, assigneeName, mobile));
+    : (placeholder ?? modePlaceholder(pendingMode, assigneeName, mobile)));
   const goalUnavailable = runnerGoalCapability?.availability !== "available";
   const goalCommandOption: ActionCommandOption = {
     id: "action:goal",

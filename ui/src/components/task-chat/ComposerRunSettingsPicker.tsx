@@ -6,6 +6,8 @@ import { agentsApi, type AdapterModel } from "@/api/agents";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 import { useMobileEntityPickerViewportStyle } from "@/hooks/useMobileEntityPickerViewportStyle";
+import { getAgentExecutionLabel } from "@/adapters/adapter-display-registry";
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { getLastComposerEffort, rememberComposerEffort } from "@/lib/recent-composer-effort";
 import type { InlineEntityOption } from "@/components/InlineEntitySelector";
 import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -40,18 +42,9 @@ interface Props {
   initialAssigneeSearch?: string;
 }
 
-const HARNESS_LABELS: Record<string, string> = {
-  claude_local: "Claude Code", codex_local: "Codex", opencode_local: "OpenCode",
-  pi_local: "Pi", kimi_local: "Kimi Code", gemini_local: "Gemini CLI",
-  cursor: "Cursor", cursor_cloud: "Cursor Cloud", grok_local: "Grok CLI",
-  hermes_local: "Hermes CLI", paperclip_runner: "Paperclip Runner",
-  process: "Process", http: "HTTP", openclaw_gateway: "OpenClaw Gateway",
-  hermes_gateway: "Hermes Gateway",
-};
-
 function harnessLabel(agent: Agent | undefined): string {
   if (!agent) return "Choose an agent";
-  const harness = HARNESS_LABELS[agent.adapterType] ?? agent.adapterType;
+  const harness = translateUiLiteral(getAgentExecutionLabel(agent));
   const provider = composerCatalogProvider(agent);
   const binding = aiRuntimeConnectionBindingSchema.safeParse(agent?.runtimeConfig?.aiConnection).data;
   const poolId = binding?.mode === "router" ? binding.connectionId : undefined;
@@ -86,6 +79,7 @@ export function ComposerRunSettingsPicker({
   settings, onSettingsChange, onAssigneeChange, disabled = false, mobile: mobileProp, triggerRef, modelOptionsOverride, renderAssigneeIdentity,
   initialOpen = false, initialView = "settings", initialModelSearch = "", initialAssigneeSearch = "",
 }: Props) {
+  useUiLiteralLocale();
   const [open, setOpen] = useState(initialOpen);
   const [requestedView, setView] = useState<"settings" | "agents" | "models">(initialView);
   const [modelSearch, setModelSearch] = useState(initialModelSearch);
@@ -136,7 +130,7 @@ export function ComposerRunSettingsPicker({
   const choices = composerEfforts(agent, model, models.map((item) => item.id));
   const effort = selected.effort && choices.includes(selected.effort) ? selected.effort : null;
   const effortIndex = effort ? choices.indexOf(effort) + 1 : 0;
-  const effortLabel = effort ? EFFORT_LABELS[effort] ?? effort : "Default";
+  const effortLabel = translateUiLiteral(effort ? EFFORT_LABELS[effort] ?? effort : "Default");
   const fastAvailable = composerFastAvailable(agent, model);
   const effortChoicesKey = choices.join(",");
   useEffect(() => {

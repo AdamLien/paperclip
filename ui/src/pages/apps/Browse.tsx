@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { AGGREGATOR_NAMES, aggregatorManagementUrl, isAppAggregator, type AggregatorAppSnapshot, type AggregatorAppsResponse } from "@paperclipai/shared/aggregator-apps";
 import { CatalogSourceFilters, type CatalogSource } from "./CatalogSourceFilters";
 import { ExecutorManagementSetup } from "./ExecutorManagementSetup";
@@ -366,6 +367,8 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
   const { userId: viewingUserId, settled: identitySettled } = useAccountIdentity();
   const { enabled: chatConnectorsEnabled, githubEnabled } = useChatConnectorsEnabled();
   const { enabled: memoryConnectorsEnabled } = useMemoryConnectorsEnabled();
+  useUiLiteralLocale();
+  const locale = translateUiLiteral("Connectors");
   const { setBreadcrumbs } = useBreadcrumbs();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -381,9 +384,9 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     useState<ConnectionRemovalTarget | null>(null);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Connectors" }]);
+    setBreadcrumbs([{ label: translateUiLiteral("Connectors") }]);
     return () => setBreadcrumbs([]);
-  }, [setBreadcrumbs]);
+  }, [setBreadcrumbs, locale]);
 
   useEffect(() => { setQuery(""); setPage(1); setSource("paperclip"); setExpandedSearch(false); setArcadeToConfigure(null); setAggregatorToConnect(null); setAggregatorToManage(null); setInitialAggregatorProvider(undefined); setConnectionToRemove(null); }, [selectedCompanyId]);
   useEffect(() => {
@@ -791,6 +794,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
           left.key.localeCompare(right.key),
       );
   }, [
+    locale,
     applicationsQuery.data,
     chatEndpointsQuery.data,
     chatConnectorsEnabled,
@@ -993,10 +997,10 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
       {accountLoadErrors.length ? <p role="alert" className="text-sm text-destructive">Couldn’t load {Array.from(new Set(accountLoadErrors)).join(" or ")} accounts. Use Refresh in the connection’s menu to try again.</p> : null}
 
       {!loading && catalogRows.length > 0 ? <nav aria-label="Connector catalog pages" className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <p className="text-muted-foreground" role="status">{pageStart + 1}–{Math.min(pageStart + CATALOG_PAGE_SIZE, catalogRows.length)} of {catalogRows.length.toLocaleString()} connectors</p>
+        <p className="text-muted-foreground" role="status">{translateUiLiteral(`${pageStart + 1}–${Math.min(pageStart + CATALOG_PAGE_SIZE, catalogRows.length)} of ${catalogRows.length.toLocaleString()} connectors`)}</p>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); catalogTop.current?.scrollIntoView?.({ block: "start" }); }}>Previous</Button>
-          <span className="text-xs text-muted-foreground">Page {currentPage} of {pageCount}</span>
+          <span className="text-xs text-muted-foreground">{translateUiLiteral(`Page ${currentPage} of ${pageCount}`)}</span>
           <Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => { setPage(currentPage + 1); catalogTop.current?.scrollIntoView?.({ block: "start" }); }}>Next</Button>
         </div>
       </nav> : null}
@@ -1159,7 +1163,7 @@ export function ConnectorCard({
               const providerName = AGGREGATOR_NAMES[route.provider];
               const managedSnapshot = row.upstreamApps?.find(app => (app.provider ?? "composio") === route.provider && app.accounts.length > 0);
               const managed = Boolean(managedSnapshot);
-              const label = `${managed ? "Manage" : "Connect"} ${row.name} through ${providerName}, a third-party service`;
+              const label = translateUiLiteral(`${managed ? "Manage" : "Connect"} ${row.name} through ${providerName}, a third-party service`);
               return <Tooltip key={route.provider}><TooltipTrigger asChild>
                 <button type="button" aria-label={label} onClick={() => managed ? onManageAggregator?.(row.aggregatorApp!, managedSnapshot?.connectionId) : onConnectAggregator?.(row.aggregatorApp!)} className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <AppLogo name={providerName} brandKey={route.provider} size={16} compact />
@@ -1168,7 +1172,7 @@ export function ConnectorCard({
             })}
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {row.aggregatorApp && row.upstreamApps?.some(app => app.accounts.length > 0) ? `Accounts managed in ${[...new Set(row.upstreamApps?.map(app => AGGREGATOR_NAMES[app.provider ?? "composio"]))].join(" and ")}.` : row.description}
+            {row.aggregatorApp && row.upstreamApps?.some(app => app.accounts.length > 0) ? `Accounts managed in ${[...new Set(row.upstreamApps?.map(app => AGGREGATOR_NAMES[app.provider ?? "composio"]))].join(" and ")}.` : row.entry ? translateUiLiteral(row.description) : row.description}
           </p>
         </div>
         <Button
@@ -1176,16 +1180,16 @@ export function ConnectorCard({
           size="sm"
           variant="outline"
           disabled={!action.href && !row.aggregatorApp}
-          title={action.title}
+          title={action.title ? translateUiLiteral(action.title) : undefined}
           onClick={() => {
             if (row.aggregatorApp && isInstalled(row)) onManageAggregator?.(row.aggregatorApp, row.upstreamApps?.find(app => app.accounts.length > 0)?.connectionId);
             else if (row.aggregatorApp) onConnectAggregator?.(row.aggregatorApp);
             else if (action.href) onNavigate(row.slug === "agentmail"
               ? `${action.href}&setupId=${crypto.randomUUID()}` : action.href);
           }}
-          aria-label={`${action.label} ${row.name}`}
+          aria-label={`${translateUiLiteral(action.label)} ${row.name}`}
         >
-          {action.label}
+          {translateUiLiteral(action.label)}
         </Button>
       </div>
 
@@ -1377,7 +1381,7 @@ function ConnectionAccountRow({
 
   return (
     <ConnectionAccountRowLayout state={state} accountName={accountName} owner={owner} details={<>{details}{discovery?.discovery.message || discovery?.sync.status === "error" ? <p className="text-xs text-muted-foreground" role="status">{discovery.discovery.message ?? discovery.sync.error}</p> : null}</>}
-      openLabel={`Open ${accountName} permissions`} onOpen={() => onNavigate(`/apps/${connection.id}/permissions`)}>
+      openLabel={translateUiLiteral(`Open ${accountName} permissions`)} onOpen={() => onNavigate(`/apps/${connection.id}/permissions`)}>
         {state.kind === "attention" || state.kind === "draft" ? (
           <Button
             type="button"
@@ -1453,7 +1457,7 @@ function ConnectionAccountRowLayout({ state, accountName, owner, source, details
                   : "truncate text-xs text-muted-foreground"
               }
             >
-              {state.message}
+              {translateUiLiteral(state.message)}
             </div>
           ) : null}
         </div>
@@ -1474,18 +1478,18 @@ function ConnectionStatusIcon({ state }: { state: ConnectionState }) {
     return (
       <span
         className="mt-0.5 text-emerald-600 dark:text-emerald-400"
-        title={state.label}
+        title={translateUiLiteral(state.label)}
       >
         <Check className="h-4 w-4" aria-hidden="true" />
-        <span className="sr-only">{state.label}</span>
+        <span className="sr-only">{translateUiLiteral(state.label)}</span>
       </span>
     );
   }
   if (state.kind === "attention") {
     return (
-      <span className="mt-0.5 text-destructive" title={state.label}>
+      <span className="mt-0.5 text-destructive" title={translateUiLiteral(state.label)}>
         <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-        <span className="sr-only">{state.label}</span>
+        <span className="sr-only">{translateUiLiteral(state.label)}</span>
       </span>
     );
   }
@@ -1493,17 +1497,17 @@ function ConnectionStatusIcon({ state }: { state: ConnectionState }) {
     return (
       <span
         className="mt-0.5 text-amber-600 dark:text-amber-400"
-        title={state.label}
+        title={translateUiLiteral(state.label)}
       >
         <Clock3 className="h-4 w-4" aria-hidden="true" />
-        <span className="sr-only">{state.label}</span>
+        <span className="sr-only">{translateUiLiteral(state.label)}</span>
       </span>
     );
   }
   return (
-    <span className="mt-0.5 text-muted-foreground" title={state.label}>
+    <span className="mt-0.5 text-muted-foreground" title={translateUiLiteral(state.label)}>
       <PauseCircle className="h-4 w-4" aria-hidden="true" />
-      <span className="sr-only">{state.label}</span>
+      <span className="sr-only">{translateUiLiteral(state.label)}</span>
     </span>
   );
 }
