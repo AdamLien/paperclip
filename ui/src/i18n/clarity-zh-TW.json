@@ -244,7 +244,7 @@
   "Use Anthropic APIs with a restricted key.": "使用受限制的金鑰存取 Anthropic API。",
   "Connect an API using a key from your provider.": "使用供應商提供的金鑰連接 API。",
   "Use the tools exposed by your Arcade MCP connection.": "使用 Arcade MCP 連線提供的工具。",
-  "Delegate browser tasks and watch them live in Paperclip.": "交辦瀏覽器任務，並在 Paperclip 即時查看。",
+  "Delegate browser tasks and watch them live in Paperclip.": "交辦瀏覽器任務，並在 mCrew 即時查看。",
   "Build and recall shared graph memory from documents and conversations.": "從文件與對話建立及查詢共用的圖譜記憶。",
   "Discover and use connected apps through Composio Connect.": "透過 Composio Connect 尋找及使用已連接的應用程式。",
   "Look up current documentation for software libraries.": "查閱軟體程式庫的最新文件。",
@@ -281,5 +281,14 @@
   "Retrieve temporal graph memory and authorized business context.": "查詢時序圖譜記憶及已授權的商務脈絡。",
   "{{value1}} on": "已啟用 {{value1}} 項",
   "Open {{value1}} organization switcher": "開啟 {{value1}} 工作區切換器",
-  "Open {{value1}} permissions": "開啟 {{value1}} 的權限設定"
+  "Open {{value1}} permissions": "開啟 {{value1}} 的權限設定",
+  "{{value1}}–{{value2}} of {{value3}} connectors": "第 {{value1}}–{{value2}} 項，共 {{value3}} 個連接器",
+  "Page {{value1}} of {{value2}}": "第 {{value1}} 頁，共 {{value2}} 頁",
+  "Use your Paperclip organization from Codex, Claude, OpenCode, or another assistant.": "從 Codex、Claude、OpenCode 或其他助理連接您的 mCrew 工作區。",
+  "Join": "加入",
+  "Leave": "退出",
+  "Joining...": "加入中…",
+  "Leaving...": "退出中…",
+  "Star {{value1}}": "收藏 {{value1}}",
+  "Unstar {{value1}}": "取消收藏 {{value1}}"
 }
