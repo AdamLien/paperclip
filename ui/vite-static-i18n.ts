@@ -80,7 +80,7 @@ export function staticUiLocalization(): Plugin {
 
       function markComponentOwner(node: ts.Node) {
         for (let current = node.parent; current; current = current.parent) {
-          if (ts.isFunctionDeclaration(current) && current.name && /^[A-Z]/.test(current.name.text)) {
+          if (ts.isFunctionDeclaration(current) && current.body && current.name && /^[A-Z]/.test(current.name.text)) {
             componentBodies.add(current.body.getStart(sourceFile) + 1);
             return;
           }

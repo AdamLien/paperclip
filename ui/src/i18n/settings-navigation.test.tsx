@@ -21,6 +21,7 @@ vi.mock("../context/CompanyContext", () => ({ useCompany: () => ({ selectedCompa
 vi.mock("../context/DialogContext", () => ({ useDialogActions: () => ({ openNewIssue: state.newTask }) }));
 vi.mock("../context/SidebarContext", () => ({ useSidebar: () => ({ isMobile: state.mobile }) }));
 vi.mock("../hooks/useInboxBadge", () => ({ useInboxBadge: () => ({ inbox: 3 }) }));
+vi.mock("../hooks/usePersonalAssistant", () => ({ usePersonalAssistant: () => null }));
 vi.mock("../hooks/useAgentChatEnabled", () => ({ useAgentChatEnabled: () => ({ enabled: false }) }));
 vi.mock("../hooks/useCombinedInboxTasksEnabled", () => ({ useCombinedInboxTasksEnabled: () => ({ enabled: false }) }));
 vi.mock("../hooks/useCloudInstance", () => ({ useCloudInstance: () => null }));

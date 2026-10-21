@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "@/lib/router";
 import { agentRouteRef, cn } from "@/lib/utils";
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 
 export interface AgentConversationSidebarProps {
   agents: Agent[];
@@ -29,6 +30,7 @@ export interface AgentConversationSidebarProps {
 
 /** Searchable navigation for one conversation per agent. */
 export function AgentConversationSidebar({ agents, existingChatAgentIds, availableAgents = agents, activeId, previews = {}, loading = false, error, onRetry, initialSearch = "", onSelect, onBrowse, onAddChat, historyLoading, historyError, onRetryHistory }: AgentConversationSidebarProps) {
+  useUiLiteralLocale();
   const navigate = useNavigate();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState(initialSearch);
@@ -60,7 +62,7 @@ export function AgentConversationSidebar({ agents, existingChatAgentIds, availab
       <p className="px-2 text-(length:--text-micro) font-medium uppercase tracking-widest text-muted-foreground">
         {query ? "Search results" : "Teammates"}
       </p>
-      <span role="status" className="sr-only">{loading ? "Loading agents" : `${visible.length} ${visible.length === 1 ? "agent" : "agents"}`}</span>
+      <span role="status" className="sr-only">{translateUiLiteral(loading ? "Loading agents" : `${visible.length} ${visible.length === 1 ? "agent" : "agents"}`)}</span>
       {historyLoading && <p role="status" className="px-2 text-xs text-muted-foreground">Loading chat history…</p>}
       {historyError && <div role="alert" className="flex flex-col items-start gap-2 px-2 py-3">
         <p className="text-xs text-muted-foreground">Some chat history couldn’t load.</p>
@@ -80,7 +82,7 @@ export function AgentConversationSidebar({ agents, existingChatAgentIds, availab
           <AgentAvatar agent={agent} size={32} />
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="truncate text-sm font-medium">{agent.name}</span>
-            <span className="truncate text-xs text-muted-foreground">{agent.status === "terminated" ? "Terminated" : agent.status === "paused" ? "Paused" : previews[agent.id] ?? agent.title ?? "Start a conversation"}</span>
+            <span className="truncate text-xs text-muted-foreground">{agent.status === "terminated" ? translateUiLiteral("Terminated") : agent.status === "paused" ? translateUiLiteral("Paused") : previews[agent.id] ? previews[agent.id] : agent.title ?? translateUiLiteral("Start a conversation")}</span>
           </span>
         </Link>)}
       </nav> : !agents.length && (historyLoading || historyError) ? null : <div className="flex flex-col items-start gap-2 px-2 py-6">

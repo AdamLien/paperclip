@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Agent } from "@paperclipai/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setLocale } from "@/i18n";
 import { agentsApi } from "@/api/agents";
 import { ComposerRunSettingsPicker } from "./ComposerRunSettingsPicker";
 import { getLastComposerEffort, rememberComposerEffort } from "@/lib/recent-composer-effort";
@@ -222,4 +223,16 @@ describe("composer assignee picker", () => {
     expect(document.querySelector('[aria-label="Search assignees"]')).not.toBeNull();
     expect(document.querySelector('[aria-label="Choose exact model"]')).toBeNull();
   });
+});
+
+
+it("renders the configured API and execution harness in the real model picker", async () => {
+  const apiAgent = { ...agent, name: "Customer assistant", adapterConfig: { model: "gpt-6.1-sol", env: { OCX_API_KEY: { type: "secret_ref", secretId: "hidden-secret" } } } } as Agent;
+  await setLocale("zh-TW");
+  render(vi.fn(), vi.fn(), false, { agents: new Map([[agent.id, apiAgent]]), initialOpen: true });
+  expect(document.body.textContent).toContain("OCX API · Codex CLI");
+  expect(document.body.textContent).toContain("Customer assistant");
+  expect(document.body.textContent).not.toContain("hidden-secret");
+  await act(async () => setLocale("en"));
+  expect(document.body.textContent).toContain("OCX API · Codex CLI");
 });

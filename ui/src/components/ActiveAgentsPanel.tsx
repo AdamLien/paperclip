@@ -1,4 +1,5 @@
 import { AgentIdentity } from "@/components/AgentIdentity";
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { memo, useMemo } from "react";
 import { Link } from "@/lib/router";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -61,6 +62,7 @@ export function ActiveAgentsPanel({
   showTranscripts = false,
   dedupeLinkedTasks = false,
 }: ActiveAgentsPanelProps) {
+  useUiLiteralLocale();
   const effectiveFetchLimit = fetchLimit;
   const liveRunsQueryKey = [...queryKeys.liveRuns(companyId), queryScope, { minRunCount, fetchLimit: effectiveFetchLimit, dedupeLinkedTasks }] as const;
   const sharedLiveRuns = useSharedPollingQuery({
@@ -132,11 +134,11 @@ export function ActiveAgentsPanel({
   return (
     <div>
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
+        {translateUiLiteral(title)}
       </h3>
       {runs.length === 0 ? (
         <div className="rounded-xl border border-border p-4">
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+          <p className="text-sm text-muted-foreground">{translateUiLiteral(emptyMessage)}</p>
         </div>
       ) : (
         <div className={cn("grid grid-cols-1 items-start gap-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4", gridClassName)}>
@@ -187,7 +189,7 @@ export const AgentRunCard = memo(function AgentRunCard({
   issueLoadFailed?: boolean;
   className?: string;
 }) {
-  const statusLabel = runStatusLabels[run.status] ?? run.status.replace(/[_-]/g, " ");
+  const statusLabel = translateUiLiteral(runStatusLabels[run.status] ?? run.status.replace(/[_-]/g, " "));
   const runUrl = `/agents/${run.agentId}/runs/${run.id}`;
   const timestamp = run.finishedAt
     ? `Finished ${relativeTime(run.finishedAt)}`

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getAdapterDisplay, getAdapterLabel, getAdapterLabels } from "./adapter-display-registry";
+import { getAdapterDisplay, getAdapterLabel, getAdapterLabels, getAgentExecutionLabel } from "./adapter-display-registry";
 
 describe("adapter display registry", () => {
   it("uses user-facing labels without the legacy local qualifier for built-in adapters", () => {
@@ -45,5 +45,30 @@ describe("adapter display registry", () => {
       label: "Droid (gateway)",
       description: "External gateway adapter",
     });
+  });
+});
+
+
+describe("configured API connection labels", () => {
+  const agent = (env: Record<string, unknown> = {}, adapterType = "codex_local") => ({
+    adapterType, adapterConfig: { model: "gpt-6.1-sol", env },
+  });
+  it.each([
+    "never-display-this-key",
+    { type: "plain", value: "never-display-this-key" },
+    { type: "secret_ref", secretId: "private-secret-id" },
+    { type: "user_secret_ref", key: "private-user-secret" },
+  ])("identifies an OCX binding without exposing its contents", (binding) => {
+    expect(getAgentExecutionLabel(agent({ OCX_API_KEY: binding }))).toBe("OCX API · Codex CLI");
+  });
+  it.each([undefined, null, "", "  ", [], {}, { type: "plain", value: "" }, { type: "secret_ref" }])(
+    "does not infer an API connection from absent or invalid bindings", (binding) => {
+      expect(getAgentExecutionLabel(agent({ OCX_API_KEY: binding }))).toBe("Codex CLI");
+    },
+  );
+  it("keeps API authentication separate from the harness and model name", () => {
+    expect(getAgentExecutionLabel(agent({ OPENAI_API_KEY: "private" }))).toBe("API key · Codex CLI");
+    expect(getAgentExecutionLabel(agent())).toBe("Codex CLI");
+    expect(getAgentExecutionLabel(agent({ OCX_API_KEY: "private" }, "claude_local"))).toBe("Claude Code");
   });
 });
