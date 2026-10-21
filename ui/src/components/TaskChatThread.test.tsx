@@ -152,6 +152,23 @@ function render(ui: ReactElement) {
   );
 }
 
+it("shows the final delivery first on completed long tasks and can reveal the full history", () => {
+  const comments = Array.from({ length: 20 }, (_, i) => ({
+    id: `comment-${i}`, body: `Historical troubleshooting ${i}`, companyId: "company", issueId: "issue",
+    authorType: "agent" as const, authorAgentId: "agent", authorUserId: null, presentation: null, metadata: null,
+    createdAt: new Date(2025, 0, 1, 10, i), updatedAt: new Date(2025, 0, 1, 10, i),
+  }));
+  const request = { ...comments[0], id: "request", body: "Final request", authorType: "user" as const, authorAgentId: null, authorUserId: "board", createdAt: new Date(2025, 0, 1, 10, 21) };
+  const result = { ...comments[0], id: "result", body: "Report ready for download", createdAt: new Date(2025, 0, 1, 10, 22) };
+  render(<TaskChatThread issueId="issue" issueStatus="done" comments={[...comments, request, result]} onAdd={async () => {}} />);
+  expect(container.textContent).toContain("Report ready for download");
+  expect(container.textContent).not.toContain("Historical troubleshooting 0");
+  const expand = Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("展開先前"));
+  expect(expand).toBeTruthy();
+  flushSync(() => expand!.click());
+  expect(container.textContent).toContain("Historical troubleshooting 0");
+});
+
 describe.each(["legacy", "native"] as const)("historical %s system status", (runtimeMode) => {
   const run = (id: string, status: string, minute: number) => ({
     runId: id, status, runtimeMode, agentId: "agent", agentName: "Assistant",

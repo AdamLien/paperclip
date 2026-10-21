@@ -112,6 +112,7 @@ import { Button } from "@/components/ui/button";
 import { useIssuePlanDocument } from "@/hooks/useIssuePlanDocument";
 import { isRedundantAiRecoveryNotice, latestSameRunHandoffTimestamp } from "@/lib/issue-chat-messages";
 import { isLiveIssueRun, isTerminalIssueStatus } from "@/lib/liveIssueIds";
+import { completedThreadHistoryStart } from "@/lib/completed-thread-history";
 import {
   resolveTaskChatBlockers,
   resolveTaskChatLiveWork,
@@ -2905,6 +2906,13 @@ export function TaskChatThread(props: TaskChatThreadProps) {
     if (!historyRevealed || !issueId) return;
     scheduleIssueDetailPaintMeasure(ISSUE_DETAIL_CONTENT_PAINT_MARK, ISSUE_DETAIL_CONTENT_MEASURE);
   }, [historyRevealed, issueId]);
+  const [expandedHistoryIssueId, setExpandedHistoryIssueId] = useState<string | null | undefined>();
+  const historyStart = issueStatus === "done" && !liveRun &&
+    !(interactions ?? []).some((interaction) => interaction.status === "pending") &&
+    (!window.location.hash || window.location.hash.startsWith("#document-")) &&
+    expandedHistoryIssueId !== issueId
+    ? completedThreadHistoryStart(items.map((item) => ({ role: item.kind === "message" && item.author === "human" ? "user" : "assistant" }))) : 0;
+  const visibleItems = historyStart > 0 ? items.slice(historyStart) : items;
   const retryHistory = () => {
     onRetryInitialHistory?.();
     retryLogs?.();
@@ -3008,9 +3016,13 @@ export function TaskChatThread(props: TaskChatThreadProps) {
                   </div>
                 ) : (
                   <TaskChatThreadView
-                    items={items}
+                    items={visibleItems}
                     attachments={attachments}
-                    header={threadHeaderWithBlockers}
+                    header={<>{threadHeaderWithBlockers}{historyStart > 0 ? (
+                      <button type="button" className="w-full rounded-md border border-border p-3 text-sm text-muted-foreground" onClick={() => setExpandedHistoryIssueId(issueId)}>
+                        已顯示最新交付 · 展開先前 {historyStart} 則紀錄
+                      </button>
+                    ) : null}</>}
                     renderInteraction={renderInteraction}
                     renderBrief={renderBrief}
                     renderMessageActions={renderMessageActions}
