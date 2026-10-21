@@ -315,6 +315,7 @@ function TaskChatBubbleContent({
               const KindIcon = kind.icon;
               const size = formatFileSize(ref.byteSize);
               const video = isVideoLikeOutput(ref.contentType, ref.name);
+              const textPreview = openText && ref.id && isTextAttachment({ contentType: ref.contentType ?? "", originalFilename: ref.name });
               return (
                 <Attachment key={ref.url} size="sm">
                   <AttachmentMedia className={video ? "aspect-video group-data-[size=sm]/attachment:w-20" : undefined}>
@@ -331,14 +332,10 @@ function TaskChatBubbleContent({
                   <AttachmentTrigger
                     aria-label={`Open ${ref.name}`}
                     onClick={video ? () => openImage(ref.url) : undefined}
-                    render={video ? <button type="button" /> :
+                    render={video ? <button type="button" /> : textPreview ?
+                      <button type="button" onClick={() => openText!(ref.id!, ref.name)} /> :
                       <a
                         href={ref.openPath ?? ref.url}
-                        onClick={(event) => {
-                          if (openText && ref.id && isTextAttachment({ contentType: ref.contentType ?? "", originalFilename: ref.name }) && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-                            event.preventDefault(); openText(ref.id, ref.name);
-                          }
-                        }}
                         target="_blank"
                         rel="noreferrer"
                       />

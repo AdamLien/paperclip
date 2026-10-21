@@ -6,6 +6,7 @@ import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { TextAttachmentContext } from "@/context/TextAttachmentContext";
 import { IssueGalleryContext } from "@/context/IssueGalleryContext";
 import { TaskChatBubble } from "./TaskChatBubble";
 import type { TaskChatMessageItem } from "./task-chat-model";
@@ -69,6 +70,23 @@ describe("TaskChatBubble attachment chips", () => {
     flushSync(() => image!.click());
     expect(openGallery).toHaveBeenCalledWith(contentPath);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("opens HTML inside the app without exposing a link to native download capture", () => {
+    const openText = vi.fn();
+    const report = attachment({ id: "report", originalFilename: "report.html", contentType: "text/html" });
+    flushSync(() => root!.render(
+      <ThemeProvider>
+        <TextAttachmentContext.Provider value={openText}>
+          <TaskChatBubble item={{ id: "m1", kind: "message", author: "agent", text: "[report.html](" + report.contentPath + ")" }} attachments={[report]} />
+        </TextAttachmentContext.Provider>
+      </ThemeProvider>,
+    ));
+    const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="Open report.html"]');
+    expect(trigger).not.toBeNull();
+    expect(trigger?.closest("a[href]")).toBeNull();
+    flushSync(() => trigger!.click());
+    expect(openText).toHaveBeenCalledWith("report", "report.html");
   });
 
   it("renders a file reference as an attachment chip linking to the file", () => {
