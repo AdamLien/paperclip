@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { i18n } from "../i18n";
 import { ThemeToggle } from "./ThemeToggle";
 
 const mockToggleTheme = vi.hoisted(() => vi.fn());
@@ -27,7 +28,8 @@ async function flushReact() {
 describe("ThemeToggle", () => {
   let container: HTMLDivElement;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     container = document.createElement("div");
     document.body.appendChild(container);
     mockTheme.value = "dark";
@@ -37,6 +39,18 @@ describe("ThemeToggle", () => {
     container.remove();
     document.body.innerHTML = "";
     vi.clearAllMocks();
+  });
+
+  it("updates the menu label when the language changes without changing the theme", async () => {
+    const root = createRoot(container);
+    await act(async () => root.render(<ThemeToggle variant="compact-menu-action" />));
+    expect(container.textContent).toContain("Switch to light mode");
+    await act(async () => { await i18n.changeLanguage("zh-TW"); });
+    expect(container.textContent).toContain("切換為淺色模式");
+    expect(container.querySelector("button")?.getAttribute("aria-label")).toBe("切換為淺色模式");
+    expect(mockToggleTheme).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+    await i18n.changeLanguage("en");
   });
 
   it("renders an icon button by default with the 'switch to light' label when current theme is dark", async () => {

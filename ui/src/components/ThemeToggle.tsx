@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { Moon, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -36,8 +37,9 @@ const MENU_ACTION_DESCRIPTION = "Toggle the app appearance.";
  */
 export function ThemeToggle({ className, variant = "icon", onAfterToggle }: ThemeToggleProps) {
   const { theme, toggleTheme } = useTheme();
+  useUiLiteralLocale();
   const isDark = theme === "dark";
-  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
+  const label = translateUiLiteral(isDark ? "Switch to light mode" : "Switch to dark mode");
   const Icon = isDark ? Sun : Moon;
 
   function handleClick() {
@@ -80,7 +82,7 @@ export function ThemeToggle({ className, variant = "icon", onAfterToggle }: Them
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium text-foreground">{label}</span>
-          <span className="block text-xs text-muted-foreground">{MENU_ACTION_DESCRIPTION}</span>
+          <span className="block text-xs text-muted-foreground">{translateUiLiteral(MENU_ACTION_DESCRIPTION)}</span>
         </span>
       </button>
     );
