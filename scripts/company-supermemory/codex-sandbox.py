@@ -64,6 +64,27 @@ def build_command(policy, env, cwd, args):
     for wiki in tenant.get('readOnlyWiki', []):
         if Path(wiki).is_dir():
             cmd += ['--ro-bind', wiki, wiki]
+    # Only named librarians can update compiled company knowledge. Keep the
+    # vault root, control files and raw evidence read-only for everyone.
+    if agent in tenant.get('wikiWriterAgents', []):
+        for wiki in tenant.get('readOnlyWiki', []):
+            root = Path(wiki)
+            if root.resolve() != root or not root.is_dir():
+                raise ValueError('Wiki writer root must be a real mounted directory')
+            for name in ['00 Inbox', 'Company', '01 Clients', '02 Projects', '03 Tasks',
+                         '04 Quotes', '05 Proposals', '06 Knowledge', '07 Ops',
+                         '08 Templates', '09 Infra', 'INDEX']:
+                folder = root / name
+                if not folder.exists():
+                    continue
+                if folder.resolve() != folder or not folder.is_dir():
+                    raise ValueError('Wiki writer folders must not be symlinks')
+                cmd += ['--bind', str(folder), str(folder)]
+                evidence = folder / '_assets'
+                if evidence.exists():
+                    if evidence.resolve() != evidence or not evidence.is_dir():
+                        raise ValueError('Wiki evidence must not be a symlink')
+                    cmd += ['--ro-bind', str(evidence), str(evidence)]
     client = tenant['clientConfig']
     cmd += ['--ro-bind', client, '/run/crew-memory/client.json']
     # Shared login symlinks must not expose the host's subscription identity.

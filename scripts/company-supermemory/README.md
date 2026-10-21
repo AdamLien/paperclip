@@ -53,6 +53,36 @@ stop the new services before restoring the user service and its original port.
 
 ## Verification
 
+### Company Wiki librarian
+
+`runtime.json` may name `wikiWriterAgents` inside a tenant. Only those agent
+UUIDs receive writable overlays for existing compiled Wiki directories and
+`INDEX`; the vault root, `99 Meta`, `Observations`, and each compiled directory's
+`_assets` stay read-only. Other agents keep the original read-only mount, and
+a tenant with no `readOnlyWiki` receives no Wiki mount. Writable folders must
+be real directories, never symlinks. These mounts do not grant other tenants'
+workspaces, personal Google credentials, or personal Wikis.
+
+On 2026-10-22, metabiz provisioned its Wiki librarian with the existing OCX API
+secret reference, `gpt-6.1-sol`, on-demand execution and concurrency one. It has
+no agent/skill creation permission and no finance/Google secrets. Runtime
+instructions require pre-change workspace backups and hash checks, source
+links, existing-page reuse, index/log updates, and readback. These workflow
+requirements are instructions; the mount boundary does not prevent an
+authorized writer from deleting a compiled page. Deletion still requires Adam.
+
+The Linux integration test verifies real writes succeed only in compiled
+directories for the librarian, fail for a normal agent, and remain inaccessible
+to a customer tenant. It also checks evidence/control protection. Live probes
+verified the same mounts, a backed-up SOP/index/log write succeeded inside the
+librarian sandbox, and the first actual Crew model run succeeded. A taskless
+manual run can emit the existing connector gateway's task-bound-run 422; it is
+not a Wiki file permission failure and does not validate connector access.
+
+The Mac iCloud and Linux NAS Wikis had different existing index hashes. Do not
+describe their mount as verified bidirectional synchronization or overwrite one
+with the other. This provisioning preserved both histories independently.
+
 Run `node --test scripts/company-supermemory/gateway.test.mjs` for both tenants'
 write/search/profile isolation and rejected alternate-scope requests. Run
 `python3 -m unittest discover -s scripts/company-supermemory -p '*_test.py'`

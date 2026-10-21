@@ -137,6 +137,59 @@ class CompanySandboxTest(unittest.TestCase):
             sandbox.build_command(self.policy, self.env, self.cwd, [])
 
     @unittest.skipUnless(Path('/usr/bin/bwrap').exists(), 'Linux bubblewrap integration')
+    def test_librarian_writes_compiled_pages_only_and_tenant_isolation(self):
+        wiki = self.root / 'wiki'
+        compiled = wiki / '07 Ops'
+        evidence = compiled / '_assets'
+        control = wiki / '99 Meta'
+        evidence.mkdir(parents=True)
+        control.mkdir()
+        files = [compiled / 'page.md', evidence / 'source.md', control / 'rules.md']
+        for file in files:
+            file.write_text('original')
+        tenant = self.policy['tenants'][self.company]
+        tenant['readOnlyWiki'] = [str(wiki)]
+        tenant['wikiWriterAgents'] = [self.agent]
+        for key in ['emptyAuth', 'clientConfig']:
+            file = self.root / key
+            file.write_text('{}')
+            (self.policy if key == 'emptyAuth' else tenant)[key] = str(file)
+        other_company = 'other-company'
+        self.policy['tenants'][other_company] = dict(tenant, readOnlyWiki=[], wikiWriterAgents=[])
+        other_home = self.root / 'companies' / other_company / 'codex-home'
+        other_home.mkdir(parents=True)
+        probe = ('import json,pathlib\nresults=[]\n'
+                 f'for name in {list(map(str, files))!r}:\n'
+                 ' try: pathlib.Path(name).write_text("updated"); results.append(True)\n'
+                 ' except OSError: results.append(False)\n'
+                 'print(json.dumps(results))')
+        for company, agent, home, expected in [
+                (self.company, self.agent, self.home, [True, False, False]),
+                (self.company, 'reader', self.home, [False, False, False]),
+                (other_company, 'customer', other_home, [False, False, False])]:
+            cwd = self.root / 'workspaces' / agent
+            cwd.mkdir(exist_ok=True)
+            env = dict(self.env, PAPERCLIP_COMPANY_ID=company,
+                       PAPERCLIP_AGENT_ID=agent, CODEX_HOME=str(home))
+            cmd = sandbox.build_command(self.policy, env, cwd, [])
+            cmd = cmd[:cmd.index('/usr/local/bin/codex')]
+            result = subprocess.run(cmd + ['/usr/bin/python3', '-c', probe],
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout), expected)
+        self.assertEqual(files[1].read_text(), 'original')
+        self.assertEqual(files[2].read_text(), 'original')
+
+    def test_librarian_rejects_symlinked_writable_folders(self):
+        wiki = self.root / 'wiki'
+        wiki.mkdir()
+        (wiki / 'Company').symlink_to(self.home, target_is_directory=True)
+        tenant = self.policy['tenants'][self.company]
+        tenant.update(readOnlyWiki=[str(wiki)], wikiWriterAgents=[self.agent])
+        with self.assertRaises(ValueError):
+            sandbox.build_command(self.policy, self.env, self.cwd, [])
+
+    @unittest.skipUnless(Path('/usr/bin/bwrap').exists(), 'Linux bubblewrap integration')
     def test_google_store_isolation_in_real_sandbox(self):
         root = self.root / 'agent-secrets' / self.company / self.agent
         store = root / 'gog'
