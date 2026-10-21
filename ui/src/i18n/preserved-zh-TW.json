@@ -41,7 +41,5 @@
   "· GitHub ID": "GitHub ID label or literal HTTP authorization header syntax.",
   "Authorization: Bearer {{value1}}": "GitHub ID label or literal HTTP authorization header syntax.",
   "Authorization: Bearer pcgw_•••": "GitHub ID label or literal HTTP authorization header syntax.",
-  "CREW": "Product name",
-  "metabiz": "Company brand",
   "```mermaid": "Markdown fenced diagram language identifier"
 }
