@@ -634,7 +634,7 @@ export function TaskSidePanel({
       });
     }
     return sections;
-  }, [browsersQuery.data, conversationAgentId, taskCount, taskLabel, tasksTab?.hasError, controller.tabs, documents, fileTabsEnabled, planDocument, recentFilesQuery.data, recentFilesQuery.isError, recentFilesQuery.isLoading, subtasksAvailable]);
+  }, [browsersQuery.data, conversationAgentId, taskCount, taskLabel, tasksTab?.hasError, controller.tabs, documents, fileTabsEnabled, planDocument, recentFilesQuery.data, recentFilesQuery.isError, recentFilesQuery.isLoading, subtasksAvailable, i18n.language]);
 
   function selectLauncherItem(item: SidePanelLauncherItem) {
     markInteracted();
