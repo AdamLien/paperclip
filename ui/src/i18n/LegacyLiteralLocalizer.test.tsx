@@ -4,6 +4,7 @@ import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { appCopyFor } from "../lib/app-gallery-copy";
 import { setLocale } from ".";
 import {
   translateLegacyLiteral,
@@ -18,6 +19,7 @@ describe("static UI literal localization", () => {
     expect(translateLegacyLiteral("Advanced Permissions")).toBe("進階權限");
     expect(translateLegacyLiteral("Acting on behalf of Alice")).toBe("代表 Alice 行事");
     expect(translateLegacyLiteral("收藏 Chief of staff")).toBeNull();
+    expect(translateLegacyLiteral("2 of 10")).toBe("2／10");
   });
 
   it("only translates in the Chinese locale", async () => {
@@ -58,4 +60,47 @@ describe("static UI literal localization", () => {
     expect(container.textContent).toBe("刪除: edited");
     await act(async () => root.unmount());
   });
+});
+
+
+it("localizes dynamic workflow copy while preserving model IDs, names and custom catalog copy", async () => {
+  await setLocale("zh-TW");
+  expect(translateUiLiteral("Message Chief of staff — describe what you want done…")).toBe("傳訊息給 Chief of staff — 說明你想完成的事…");
+  expect(translateUiLiteral("Ask Adam…")).toBe("詢問 Adam…");
+  expect(translateUiLiteral("2 agents")).toBe("2 位 AI 代理");
+  expect(translateUiLiteral("API key · Codex CLI")).toBe("API 金鑰 · Codex CLI");
+  expect(translateUiLiteral("OCX API · Codex CLI")).toBe("OCX API · Codex CLI");
+  expect(translateUiLiteral("gpt-6.1-sol")).toBe("gpt-6.1-sol");
+  expect(appCopyFor("github").tagline).toBe("讀取程式碼與 PR，並在議題中留言。");
+  expect(appCopyFor("private-app", "Working…").tagline).toBe("Working…");
+  await setLocale("en");
+  expect(appCopyFor("github").tagline).toBe("Read code and pull requests, comment on issues.");
+  expect(translateUiLiteral("Message Chief of staff — describe what you want done…")).toBe("Message Chief of staff — describe what you want done…");
+});
+
+it("translates templates before inserting untouched file names", async () => {
+  await setLocale("zh-TW");
+  for (const name of ["report", " a  &amp; b.md ", "{{value2}}", "$&", "報告😀.md"]) {
+    expect(translateUiLiteral("Download {{value1}}", [name])).toBe(`下載${name}`);
+  }
+  await setLocale("en");
+  expect(translateUiLiteral("Download {{value1}}", [" a  &amp; b.md "])).toBe("Download  a  &amp; b.md ");
+});
+
+it("describes reusable tool approval without implying feedback sharing", async () => {
+  await setLocale("zh-TW");
+  expect(translateUiLiteral("Always allow")).toBe("一律允許");
+  expect(translateUiLiteral("Always allow sharing")).toBe("一律允許分享");
+});
+
+it("keeps count-only templates numeric while preserving names containing of", async () => {
+  await setLocale("zh-TW");
+  expect(translateUiLiteral("{{value1}} of {{value2}}", [2, 10])).toBe("2／10");
+  expect(translateUiLiteral("{{value1}} of {{value2}}", ["Chief", "staff"])).toBe("Chief of staff");
+});
+
+it("prefers the exact static template over generic overlapping templates", async () => {
+  await setLocale("zh-TW");
+  expect(translateUiLiteral("Open {{value1}} organization switcher", ["Example  &amp;  name"]))
+    .toBe("開啟 Example  &amp;  name 工作區切換器");
 });

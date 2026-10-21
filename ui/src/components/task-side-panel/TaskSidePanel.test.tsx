@@ -13,6 +13,7 @@ import {
   taskPanelPropertiesTab,
   writeTaskSidePanelState,
 } from "@/lib/task-side-panel-state";
+import { setLocale } from "@/i18n";
 import { TaskSidePanel } from "./TaskSidePanel";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -519,6 +520,23 @@ describe("TaskSidePanel", () => {
 
     await render(panel({ childIssues: [issue({ id: "child-1" })], showSubtasksTab: false }));
     expect(container.querySelector('[data-side-panel-tab-target="subtasks"]')).toBeNull();
+  });
+
+  it("refreshes launcher labels and search after a locale change while mounted", async () => {
+    await render(panel({ streamlinedTabs: true }));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Open a new tab"]')?.click());
+    expect(document.body.textContent).toContain("Properties");
+    try {
+      await act(async () => { await setLocale("zh-TW"); });
+      const labels = Array.from(document.body.querySelectorAll('[role="option"]')).map(item => item.textContent);
+      expect(labels.some(label => label?.includes("屬性"))).toBe(true);
+      const input = document.body.querySelector<HTMLInputElement>('input[aria-label="Search tabs and resources…"]')!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "屬性");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(document.body.querySelector('[role="option"]')?.textContent).toContain("屬性");
+    } finally { await act(async () => { await setLocale("en"); }); }
   });
 
   it("reopens a closed Subtasks tab from the launcher", async () => {

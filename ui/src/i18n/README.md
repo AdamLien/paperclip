@@ -19,3 +19,18 @@ Completion verification: all 2,843 added messages are exercised through the runt
 The settings navigation, mobile navigation, governance choices, deployment status, backup units and feedback choices now translate their fixed display labels explicitly. `clarity-zh-TW.json` provides reviewed wording overrides after the original catalogs. Labels are translated at render time so saved locale changes do not require recreating module-level option arrays. Routes, option values, policy keys and user-authored names remain unchanged. Settings breadcrumb literals are translated at their source, leaving the organization name intact. The governance introduction is a complete sentence resource instead of separately translated fragments.
 
 Focused integration tests exercise language switching, unchanged routes and policy values, and the new-task callback. This follow-up does not establish full application translation coverage or server-error localization.
+
+
+## Dynamic workflow and API connection follow-up
+
+Chat placeholders, agent counts, empty states, connector actions/statuses and breadcrumb labels now use explicit display boundaries. Shipped connector descriptions and curated app-gallery copy have reviewed Taiwan translations; custom connector names, descriptions and conversation content remain user-authored. Numeric `N of M` counters use a count-only rule rather than the unsafe arbitrary-prose template.
+
+Agent labels distinguish the configured model connection from the execution harness: an OCX key binding displays `OCX API · Codex CLI`, another API key binding displays `API key · Codex CLI`, and an unspecified connection displays only `Codex CLI`. This reports configured bindings, not a live authentication or billing check. It never renders a key, reference ID or endpoint, and does not infer a provider from a model name.
+
+A production-transform source audit guards catalog coverage of English-only static UI literals, and a separate audit checks every shipped first-party connector description. Mixed Chinese/brand strings, user content, external tool catalogs other than explicitly translated catalogs, and arbitrary server errors are outside those audits. Focused integration tests also cover locale switching, preserved names/model IDs and the real composer picker.
+
+### JSX compiler dependency and interpolation boundary
+
+`vite-static-i18n.ts` needs the JavaScript TypeScript Compiler API (`createSourceFile`, AST traversal and JSX entity decoding). The workspace `typescript@7` package exposes the native typechecker, not these APIs. The build-only `typescript-compiler` alias therefore pins TypeScript 5.9.3; it is not shipped in the browser bundle. Keep the alias until the transform is replaced or the supported compiler exposes an equivalent API. The dependency warning is intentional, not a request to add another runtime parser.
+
+The transform decodes JSX text and quoted attributes through the JSX compiler before creating JavaScript strings. Template expressions pass a static `{{valueN}}` message plus a separate values array to `translateUiLiteral`. Translate the template first and insert values unchanged: do not translate, normalize whitespace, or decode entities in filenames or user names. Explicit dynamic labels should use the same two-argument form.

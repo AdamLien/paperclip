@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { InlineBanner } from "@/components/InlineBanner";
 import { MemberMultiSelect } from "@/components/MemberMultiSelect";
 import { RadioCardGroup } from "@/components/ui/radio-card";
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +54,7 @@ const STATUS_CHIP: Record<GrantStatusTone, string> = {
 };
 
 function StatusText({ status }: { status: ConnectionGrant["status"] | null }) {
+  useUiLiteralLocale();
   const tone = grantStatusTone(status);
   return (
     <span
@@ -61,7 +63,7 @@ function StatusText({ status }: { status: ConnectionGrant["status"] | null }) {
         STATUS_CHIP[tone],
       )}
     >
-      {grantStatusLabel(status)}
+      {translateUiLiteral(grantStatusLabel(status))}
     </span>
   );
 }
@@ -401,6 +403,7 @@ function HumanAccessCards({
   onChooseAll: () => void;
   onChooseSelected: () => void;
 }) {
+  useUiLiteralLocale();
   return (
     <div className="space-y-3">
       <RadioCardGroup
@@ -412,7 +415,7 @@ function HumanAccessCards({
           if (next === "company") onChooseAll();
           if (next === "selected") onChooseSelected();
         }}
-        options={personal ? [
+        options={(personal ? [
           {
             value: "personal",
             title: "Just me",
@@ -434,7 +437,7 @@ function HumanAccessCards({
             icon: <Building2 className="h-4 w-4" />,
             disabled: !canEditAudience,
           },
-        ]}
+        ]).map((option) => ({ ...option, title: translateUiLiteral(option.title), description: translateUiLiteral(option.description) }))}
       />
       {connectedName && status !== null ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -495,6 +498,7 @@ export function AudienceDialog({
   onCancel: () => void;
   onSave: (memberUserIds: string[]) => void;
 }) {
+  useUiLiteralLocale();
   const initialSelection = useMemo(() => audienceUserIds(grant), [grant]);
   const [scope, setScope] = useState<"all" | "selected">(initialSelection.size === 0 ? "all" : "selected");
   const [selected, setSelected] = useState<Set<string>>(initialSelection);
@@ -512,7 +516,7 @@ export function AudienceDialog({
         <DialogHeader>
           <DialogTitle>Who can use this identity</DialogTitle>
           <DialogDescription>
-            {grantAccountLabel(grant)} · {appName}
+            {grant.providerTenant?.name?.trim() || translateUiLiteral(grantAccountLabel(grant))} · {appName}
           </DialogDescription>
         </DialogHeader>
 
@@ -532,7 +536,7 @@ export function AudienceDialog({
                 title: "Selected members",
                 description: "Only the people you choose.",
               },
-            ]}
+            ].map((option) => ({ ...option, title: translateUiLiteral(option.title), description: translateUiLiteral(option.description) }))}
           />
 
           {scope === "selected" ? (

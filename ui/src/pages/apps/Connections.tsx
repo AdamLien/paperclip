@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { isRetiredComposioConnection, RETIRED_COMPOSIO_MESSAGE } from "@paperclipai/shared";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -115,6 +116,8 @@ export function Connections() {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const { selectedCompany, selectedCompanyId } = useCompany();
+  useUiLiteralLocale();
+  const locale = translateUiLiteral("Connectors");
   const { setBreadcrumbs } = useBreadcrumbs();
   const reviewCount = useReviewCount();
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -127,11 +130,11 @@ export function Connections() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: "Connectors", href: "/apps" },
-      { label: "Connections" },
+      { label: translateUiLiteral("Connectors"), href: "/apps" },
+      { label: translateUiLiteral("Connections") },
     ]);
     return () => setBreadcrumbs([]);
-  }, [setBreadcrumbs]);
+  }, [setBreadcrumbs, locale]);
 
   const galleryQuery = useQuery({
     queryKey: queryKeys.apps.gallery(selectedCompanyId ?? "__none__"),
@@ -464,7 +467,7 @@ export function Connections() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-xs font-medium text-foreground">
-                          {connection ? connectionTypeLabel(connection.credentialPolicy) : "—"}
+                          {connection ? translateUiLiteral(connectionTypeLabel(connection.credentialPolicy)) : "—"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -477,7 +480,7 @@ export function Connections() {
                             STATUS_CLASS[status.tone],
                           )}
                         >
-                          {status.label}
+                          {translateUiLiteral(status.label)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -498,7 +501,7 @@ export function Connections() {
                               navigate(appHref);
                             }}
                           >
-                            {actionLabel}
+                            {translateUiLiteral(actionLabel)}
                           </Button>
                           {connection && (
                             <Button

@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { useEffect, useState } from "react";
 import { assistantClientNames, mcpAuthorizationHandoffInstructions, mcpInvitation, mcpSetupSteps, type AssistantClient } from "@paperclipai/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +38,7 @@ export function useAssistantConnections(poll = false) {
 
 /** Inbound assistant access belongs beside the existing outbound connectors. */
 export function AssistantConnectionCard({ onNavigate }: { onNavigate: (href: string) => void }) {
+  useUiLiteralLocale();
   const connections = useAssistantConnections();
   const active = connections.rows.filter(row => !row.revokedAt);
   const action = !connections.isSuccess ? "Open" : active.length ? "Manage" : "Set up";
@@ -47,7 +49,7 @@ export function AssistantConnectionCard({ onNavigate }: { onNavigate: (href: str
         <h2 className="text-sm font-semibold text-foreground">Assistant Connection (MCP)</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">Use your Paperclip organization from Codex, Claude, OpenCode, or another assistant.</p>
       </div>
-      <Button type="button" size="sm" variant="outline" onClick={() => onNavigate(ASSISTANT_CONNECTION_PATH)} aria-label={`${action} Assistant Connection (MCP)`}>{action}</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => onNavigate(ASSISTANT_CONNECTION_PATH)} aria-label={`${translateUiLiteral(action)} ${translateUiLiteral("Assistant Connection (MCP)")}`}>{translateUiLiteral(action)}</Button>
     </div>
     {connections.isPending && <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Checking your connection status…</p>}
     {connections.isError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
@@ -87,6 +89,8 @@ function setupError(error: Error): string {
 
 export function AssistantConnection({ initialAssistant = "codex" }: { initialAssistant?: Assistant } = {}) {
   const { selectedCompany, selectedCompanyId } = useCompany();
+  useUiLiteralLocale();
+  const locale = translateUiLiteral("Connectors");
   const { setBreadcrumbs } = useBreadcrumbs();
   const client = useQueryClient();
   const [assistant, setAssistant] = useState<Assistant>(initialAssistant);
@@ -94,9 +98,9 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
   const connections = useAssistantConnections(setup.data?.enabled === true);
   const revoke = useMutation({ mutationFn: publicMcpApi.revoke, onSuccess: () => client.invalidateQueries({ queryKey: connectionsKey }) });
   useEffect(() => {
-    setBreadcrumbs([{ label: "Connectors", href: "/apps" }, { label: "Assistant Connection (MCP)" }]);
+    setBreadcrumbs([{ label: translateUiLiteral("Connectors"), href: "/apps" }, { label: translateUiLiteral("Assistant Connection (MCP)") }]);
     return () => setBreadcrumbs([]);
-  }, [setBreadcrumbs]);
+  }, [setBreadcrumbs, locale]);
   if (!selectedCompanyId || !selectedCompany) return <p className="text-sm text-muted-foreground">Select an organization to connect an assistant.</p>;
   const serverUrl = setup.data?.serverUrl ?? "";
   const invitation = serverUrl ? mcpInvitation(serverUrl, { id: selectedCompanyId, name: selectedCompany.name }) : "";

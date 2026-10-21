@@ -6,6 +6,7 @@ import legacyZhTWOverrides from "./legacy-zh-TW.overrides.json";
 import completionZhTW from "./completion-zh-TW.json";
 import preservedZhTW from "./preserved-zh-TW.json";
 import clarityZhTW from "./clarity-zh-TW.json";
+import mcrmZhTW from "./mcrm-zh-TW.json";
 import en from "./keyed-en.json";
 import zhTW from "./keyed-zh-TW.json";
 
@@ -42,6 +43,7 @@ const translations = {
   ...(legacyZhTWOverrides as LegacyTranslations),
   ...(completionZhTW as LegacyTranslations),
   ...(clarityZhTW as LegacyTranslations),
+  ...(mcrmZhTW as LegacyTranslations),
 };
 
 // This source has no literal boundary and therefore matches arbitrary prose or
@@ -79,11 +81,11 @@ for (const [source, translation] of Object.entries(translations)) {
   const normalizedSource = normalize(source);
   if (!normalizedSource) continue;
   if (UNSAFE_TEMPLATE_SOURCES.has(normalizedSource)) continue;
+  // Static templates must resolve by their full source before regex fallback;
+  // a generic switcher template must not consume another template's wording.
+  exactTranslations.set(normalizedSource, translation);
   const placeholderMatches = [...normalizedSource.matchAll(/{{value(\d+)}}/g)];
-  if (placeholderMatches.length === 0) {
-    exactTranslations.set(normalizedSource, translation);
-    continue;
-  }
+  if (placeholderMatches.length === 0) continue;
 
   let cursor = 0;
   let pattern = "^";
@@ -103,6 +105,10 @@ export function translateLegacyLiteral(value: string) {
   if (!normalizedValue) return null;
   if (preservedLiterals.has(normalizedValue)) return value;
 
+  // Count-only matching cannot consume names or prose such as "Chief of staff".
+  const count = normalizedValue.match(/^(\d[\d,.]*) of (\d[\d,.]*)$/);
+  if (count) return `${count[1]}／${count[2]}`;
+
   const exact = exactTranslations.get(normalizedValue);
   if (exact) return exact;
 
@@ -115,10 +121,20 @@ export function translateLegacyLiteral(value: string) {
   return null;
 }
 
-export function translateUiLiteral(value: string) {
-  if (i18n.resolvedLanguage !== "zh-TW" && i18n.language !== "zh-TW") return value;
-  const translated = translateLegacyLiteral(value);
-  return translated ?? value;
+export function translateUiLiteral(value: string, values?: readonly unknown[]) {
+  const chinese = i18n.resolvedLanguage === "zh-TW" || i18n.language === "zh-TW";
+  // The generic "of" template is unsafe for names; keep its numeric-only case.
+  if (chinese && value === "{{value1}} of {{value2}}" && values?.length === 2
+      && values.every((item) => /^\d[\d,.]*$/.test(String(item)))) {
+    return `${values[0]}／${values[1]}`;
+  }
+  const translated = chinese ? translateLegacyLiteral(value) ?? value : value;
+  // Resolve the static template before inserting caller-owned text. Never
+  // normalize, decode entities, or perform dictionary lookup on these values.
+  return values
+    ? translated.replace(/{{value(\d+)}}/g, (placeholder, index: string) =>
+        Number(index) <= values.length ? String(values[Number(index) - 1]) : placeholder)
+    : translated;
 }
 
 export function useUiLiteralLocale() {

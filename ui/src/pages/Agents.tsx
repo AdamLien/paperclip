@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { useAgentChatEnabled } from "../hooks/useAgentChatEnabled";
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
@@ -37,7 +38,7 @@ import {
 } from "../hooks/useResourceMemberships";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSharedPolling";
 
-import { getAdapterLabel } from "../adapters/adapter-display-registry";
+import { getAgentExecutionLabel } from "../adapters/adapter-display-registry";
 
 const roleLabels = AGENT_ROLE_LABELS as Record<string, string>;
 
@@ -197,6 +198,8 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   const agentChat = useAgentChatEnabled();
   const { selectedCompanyId } = useCompany();
   const { openNewAgent } = useDialogActions();
+  useUiLiteralLocale();
+  const locale = translateUiLiteral("Agents");
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
   const location = useLocation();
@@ -220,8 +223,8 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   const builtInAgentsEnabled = instanceSettings?.experimental.enableBuiltInAgents === true;
   const tab: FilterTab = requestedTab === "builtin" && !builtInAgentsEnabled ? "all" : requestedTab;
   const visibleTabItems = useMemo(
-    () => AGENT_FILTER_TAB_ITEMS.filter((item) => item.value !== "builtin" || builtInAgentsEnabled),
-    [builtInAgentsEnabled],
+    () => AGENT_FILTER_TAB_ITEMS.filter((item) => item.value !== "builtin" || builtInAgentsEnabled).map(item => ({ ...item, label: translateUiLiteral(item.label) })),
+    [builtInAgentsEnabled, locale],
   );
 
   const { data: builtInAgents } = useQuery({
@@ -323,8 +326,8 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   }, [agents, environmentsById, environmentCapabilities, instanceSettings?.defaultEnvironmentId]);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Agents" }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([{ label: translateUiLiteral("Agents") }]);
+  }, [setBreadcrumbs, locale]);
 
   useEffect(() => {
     if (selectedCompanyId && requestedTab === "builtin" && instanceSettings && !builtInAgentsEnabled) {
@@ -391,7 +394,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
         titleClassName="flex-1 @5xl:flex-none @5xl:w-56"
         titleTextClassName="truncate"
         subtitleClassName="truncate"
-        subtitle={`${roleLabels[agent.role] ?? agent.role}${agent.title ? ` - ${agent.title}` : ""}`}
+        subtitle={`${translateUiLiteral(agent.role === "general" ? "General agent" : roleLabels[agent.role] ?? agent.role)}${agent.title ? ` - ${agent.title}` : ""}`}
         to={agentUrl(agent)}
         className={cn(
           "group py-3",
@@ -646,7 +649,7 @@ function OrgTreeNode({
           <div className="min-w-(--sz-7rem) truncate">
             <span className="text-sm font-medium">{node.name}</span>
             <span className="text-xs text-muted-foreground ml-2">
-              {roleLabels[node.role] ?? node.role}
+              {translateUiLiteral(node.role === "general" ? "General agent" : roleLabels[node.role] ?? node.role)}
               {agent?.title ? ` - ${agent.title}` : ""}
             </span>
           </div>
@@ -781,7 +784,8 @@ function AgentMetaColumns({
   showEnvironment: boolean;
 }) {
   const model = getConfiguredModel(agent);
-  const adapterLabel = getAdapterLabel(agent.adapterType);
+  useUiLiteralLocale();
+  const adapterLabel = translateUiLiteral(getAgentExecutionLabel(agent));
   return (
     <>
       <div className="w-44 min-w-0 leading-tight">

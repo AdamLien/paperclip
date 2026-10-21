@@ -1,3 +1,4 @@
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import type { MouseEvent } from "react";
 import { Loader2, LogIn, LogOut } from "lucide-react";
 import type { ResourceMembershipState } from "@paperclipai/shared";
@@ -23,11 +24,12 @@ export function MembershipAction({
   onJoin,
   onLeave,
 }: MembershipActionProps) {
+  useUiLiteralLocale();
   const isLeft = state === "left";
   const label = pending
     ? pendingState === "left" ? "Leaving..." : "Joining..."
     : isLeft ? "Join" : "Leave";
-  const ariaLabel = `${isLeft ? "Join" : "Leave"} ${resourceName}`;
+  const ariaLabel = `${translateUiLiteral(isLeft ? "Join" : "Leave")} ${resourceName}`;
   const Icon = pending ? Loader2 : isLeft ? LogIn : LogOut;
 
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
@@ -58,7 +60,7 @@ export function MembershipAction({
         className="w-(--sz-66px)"
       >
         <Icon className={cn("h-3 w-3", pending && "motion-safe:animate-spin")} />
-        <span>{label}</span>
+        <span>{translateUiLiteral(label)}</span>
       </Button>
     </span>
   );
