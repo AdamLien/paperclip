@@ -98,3 +98,9 @@ it("keeps count-only templates numeric while preserving names containing of", as
   expect(translateUiLiteral("{{value1}} of {{value2}}", [2, 10])).toBe("2／10");
   expect(translateUiLiteral("{{value1}} of {{value2}}", ["Chief", "staff"])).toBe("Chief of staff");
 });
+
+it("prefers the exact static template over generic overlapping templates", async () => {
+  await setLocale("zh-TW");
+  expect(translateUiLiteral("Open {{value1}} organization switcher", ["Example  &amp;  name"]))
+    .toBe("開啟 Example  &amp;  name 工作區切換器");
+});
