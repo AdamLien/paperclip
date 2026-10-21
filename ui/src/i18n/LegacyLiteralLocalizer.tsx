@@ -81,11 +81,11 @@ for (const [source, translation] of Object.entries(translations)) {
   const normalizedSource = normalize(source);
   if (!normalizedSource) continue;
   if (UNSAFE_TEMPLATE_SOURCES.has(normalizedSource)) continue;
+  // Static templates must resolve by their full source before regex fallback;
+  // a generic switcher template must not consume another template's wording.
+  exactTranslations.set(normalizedSource, translation);
   const placeholderMatches = [...normalizedSource.matchAll(/{{value(\d+)}}/g)];
-  if (placeholderMatches.length === 0) {
-    exactTranslations.set(normalizedSource, translation);
-    continue;
-  }
+  if (placeholderMatches.length === 0) continue;
 
   let cursor = 0;
   let pattern = "^";
