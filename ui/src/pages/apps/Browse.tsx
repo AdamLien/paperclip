@@ -765,13 +765,13 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     if (!trimmed) return scoped;
     const terms = normalizeConnectionQuery(trimmed).split(" ").filter(Boolean);
     return scoped.filter((row) => {
-      const text = normalizeConnectionQuery([row.name, row.slug, row.description,
+      const text = normalizeConnectionQuery([row.name, row.slug, row.description, row.entry ? translateUiLiteral(row.description) : "",
         ...(row.aggregatorApp?.aliases ?? []), ...row.connections.map((connection) => connection.name),
         ...(row.upstreamApps ?? []).flatMap(app => app.accounts.map(account => account.alias)),
         ...row.chatEndpoints.map((endpoint) => endpoint.assignedAgentName)].join(" "));
       return terms.every((term) => text.includes(term));
     });
-  }, [rows, trimmed, source]);
+  }, [rows, trimmed, source, locale]);
   const installedRows = visibleRows.filter(isInstalled);
   const catalogRows = visibleRows.filter(row => !isInstalled(row));
   const pageCount = Math.max(1, Math.ceil(catalogRows.length / CATALOG_PAGE_SIZE));
@@ -938,10 +938,10 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
       {accountLoadErrors.length ? <p role="alert" className="text-sm text-destructive">Couldn’t load {Array.from(new Set(accountLoadErrors)).join(" or ")} accounts. Use Refresh in the connection’s menu to try again.</p> : null}
 
       {!loading && catalogRows.length > 0 ? <nav aria-label="Connector catalog pages" className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <p className="text-muted-foreground" role="status">{translateUiLiteral(`${pageStart + 1}–${Math.min(pageStart + CATALOG_PAGE_SIZE, catalogRows.length)} of ${catalogRows.length.toLocaleString()} connectors`)}</p>
+        <p className="text-muted-foreground" role="status">{translateUiLiteral("{{value1}}–{{value2}} of {{value3}} connectors", [pageStart + 1, Math.min(pageStart + CATALOG_PAGE_SIZE, catalogRows.length), catalogRows.length.toLocaleString()])}</p>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); catalogTop.current?.scrollIntoView?.({ block: "start" }); }}>Previous</Button>
-          <span className="text-xs text-muted-foreground">{translateUiLiteral(`Page ${currentPage} of ${pageCount}`)}</span>
+          <span className="text-xs text-muted-foreground">{translateUiLiteral("Page {{value1}} of {{value2}}", [currentPage, pageCount])}</span>
           <Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => { setPage(currentPage + 1); catalogTop.current?.scrollIntoView?.({ block: "start" }); }}>Next</Button>
         </div>
       </nav> : null}
@@ -1080,7 +1080,7 @@ export function ConnectorCard({
               const providerName = AGGREGATOR_NAMES[route.provider];
               const managedSnapshot = row.upstreamApps?.find(app => (app.provider ?? "composio") === route.provider && app.accounts.length > 0);
               const managed = Boolean(managedSnapshot);
-              const label = translateUiLiteral(`${managed ? "Manage" : "Connect"} ${row.name} through ${providerName}, a third-party service`);
+              const label = translateUiLiteral(managed ? "Manage {{value1}} through {{value2}}, a third-party service" : "Connect {{value1}} through {{value2}}, a third-party service", [row.name, providerName]);
               return <Tooltip key={route.provider}><TooltipTrigger asChild>
                 <button type="button" aria-label={label} onClick={() => managed ? onManageAggregator?.(row.aggregatorApp!, managedSnapshot?.connectionId) : onConnectAggregator?.(row.aggregatorApp!)} className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <AppLogo name={providerName} brandKey={route.provider} size={16} compact />
@@ -1287,7 +1287,7 @@ function ConnectionAccountRow({
 
   return (
     <ConnectionAccountRowLayout state={state} accountName={accountName} owner={owner} details={<>{details}{discovery?.discovery.message || discovery?.sync.status === "error" ? <p className="text-xs text-muted-foreground" role="status">{discovery.discovery.message ?? discovery.sync.error}</p> : null}</>}
-      openLabel={translateUiLiteral(`Open ${accountName} permissions`)} onOpen={() => onNavigate(`/apps/${connection.id}/permissions`)}>
+      openLabel={translateUiLiteral("Open {{value1}} permissions", [accountName])} onOpen={() => onNavigate(`/apps/${connection.id}/permissions`)}>
         {state.kind === "attention" || state.kind === "draft" ? (
           <Button
             type="button"

@@ -121,10 +121,20 @@ export function translateLegacyLiteral(value: string) {
   return null;
 }
 
-export function translateUiLiteral(value: string) {
-  if (i18n.resolvedLanguage !== "zh-TW" && i18n.language !== "zh-TW") return value;
-  const translated = translateLegacyLiteral(value);
-  return translated ?? value;
+export function translateUiLiteral(value: string, values?: readonly unknown[]) {
+  const chinese = i18n.resolvedLanguage === "zh-TW" || i18n.language === "zh-TW";
+  // The generic "of" template is unsafe for names; keep its numeric-only case.
+  if (chinese && value === "{{value1}} of {{value2}}" && values?.length === 2
+      && values.every((item) => /^\d[\d,.]*$/.test(String(item)))) {
+    return `${values[0]}／${values[1]}`;
+  }
+  const translated = chinese ? translateLegacyLiteral(value) ?? value : value;
+  // Resolve the static template before inserting caller-owned text. Never
+  // normalize, decode entities, or perform dictionary lookup on these values.
+  return values
+    ? translated.replace(/{{value(\d+)}}/g, (placeholder, index: string) =>
+        Number(index) <= values.length ? String(values[Number(index) - 1]) : placeholder)
+    : translated;
 }
 
 export function useUiLiteralLocale() {

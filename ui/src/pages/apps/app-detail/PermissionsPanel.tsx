@@ -244,7 +244,7 @@ export function ActionsSection({
     const needle = query.trim().toLowerCase();
     if (!needle) return true;
     const text = [entry.toolName, entry.title ?? "", entry.description ?? ""];
-    if (entry.toolName.startsWith("metabiz_mcrm_")) text.push(...text.map(translateUiLiteral));
+    if (entry.toolName.startsWith("metabiz_mcrm_")) text.push(...text.map((value) => translateUiLiteral(value)));
     return text.some((value) => value.toLowerCase().includes(needle));
   };
   const visibleRead = kindFilter === "write" ? [] : sortedRead.filter(matches);
