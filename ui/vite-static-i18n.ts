@@ -45,6 +45,25 @@ function cleanJsxText(value: string) {
   return result;
 }
 
+// Reuse the JSX compiler's full entity decoder so named/numeric entities have
+// exactly the same single-pass semantics as untransformed JSX.
+function decodeJsxEntities(value: string) {
+  if (!/&(?:#\d+|#x[\da-f]+|[a-z][\da-z]*);/i.test(value)) return value;
+  const output = ts.transpileModule(`const value = <span title="${value.replaceAll('"', "&quot;")}" />;`, {
+    compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ESNext },
+  }).outputText;
+  const parsed = ts.createSourceFile("entities.js", output, ts.ScriptTarget.Latest, true);
+  let decoded = value;
+  function visit(node: ts.Node) {
+    if (ts.isPropertyAssignment(node) && node.name.getText(parsed) === "title" && ts.isStringLiteral(node.initializer)) {
+      decoded = node.initializer.text;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(parsed);
+  return decoded;
+}
+
 function isInsideSkippedElement(node: ts.Node) {
   for (let current = node.parent; current; current = current.parent) {
     if (!ts.isJsxElement(current)) continue;
@@ -104,7 +123,9 @@ export function staticUiLocalization(): Plugin {
         if (text === null || !containsEnglish(text)) return;
         replacements.set(node.getStart(sourceFile), {
           end: node.end,
-          value: `${helper}(${node.getText(sourceFile)})`,
+          value: ts.isTemplateExpression(node)
+            ? `${helper}(${JSON.stringify(text)}, [${node.templateSpans.map((span) => `(${span.expression.getText(sourceFile)})`).join(", ")}])`
+            : `${helper}(${node.getText(sourceFile)})`,
         });
         markComponentOwner(node);
       }
@@ -163,7 +184,7 @@ export function staticUiLocalization(): Plugin {
         }
 
         if (ts.isJsxText(node) && !isInsideSkippedElement(node)) {
-          const text = cleanJsxText(node.getText(sourceFile));
+          const text = decodeJsxEntities(cleanJsxText(node.getText(sourceFile)));
           if (containsEnglish(text)) {
             replacements.set(node.getStart(sourceFile), {
               end: node.end,
@@ -179,7 +200,7 @@ export function staticUiLocalization(): Plugin {
             if (ts.isStringLiteral(node.initializer) && containsEnglish(node.initializer.text)) {
               replacements.set(node.initializer.getStart(sourceFile), {
                 end: node.initializer.end,
-                value: `{${helper}(${JSON.stringify(node.initializer.text)})}`,
+                value: `{${helper}(${JSON.stringify(decodeJsxEntities(node.initializer.text))})}`,
               });
               markComponentOwner(node);
             } else if (ts.isJsxExpression(node.initializer) && node.initializer.expression) {

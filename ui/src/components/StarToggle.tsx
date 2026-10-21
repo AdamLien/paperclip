@@ -53,7 +53,7 @@ export function StarToggle({
   revealClassName,
 }: StarToggleProps) {
   useUiLiteralLocale();
-  const ariaLabel = translateUiLiteral(starred ? `Unstar ${resourceName}` : `Star ${resourceName}`);
+  const ariaLabel = translateUiLiteral(starred ? "Unstar {{value1}}" : "Star {{value1}}", [resourceName]);
   const Icon = pending ? Loader2 : Star;
 
   function handleClick(event: MouseEvent<HTMLButtonElement>) {

@@ -77,3 +77,24 @@ it("localizes dynamic workflow copy while preserving model IDs, names and custom
   expect(appCopyFor("github").tagline).toBe("Read code and pull requests, comment on issues.");
   expect(translateUiLiteral("Message Chief of staff — describe what you want done…")).toBe("Message Chief of staff — describe what you want done…");
 });
+
+it("translates templates before inserting untouched file names", async () => {
+  await setLocale("zh-TW");
+  for (const name of ["report", " a  &amp; b.md ", "{{value2}}", "$&", "報告😀.md"]) {
+    expect(translateUiLiteral("Download {{value1}}", [name])).toBe(`下載${name}`);
+  }
+  await setLocale("en");
+  expect(translateUiLiteral("Download {{value1}}", [" a  &amp; b.md "])).toBe("Download  a  &amp; b.md ");
+});
+
+it("describes reusable tool approval without implying feedback sharing", async () => {
+  await setLocale("zh-TW");
+  expect(translateUiLiteral("Always allow")).toBe("一律允許");
+  expect(translateUiLiteral("Always allow sharing")).toBe("一律允許分享");
+});
+
+it("keeps count-only templates numeric while preserving names containing of", async () => {
+  await setLocale("zh-TW");
+  expect(translateUiLiteral("{{value1}} of {{value2}}", [2, 10])).toBe("2／10");
+  expect(translateUiLiteral("{{value1}} of {{value2}}", ["Chief", "staff"])).toBe("Chief of staff");
+});

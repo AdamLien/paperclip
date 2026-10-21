@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setLocale } from "@/i18n";
 import { Browse } from "./Browse";
 import { aiConnectionRouterAppDefinition, getAppStoreDefinition } from "@paperclipai/shared";
 import { queryKeys } from "@/lib/queryKeys";
@@ -347,6 +348,20 @@ describe("Connectors landing page", () => {
     await clickButton("Try again", container);
     await flushReact();
     expect(container.querySelector('[aria-label="Manage Assistant Connection (MCP)"]')).not.toBeNull();
+  });
+
+  it("searches translated and original connector descriptions after changing language", async () => {
+    listGalleryMock.mockResolvedValue({ apps: [getAppStoreDefinition("railway")] });
+    await renderBrowse();
+    try {
+      await act(async () => { await setLocale("zh-TW"); });
+      await search("檢查服務與紀錄");
+      expect(container.querySelector('[data-app-slug="railway"]')).not.toBeNull();
+      await search("Inspect services");
+      expect(container.querySelector('[data-app-slug="railway"]')).not.toBeNull();
+      await search("不存在的描述");
+      expect(container.querySelector('[data-app-slug="railway"]')).toBeNull();
+    } finally { await act(async () => { await setLocale("en"); }); }
   });
 
   function indexedApp(name: string, providers: ("composio" | "arcade" | "executor")[] = ["composio"]): AggregatorAppCatalogEntry {

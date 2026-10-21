@@ -340,7 +340,7 @@ export function IssueChatFeedbackButtons({
           <div className="space-y-3 text-sm text-muted-foreground">
             <p>This vote is always saved locally.</p>
             <p>
-              Choose <span className="font-medium text-foreground">Always allow</span> to share
+              Choose <span className="font-medium text-foreground">Always allow sharing</span> to share
               this vote and future voted AI outputs. Choose{" "}
               <span className="font-medium text-foreground">Don't allow</span> to keep this vote
               and future votes local.
@@ -383,7 +383,7 @@ export function IssueChatFeedbackButtons({
                 }).then(() => setPendingSharingDialog(null));
               }}
             >
-              {isSaving ? "Saving..." : "Always allow"}
+              {isSaving ? "Saving..." : "Always allow sharing"}
             </Button>
           </DialogFooter>
         </DialogContent>
