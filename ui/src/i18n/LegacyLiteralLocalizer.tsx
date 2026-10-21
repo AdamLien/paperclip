@@ -105,6 +105,10 @@ export function translateLegacyLiteral(value: string) {
   if (!normalizedValue) return null;
   if (preservedLiterals.has(normalizedValue)) return value;
 
+  // Count-only matching cannot consume names or prose such as "Chief of staff".
+  const count = normalizedValue.match(/^(\d[\d,.]*) of (\d[\d,.]*)$/);
+  if (count) return `${count[1]}／${count[2]}`;
+
   const exact = exactTranslations.get(normalizedValue);
   if (exact) return exact;
 

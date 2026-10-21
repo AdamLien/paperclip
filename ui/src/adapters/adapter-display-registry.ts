@@ -6,6 +6,7 @@
  * `getAdapterDisplay()`.
  */
 import type { ComponentType } from "react";
+import type { Agent } from "@paperclipai/shared";
 import {
   Bot,
   Code,
@@ -185,6 +186,27 @@ export function getAdapterLabels(): Record<string, string> {
     labels[type] = info.label;
   }
   return labels;
+}
+
+/** Describe the configured model connection separately from its execution harness.
+ * Inspect binding presence only: never include keys, secret references or endpoints. */
+export function getAgentExecutionLabel(agent: Pick<Agent, "adapterType" | "adapterConfig">): string {
+  if (agent.adapterType !== "codex_local") return getAdapterLabel(agent.adapterType);
+  const env = agent.adapterConfig?.env;
+  const hasBinding = (key: string) => {
+    if (!env || typeof env !== "object" || Array.isArray(env)) return false;
+    const value = (env as Record<string, unknown>)[key];
+    if (typeof value === "string") return value.trim().length > 0;
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const binding = value as Record<string, unknown>;
+    if (binding.type === "plain") return typeof binding.value === "string" && binding.value.trim().length > 0;
+    if (binding.type === "secret_ref") return typeof binding.secretId === "string" && binding.secretId.trim().length > 0;
+    if (binding.type === "user_secret_ref") return typeof binding.key === "string" && binding.key.trim().length > 0;
+    return false;
+  };
+  if (hasBinding("OCX_API_KEY")) return "OCX API · Codex CLI";
+  if (hasBinding("OPENAI_API_KEY")) return "API key · Codex CLI";
+  return "Codex CLI";
 }
 
 export function getAdapterDisplay(type: string): AdapterDisplayInfo {

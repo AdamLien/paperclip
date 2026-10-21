@@ -1,3 +1,4 @@
+import { translateUiLiteral } from "@/i18n/LegacyLiteralLocalizer";
 /**
  * Prosumer copy for the Apps surface (PAP-10856).
  *
@@ -148,12 +149,12 @@ const GENERIC: AppCopy = {
 /** Curated, gate-safe copy for a gallery app. */
 export function appCopyFor(key: string, fallbackTagline?: string | null): AppCopy {
   const curated = APP_COPY[key];
-  if (curated) return curated;
+  if (curated) return { tagline: translateUiLiteral(curated.tagline), short: translateUiLiteral(curated.short) };
   if (fallbackTagline) {
     const cleaned = sanitizeProsumerCopy(fallbackTagline);
     if (cleaned) return { tagline: cleaned, short: cleaned };
   }
-  return GENERIC;
+  return { tagline: translateUiLiteral(GENERIC.tagline), short: translateUiLiteral(GENERIC.short) };
 }
 
 /**
