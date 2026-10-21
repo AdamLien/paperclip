@@ -38,6 +38,10 @@ def build_command(policy, env, cwd, args):
             cmd += ['--ro-bind', root, root]
     cmd += ['--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/home',
             '--dir', '/run', '--dir', '/run/crew-memory', '--dir', '/var', '--dir', '/mnt']
+    # /etc/resolv.conf may point into /run, which is otherwise an empty tree.
+    resolver = Path('/etc/resolv.conf').resolve()
+    if beneath(resolver, Path('/run')) and resolver.is_file():
+        cmd += ['--ro-bind', str(resolver), str(resolver)]
     cmd += ['--bind', str(home), str(home), '--bind', str(workspace), str(workspace)]
     # OCX seeds its public model catalog as an absolute host path. Expose only
     # that file, never the surrounding host Codex home or credentials.
@@ -72,6 +76,24 @@ def build_command(policy, env, cwd, args):
         'SUPERMEMORY_CONFIG_PATH': '/run/crew-memory/client.json',
         'CREW_MEMORY_CONTAINER': tenant['containerTag'],
     }
+    # Personal Google tokens live outside the shared company Codex home.
+    # Only an explicitly provisioned agent receives this mount and key.
+    if agent in tenant.get('gogAgents', []):
+        gog_root = instance / 'agent-secrets' / company / agent
+        gog_home = gog_root / 'gog'
+        gog_key = gog_root / 'keyring-password'
+        if (gog_root.resolve() != gog_root or gog_home.resolve() != gog_home
+                or gog_key.resolve() != gog_key):
+            raise ValueError('Google credential paths must not be symlinks')
+        if not gog_home.is_dir() or not gog_key.is_file():
+            raise ValueError('Agent Google credential store is not provisioned')
+        password = gog_key.read_text().strip()
+        if not password:
+            raise ValueError('Agent Google keyring password is empty')
+        cmd += ['--bind', str(gog_home), '/run/crew-gog']
+        safe_env.update({'GOG_HOME': '/run/crew-gog',
+                         'GOG_KEYRING_BACKEND': 'file',
+                         'GOG_KEYRING_PASSWORD': password})
     allowed = ['OCX_API_KEY', 'PAPERCLIP_API_KEY', 'PAPERCLIP_AGENT_ID', 'PAPERCLIP_COMPANY_ID',
                'PAPERCLIP_RUN_ID', 'PAPERCLIP_TASK_ID', 'PAPERCLIP_WAKE_REASON',
                'PAPERCLIP_WAKE_COMMENT_ID', 'PAPERCLIP_WAKEUP_REQUEST_ID',

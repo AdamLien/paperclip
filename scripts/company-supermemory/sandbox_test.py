@@ -1,6 +1,8 @@
 import importlib.util
+import json
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -100,6 +102,69 @@ class CompanySandboxTest(unittest.TestCase):
         self.env['PAPERCLIP_COMPANY_ID'] = 'unprovisioned'
         with self.assertRaises(ValueError):
             sandbox.build_command(self.policy, self.env, self.cwd, [])
+
+    def test_google_credentials_only_mounted_for_provisioned_agent(self):
+        root = self.root / 'agent-secrets' / self.company / self.agent
+        store = root / 'gog'
+        store.mkdir(parents=True)
+        (root / 'keyring-password').write_text('google-test-key')
+        self.env.update({'GOG_HOME': '/host/google', 'GOG_KEYRING_PASSWORD': 'host-key'})
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertNotIn(str(store), cmd)
+        self.assertNotIn('host-key', cmd)
+        self.policy['tenants'][self.company]['gogAgents'] = [self.agent]
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertIn(str(store), cmd)
+        self.assertIn('/run/crew-gog', cmd)
+        self.assertIn('google-test-key', cmd)
+        self.assertNotIn(str(root / 'keyring-password'), cmd)
+        self.env['PAPERCLIP_AGENT_ID'] = 'other-agent'
+        other = self.root / 'workspaces' / 'other-agent'
+        other.mkdir()
+        cmd = sandbox.build_command(self.policy, self.env, other, [])
+        self.assertNotIn(str(store), cmd)
+        self.assertNotIn('google-test-key', cmd)
+
+    def test_google_store_fails_closed_when_missing_or_symlinked(self):
+        self.policy['tenants'][self.company]['gogAgents'] = [self.agent]
+        with self.assertRaises(ValueError):
+            sandbox.build_command(self.policy, self.env, self.cwd, [])
+        root = self.root / 'agent-secrets' / self.company / self.agent
+        root.mkdir(parents=True)
+        (root / 'gog').symlink_to(self.home, target_is_directory=True)
+        (root / 'keyring-password').write_text('test-key')
+        with self.assertRaises(ValueError):
+            sandbox.build_command(self.policy, self.env, self.cwd, [])
+
+    @unittest.skipUnless(Path('/usr/bin/bwrap').exists(), 'Linux bubblewrap integration')
+    def test_google_store_isolation_in_real_sandbox(self):
+        root = self.root / 'agent-secrets' / self.company / self.agent
+        store = root / 'gog'
+        store.mkdir(parents=True)
+        (store / 'fixture').write_text('private fixture')
+        (root / 'keyring-password').write_text('integration-key')
+        for key in ['emptyAuth', 'clientConfig']:
+            file = self.root / key
+            file.write_text('{}')
+            if key == 'emptyAuth':
+                self.policy[key] = str(file)
+            else:
+                self.policy['tenants'][self.company][key] = str(file)
+        self.policy['tenants'][self.company]['gogAgents'] = [self.agent]
+        probe = ('import json,os,pathlib;print(json.dumps(['
+                 'pathlib.Path("/run/crew-gog/fixture").is_file(),'
+                 'bool(os.getenv("GOG_KEYRING_PASSWORD")),'
+                 'pathlib.Path("/etc/resolv.conf").is_file()]))')
+        for agent, expected in [(self.agent, [True, True, True]), ('other-agent', [False, False, True])]:
+            cwd = self.root / 'workspaces' / agent
+            cwd.mkdir(exist_ok=True)
+            env = dict(self.env, PAPERCLIP_AGENT_ID=agent)
+            cmd = sandbox.build_command(self.policy, env, cwd, [])
+            cmd = cmd[:cmd.index('/usr/local/bin/codex')]
+            result = subprocess.run(cmd + ['/usr/bin/python3', '-c', probe],
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout), expected)
 
 
 if __name__ == '__main__':
