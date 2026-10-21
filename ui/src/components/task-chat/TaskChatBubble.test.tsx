@@ -72,21 +72,21 @@ describe("TaskChatBubble attachment chips", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it("opens HTML inside the app without exposing a link to native download capture", () => {
+  it.each([["html", "text/html"], ["md", "text/markdown"]])("opens %s inside the app without exposing a link to native download capture", (extension, contentType) => {
     const openText = vi.fn();
-    const report = attachment({ id: "report", originalFilename: "report.html", contentType: "text/html" });
+    const report = attachment({ id: "report", originalFilename: `report.${extension}`, contentType });
     flushSync(() => root!.render(
       <ThemeProvider>
         <TextAttachmentContext.Provider value={openText}>
-          <TaskChatBubble item={{ id: "m1", kind: "message", author: "agent", text: "[report.html](" + report.contentPath + ")" }} attachments={[report]} />
+          <TaskChatBubble item={{ id: "m1", kind: "message", author: "agent", text: `[report.${extension}](${report.contentPath})` }} attachments={[report]} />
         </TextAttachmentContext.Provider>
       </ThemeProvider>,
     ));
-    const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="Open report.html"]');
+    const trigger = container.querySelector<HTMLButtonElement>(`button[aria-label="Open report.${extension}"]`);
     expect(trigger).not.toBeNull();
     expect(trigger?.closest("a[href]")).toBeNull();
     flushSync(() => trigger!.click());
-    expect(openText).toHaveBeenCalledWith("report", "report.html");
+    expect(openText).toHaveBeenCalledWith("report", `report.${extension}`);
   });
 
   it("renders a file reference as an attachment chip linking to the file", () => {

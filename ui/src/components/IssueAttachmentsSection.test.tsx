@@ -6,6 +6,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TextAttachmentContext } from "@/context/TextAttachmentContext";
 import { IssueAttachmentsSection } from "./IssueAttachmentsSection";
 
 vi.mock("./MarkdownBody", () => ({
@@ -116,6 +117,33 @@ describe("IssueAttachmentsSection", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([["report.html", "text/html"], ["notes.md", "text/markdown"]])(
+    "opens %s filenames and actions inside the app while keeping download separate",
+    async (filename, contentType) => {
+      const attachment = makeAttachment({ originalFilename: filename, contentType });
+      const openText = vi.fn();
+      await act(async () => root.render(
+        <QueryClientProvider client={queryClient}>
+          <TextAttachmentContext.Provider value={openText}>
+            <IssueAttachmentsSection attachments={[attachment]} onImageClick={vi.fn()} />
+          </TextAttachmentContext.Provider>
+        </QueryClientProvider>,
+      ));
+      const name = Array.from(container.querySelectorAll("button")).find(button => button.textContent === filename);
+      expect(name).toBeTruthy();
+      expect(name?.closest("a[href]")).toBeNull();
+      await act(async () => name!.click());
+      expect(openText).toHaveBeenCalledWith(attachment.id, filename);
+      const open = container.querySelector<HTMLButtonElement>(`button[aria-label="Open ${filename}"]`);
+      expect(open).toBeTruthy();
+      await act(async () => open!.click());
+      expect(openText).toHaveBeenCalledTimes(2);
+      const download = container.querySelector<HTMLAnchorElement>(`a[aria-label="Download ${filename}"]`);
+      expect(download?.getAttribute("href")).toContain("download=1");
+      expect(container.querySelector('a[target="_blank"]')).toBeNull();
+    },
+  );
+
   it("renders markdown attachments with the document markdown presentation", async () => {
     const attachment = makeAttachment({
       id: "markdown-attachment",
@@ -204,6 +232,7 @@ describe("IssueAttachmentsSection", () => {
     const video = container.querySelector("video");
     expect(video?.getAttribute("src")).toBe("/api/attachments/video-attachment/content");
     expect(video?.getAttribute("controls")).not.toBeNull();
+    expect(video?.hasAttribute("playsinline")).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -239,6 +268,11 @@ describe("IssueAttachmentsSection", () => {
     });
 
     expect(onImageClick).toHaveBeenCalledWith(attachment);
+    const open = container.querySelector<HTMLButtonElement>('button[aria-label="Open demo.webm"]');
+    expect(open).toBeTruthy();
+    await act(async () => open!.click());
+    expect(onImageClick).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('a[target="_blank"]')).toBeNull();
   });
 
   it("treats mp4 filenames as playable videos even with a generic binary content type", async () => {

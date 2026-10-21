@@ -58,9 +58,7 @@ function AttachmentActions({
   onPreview?: (attachment: IssueAttachment) => void;
 }) {
   const openText = useContext(TextAttachmentContext);
-  const openInPanel = (event: React.MouseEvent) => {
-    if (openText && isTextAttachment(attachment) && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openText(attachment.id, attachmentFilename(attachment)); }
-  };
+  const canPreviewText = openText && isTextAttachment(attachment);
   const filename = attachmentFilename(attachment);
   return (
     <div className="flex shrink-0 items-center gap-1">
@@ -75,11 +73,18 @@ function AttachmentActions({
           <Maximize2 className="h-4 w-4" />
         </Button>
       ) : null}
-      <Button asChild variant="ghost" size="icon-sm" title="Open in new tab">
-        <a href={attachmentOpenPath(attachment)} onClick={openInPanel} target="_blank" rel="noreferrer" aria-label={`Open ${filename}`}>
-          <ExternalLink className="h-4 w-4" />
-        </a>
-      </Button>
+      {onPreview || canPreviewText ? (
+        <Button variant="ghost" size="icon-sm" title="Preview" aria-label={`Open ${filename}`}
+          onClick={() => onPreview ? onPreview(attachment) : openText!(attachment.id, filename)}>
+          <Maximize2 className="h-4 w-4" />
+        </Button>
+      ) : (
+        <Button asChild variant="ghost" size="icon-sm" title="Open in new tab">
+          <a href={attachmentOpenPath(attachment)} target="_blank" rel="noreferrer" aria-label={`Open ${filename}`}>
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </Button>
+      )}
       <Button asChild variant="ghost" size="icon-sm" title="Download">
         <a href={attachmentDownloadPath(attachment)} aria-label={`Download ${filename}`}>
           <Download className="h-4 w-4" />
@@ -119,9 +124,7 @@ function MarkdownAttachmentCard({
   deletePending?: boolean;
 }) {
   const openText = useContext(TextAttachmentContext);
-  const openInPanel = (event: React.MouseEvent) => {
-    if (openText && isTextAttachment(attachment) && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openText(attachment.id, attachmentFilename(attachment)); }
-  };
+  const canPreviewText = openText && isTextAttachment(attachment);
   const filename = attachmentFilename(attachment);
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.issues.attachmentPreview(attachment.id),
@@ -134,7 +137,11 @@ function MarkdownAttachmentCard({
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <a href={attachmentOpenPath(attachment)} onClick={openInPanel} className="truncate text-sm font-medium hover:underline" title={filename}>{filename}</a>
+            {canPreviewText ? (
+              <button type="button" onClick={() => openText!(attachment.id, filename)} className="truncate text-sm font-medium hover:underline" title={filename}>{filename}</button>
+            ) : (
+              <a href={attachmentOpenPath(attachment)} className="truncate text-sm font-medium hover:underline" title={filename}>{filename}</a>
+            )}
           </div>
           <AttachmentMeta attachment={attachment} />
         </div>
@@ -198,23 +205,19 @@ function GenericAttachmentRow({
   deletePending?: boolean;
 }) {
   const openText = useContext(TextAttachmentContext);
-  const openInPanel = (event: React.MouseEvent) => {
-    if (openText && isTextAttachment(attachment) && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openText(attachment.id, attachmentFilename(attachment)); }
-  };
+  const canPreviewText = openText && isTextAttachment(attachment);
   const filename = attachmentFilename(attachment);
   return (
     <Card id={`attachment-${attachment.id}`} className="flex-row scroll-mt-20 items-center gap-2.5 p-2">
       <OutputFileTile contentType={attachment.contentType} />
       <div className="min-w-0 flex-1">
-        <a
-          href={attachmentOpenPath(attachment)} onClick={openInPanel}
-          target="_blank"
-          rel="noreferrer"
-          className="block truncate text-sm font-medium text-foreground hover:underline"
-          title={filename}
-        >
-          {filename}
-        </a>
+        {canPreviewText ? (
+          <button type="button" onClick={() => openText!(attachment.id, filename)}
+            className="block max-w-full truncate text-left text-sm font-medium text-foreground hover:underline" title={filename}>{filename}</button>
+        ) : (
+          <a href={attachmentOpenPath(attachment)} target="_blank" rel="noreferrer"
+            className="block truncate text-sm font-medium text-foreground hover:underline" title={filename}>{filename}</a>
+        )}
         <p className="truncate text-(length:--text-micro) text-muted-foreground">
           Attachment · {attachment.contentType} · {formatBytes(attachment.byteSize)}
         </p>
