@@ -15,6 +15,7 @@ import { SIDEBAR_SCROLL_RESET_STATE } from "../lib/navigation-scroll";
 import { cn } from "../lib/utils";
 import { useInboxBadge } from "../hooks/useInboxBadge";
 import { useAgentChatEnabled } from "@/hooks/useAgentChatEnabled";
+import { usePersonalAssistant } from "@/hooks/usePersonalAssistant";
 import { useCombinedInboxTasksEnabled } from "@/hooks/useCombinedInboxTasksEnabled";
 import { Badge } from "@/components/ui/badge";
 
@@ -46,6 +47,7 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
   const { openNewIssue } = useDialogActions();
   const inboxBadge = useInboxBadge(selectedCompanyId);
   const { enabled: agentChatEnabled } = useAgentChatEnabled();
+  const personalAssistant = usePersonalAssistant();
   const { enabled: combinedInboxTasksEnabled } = useCombinedInboxTasksEnabled();
 
   // PAP-670: with both flags off the bar is the original Home · Tasks · + ·
@@ -53,8 +55,18 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
   // Tasks · Agents). Combined Inbox + Task List drops Inbox as a destination —
   // it is a view inside Tasks, so its unread badge rides on Tasks. The grid
   // tracks the live count, so the bar stays evenly divided in every mix.
+  // A configured personal secretary replaces the creation/chooser detour;
+  // task creation and other chats remain available in the sidebar.
   const items = useMemo<MobileNavItem[]>(
-    () => !agentChatEnabled && !combinedInboxTasksEnabled ? [
+    () => personalAssistant ? [
+      { type: "link", to: "/dashboard", label: "Home", icon: House },
+      { type: "link", to: "/issues", label: "Tasks", icon: CircleCheck, badge: combinedInboxTasksEnabled ? inboxBadge.inbox : undefined },
+      { type: "link", to: personalAssistant.to, label: "我的秘書", icon: MessageCircle },
+      { type: "link", to: "/agents/all", label: "Agents", icon: Users },
+      ...(!combinedInboxTasksEnabled
+        ? [{ type: "link", to: "/inbox", label: "Inbox", icon: Inbox, badge: inboxBadge.inbox } as MobileNavItem]
+        : []),
+    ] : !agentChatEnabled && !combinedInboxTasksEnabled ? [
       { type: "link", to: "/dashboard", label: "Home", icon: House },
       { type: "link", to: "/issues", label: "Tasks", icon: CircleCheck },
       { type: "action", label: "New Task", icon: SquarePen, onClick: () => openNewIssue() },
@@ -84,7 +96,7 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
         ? [{ type: "link", to: "/inbox", label: "Inbox", icon: Inbox, badge: inboxBadge.inbox } as MobileNavItem]
         : []),
     ],
-    [openNewIssue, inboxBadge.inbox, agentChatEnabled, combinedInboxTasksEnabled],
+    [openNewIssue, inboxBadge.inbox, agentChatEnabled, combinedInboxTasksEnabled, personalAssistant?.to],
   );
 
   return (

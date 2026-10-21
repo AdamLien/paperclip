@@ -5,6 +5,7 @@ import { agentsApi } from "@/api/agents";
 import { authApi } from "@/api/auth";
 import { useCompany } from "@/context/CompanyContext";
 import { useAgentChatEnabled } from "@/hooks/useAgentChatEnabled";
+import { findPersonalAssistant } from "@/lib/personal-assistant";
 import { recordAgentChatVisit } from "@/lib/recent-agent-chats";
 import { queryKeys } from "@/lib/queryKeys";
 import { useParams } from "@/lib/router";
@@ -93,9 +94,17 @@ export function AgentChat() {
       <p className="text-sm text-muted-foreground">Loading conversation…</p>
     );
   return (
-    <TaskDetailSurface
-      key={`${agent.id}:${userId}`}
-      conversation={{ agent, issue: chat.data ?? null, ensureIssue }}
-    />
+    <>
+      {!chat.data && findPersonalAssistant([agent], selectedCompanyId, userId) && (
+        <div className="px-4 pt-4 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">我的秘書 · {agent.name}</p>
+          <p>直接告訴我你想做什麼；需要協作時，我會找同公司合適的代理協助，結果回到這裡。</p>
+        </div>
+      )}
+      <TaskDetailSurface
+        key={`${agent.id}:${userId}`}
+        conversation={{ agent, issue: chat.data ?? null, ensureIssue }}
+      />
+    </>
   );
 }

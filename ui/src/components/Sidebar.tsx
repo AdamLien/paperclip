@@ -31,6 +31,7 @@ import { SidebarAgents } from "./SidebarAgents";
 import { SidebarProjects } from "./SidebarProjects";
 import { SidebarStarredProjects } from "./SidebarStarredProjects";
 import { useAgentChatEnabled } from "@/hooks/useAgentChatEnabled";
+import { usePersonalAssistant } from "@/hooks/usePersonalAssistant";
 import { SidebarRecentTasks } from "./SidebarRecentTasks";
 import { useDialogActions } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
@@ -53,6 +54,7 @@ import { primarySidebarStyles } from "./primary-sidebar-styles";
 export function Sidebar({ children }: { children?: ReactNode }) {
   const { openNewIssue } = useDialogActions();
   const { enabled: agentChatEnabled } = useAgentChatEnabled();
+  const personalAssistant = usePersonalAssistant();
   // Every labeled section is collapsible (session-scoped, default open) —
   // one policy across static nav groups and the data-driven sections.
   const [workOpen, setWorkOpen] = useState(true);
@@ -145,6 +147,9 @@ export function Sidebar({ children }: { children?: ReactNode }) {
 
       <nav className={primarySidebarStyles.nav}>
         <div className={primarySidebarStyles.group}>
+          {personalAssistant && (
+            <SidebarNavItem to={personalAssistant.to} label="我的秘書" icon={MessagesSquare} />
+          )}
           {/* New Task button aligned with nav items */}
           {(() => {
             const newTaskButton = (
