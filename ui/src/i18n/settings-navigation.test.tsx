@@ -3,6 +3,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from ".";
+import { MembershipAction } from "../components/MembershipAction";
+import { StarToggle } from "../components/StarToggle";
 import { MobileBottomNav } from "../components/MobileBottomNav";
 import { CompanySettingsNav } from "../components/access/CompanySettingsNav";
 import { ModeBadge } from "../components/access/ModeBadge";
@@ -90,4 +92,17 @@ describe("Taiwan settings and navigation integration", () => {
     await act(async () => { setLocale("en"); });
     expect(host.textContent).toBe("Authenticated public");
   });
+});
+
+
+it("localizes membership controls while preserving the resource name and callbacks", async () => {
+  const leave = vi.fn(); const star = vi.fn();
+  setLocale("en");
+  await render(<><MembershipAction state="joined" resourceName="Chief of staff" onJoin={vi.fn()} onLeave={leave} /><StarToggle starred={false} resourceName="Chief of staff" onToggle={star} /></>);
+  await act(async () => { setLocale("zh-TW"); });
+  const leaveButton = host.querySelector<HTMLButtonElement>('button[aria-label="退出 Chief of staff"]');
+  const starButton = host.querySelector<HTMLButtonElement>('button[aria-label="收藏 Chief of staff"]');
+  expect(leaveButton?.textContent).toContain("退出"); expect(starButton).not.toBeNull();
+  await act(async () => { leaveButton!.click(); starButton!.click(); });
+  expect(leave).toHaveBeenCalledOnce(); expect(star).toHaveBeenCalledWith(true);
 });

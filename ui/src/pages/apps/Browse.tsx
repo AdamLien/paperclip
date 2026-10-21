@@ -938,10 +938,10 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
       {accountLoadErrors.length ? <p role="alert" className="text-sm text-destructive">Couldn’t load {Array.from(new Set(accountLoadErrors)).join(" or ")} accounts. Use Refresh in the connection’s menu to try again.</p> : null}
 
       {!loading && catalogRows.length > 0 ? <nav aria-label="Connector catalog pages" className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <p className="text-muted-foreground" role="status">{pageStart + 1}–{Math.min(pageStart + CATALOG_PAGE_SIZE, catalogRows.length)} of {catalogRows.length.toLocaleString()} connectors</p>
+        <p className="text-muted-foreground" role="status">{translateUiLiteral(`${pageStart + 1}–${Math.min(pageStart + CATALOG_PAGE_SIZE, catalogRows.length)} of ${catalogRows.length.toLocaleString()} connectors`)}</p>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); catalogTop.current?.scrollIntoView?.({ block: "start" }); }}>Previous</Button>
-          <span className="text-xs text-muted-foreground">Page {currentPage} of {pageCount}</span>
+          <span className="text-xs text-muted-foreground">{translateUiLiteral(`Page ${currentPage} of ${pageCount}`)}</span>
           <Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => { setPage(currentPage + 1); catalogTop.current?.scrollIntoView?.({ block: "start" }); }}>Next</Button>
         </div>
       </nav> : null}
@@ -1287,7 +1287,7 @@ function ConnectionAccountRow({
 
   return (
     <ConnectionAccountRowLayout state={state} accountName={accountName} owner={owner} details={<>{details}{discovery?.discovery.message || discovery?.sync.status === "error" ? <p className="text-xs text-muted-foreground" role="status">{discovery.discovery.message ?? discovery.sync.error}</p> : null}</>}
-      openLabel={`Open ${accountName} permissions`} onOpen={() => onNavigate(`/apps/${connection.id}/permissions`)}>
+      openLabel={translateUiLiteral(`Open ${accountName} permissions`)} onOpen={() => onNavigate(`/apps/${connection.id}/permissions`)}>
         {state.kind === "attention" || state.kind === "draft" ? (
           <Button
             type="button"
