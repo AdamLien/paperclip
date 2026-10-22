@@ -66,7 +66,9 @@ def download(url, output):
     original = next((f for f in output.glob('source.*') if f.suffix in {'.mp4','.webm','.mkv'}),None)
     if original is None: raise ValueError('Download produced no video')
     run(['ffmpeg','-hide_banner','-loglevel','error','-n','-i',str(original),
-         '-c:v','libx264','-preset','fast','-crf','22','-c:a','aac','-b:a','128k',
+         '-vf','scale=640:640:force_original_aspect_ratio=decrease:force_divisible_by=2',
+         '-c:v','libx264','-preset','fast','-crf','26','-maxrate','500k','-bufsize','1000k',
+         '-c:a','aac','-b:a','64k',
          '-movflags','+faststart',str(output/'video.mp4')])
     data = json.loads((output/'source.info.json').read_text())
     (output/'source-info.json').write_text(json.dumps({k:data.get(k) for k in

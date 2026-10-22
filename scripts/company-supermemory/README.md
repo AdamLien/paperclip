@@ -20,6 +20,10 @@ be new directories. The manifest records scoped agent/company IDs and hashes;
 ZIP delivery excludes raw downloader metadata. ASR output still needs human
 review. Actual native agent execution and authenticated attachment delivery
 must be verified separately from installation and unit tests.
+The preview MP4 caps its longest edge at 640 pixels and its video bitrate at
+500 kbit/s to fit ordinary short clips within the current 10 MiB attachment
+limit. The original download stays in the workspace. Longer files still need
+size checking and a suitable delivery strategy; the cap is not a size guarantee.
 
 Keep the existing self-hosted Supermemory data and move its legacy backend to
 port 6770. The v0.0.8 API implicitly trusts localhost, so `network-guard.sh`
