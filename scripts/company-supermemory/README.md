@@ -1,5 +1,26 @@
 # Crew company-scoped Supermemory
 
+## Media tools
+
+`media-tools.py` runs within the existing Bubblewrap boundary, with its Python
+3.12 runtime and pinned dependencies in root-owned `/opt/crew-media/venv` and
+the local faster-whisper small model in `/opt/crew-media/models/whisper-small`.
+Install dependencies from `media-requirements.lock`, install the script as
+`/opt/crew-media/media-tools.py`, and symlink `crew-media` in `/usr/local/bin`.
+Preserve the installed dependency freeze as `requirements.lock`. PyAV is pinned
+to 16.1.0: newer 19.x removes the `metadata_errors` argument used by the pinned
+faster-whisper decoder. Verify an actual transcription after dependency updates.
+Both code/model directories remain read-only to agents; no new mounts or
+credentials are needed. Apply `media-instructions.md` to provisioned agents.
+
+The CLI supports public YouTube download, local CPU transcription and generic
+Microsoft Edge speech. Online speech requires `--allow-online-tts` because text
+leaves the host. Output paths must remain under the current workspace and must
+be new directories. The manifest records scoped agent/company IDs and hashes;
+ZIP delivery excludes raw downloader metadata. ASR output still needs human
+review. Actual native agent execution and authenticated attachment delivery
+must be verified separately from installation and unit tests.
+
 Keep the existing self-hosted Supermemory data and move its legacy backend to
 port 6770. The v0.0.8 API implicitly trusts localhost, so `network-guard.sh`
 blocks the agent host UID from this private port and blocks external ingress.
