@@ -44,6 +44,27 @@ class CompanySandboxTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             sandbox.build_command(self.policy, self.env, self.cwd, [])
 
+    def test_browser_mcp_for_every_agent_in_enabled_company(self):
+        self.policy['tenants'][self.company]['browserEnabled'] = True
+        for agent in [self.agent, 'agent-two']:
+            workspace = self.root / 'workspaces' / agent
+            workspace.mkdir(exist_ok=True)
+            env = dict(self.env, PAPERCLIP_AGENT_ID=agent)
+            cmd = sandbox.build_command(self.policy, env, workspace, [])
+            self.assertIn('mcp_servers.crew_browser.enabled=true', cmd)
+            args = next(x for x in cmd if x.startswith('mcp_servers.crew_browser.args='))
+            argv = json.loads(args.split('=', 1)[1])
+            self.assertIn('--isolated', argv)
+            self.assertIn('--headless', argv)
+            self.assertIn(str(workspace / 'browser-artifacts'), argv)
+            self.assertNotIn('--port', argv)
+            self.assertNotIn('--cdp-endpoint', argv)
+            self.assertNotIn('--allow-unrestricted-file-access', argv)
+
+    def test_browser_is_not_inherited_by_unenabled_company(self):
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertNotIn('mcp_servers.crew_browser.enabled=true', cmd)
+
     def test_project_workspace_requires_explicit_agent_and_company_scope(self):
         project_id = '2285741d-ebe9-4a59-b99c-725d17022e0e'
         project = self.root / 'projects' / self.company / project_id

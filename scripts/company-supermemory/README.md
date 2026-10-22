@@ -137,6 +137,36 @@ sandbox MCP probes; they were not assigned duplicate business tasks to test
 connectivity. Earlier compatibility probes failed before the final fixes;
 those native run records are retained for audit.
 
+## Browser MCP (company-wide capability)
+
+An operator may set `browserEnabled: true` on a provisioned tenant in
+`runtime.json`. Every agent using that company's confined runner then receives
+`crew_browser`, including newly provisioned agents using the same runner.
+Install the pinned official `@playwright/mcp@0.0.83` package under the
+root-owned `/opt/crew-browser`, and Google Chrome at `/usr/bin/google-chrome`.
+The dependency must be installed before enabling the policy. No npm download
+or mutable dependency resolution runs at agent startup.
+
+The MCP uses stdio, headless Chrome, isolated in-memory profiles, and each
+agent's own `browser-artifacts` output directory. Concurrent sessions do not
+share tabs, cookies or local storage. There is no exposed CDP/HTTP control port,
+host Chrome profile, automatic Google/mCRM login, or cross-agent token sharing.
+Login state lasts only for the current browser session; persistent authorized
+profiles and an interactive login handoff are separate provisioning work.
+Normal file access remains within MCP workspace roots plus the existing outer
+Bubblewrap mounts; do not add unrestricted file access or a host runner.
+Chromium's nested sandbox is disabled because the existing outer sandbox
+disallows nested user namespaces. The outer company boundary stays enabled.
+This does not add network egress isolation beyond the existing runner policy.
+
+After deployment run `rtk --ultra-compact python3
+scripts/company-supermemory/browser-smoke.py --output /tmp/browser-check.json`
+on the Linux host. It uses a disposable local fixture, tests every provisioned
+agent's navigation, form fill/click, screenshot, concurrent cookie/storage
+isolation, and hidden peer-company/agent workspaces. It performs no business
+account login or external writes. A real Crew chat run must additionally show
+the model choosing and successfully calling `crew_browser`.
+
 ## Odoo finance MCP (opt-in per agent)
 
 `odoo-finance-mcp.py` is a separate stdio MCP for the CFO. It uses the Odoo

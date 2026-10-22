@@ -187,6 +187,24 @@ def build_command(policy, env, cwd, args):
             '-c', 'mcp_servers.odoo_finance.args=["/usr/local/lib/crew-company-memory/odoo-finance-mcp.py"]',
             '-c', 'mcp_servers.odoo_finance.env_vars=["ODOO_FINANCE_LOGIN","ODOO_FINANCE_API_KEY"]',
         ]
+    if tenant.get('browserEnabled') is True:
+        # Each stdio client gets its own in-memory Chrome context. No host CDP
+        # port, shared profile, or extra filesystem mount crosses the boundary.
+        # Nested Chromium namespaces are unavailable inside this bwrap; the
+        # existing outer company sandbox remains the confinement boundary.
+        browser_args = [
+            '/opt/crew-browser/node_modules/@playwright/mcp/cli.js',
+            '--browser', 'chrome', '--executable-path', '/usr/bin/google-chrome',
+            '--headless', '--isolated', '--no-sandbox', '--no-webmcp',
+            '--output-dir', str(workspace / 'browser-artifacts'),
+        ]
+        overrides += [
+            '-c', 'mcp_servers.crew_browser.enabled=true',
+            '-c', 'mcp_servers.crew_browser.command="node"',
+            '-c', 'mcp_servers.crew_browser.args=' + json.dumps(browser_args),
+            '-c', 'mcp_servers.crew_browser.startup_timeout_sec=30',
+            '-c', 'mcp_servers.crew_browser.tool_timeout_sec=90',
+        ]
     return cmd + ['/usr/local/bin/codex'] + args + overrides
 
 
