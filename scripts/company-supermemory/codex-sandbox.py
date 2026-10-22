@@ -153,6 +153,7 @@ def build_command(policy, env, cwd, args):
     for name, endpoint in {
         'paperclip-connections': '/mcp/runtime-tools',
         'paperclip-projects': '/api/mcp/project-tools',
+        'paperclip-management': '/api/mcp/crew-management',
     }.items():
         entry = config.get('mcp_servers', {}).get(name, {})
         if 'command' not in entry and entry.get('url') == f'https://crew.metabiz.work{endpoint}':
@@ -164,6 +165,11 @@ def build_command(policy, env, cwd, args):
         if match:
             overrides += ['-c', f'mcp_servers.paperclip-assigned.url="http://127.0.0.1:3100{match[1]}"']
     overrides += [
+        # Bind management to this actual run token; never persist credentials
+        # in the company-shared Codex config or borrow another agent's header.
+        '-c', 'mcp_servers.paperclip-management.url="http://127.0.0.1:3100/api/mcp/crew-management"',
+        '-c', 'mcp_servers.paperclip-management.bearer_token_env_var="PAPERCLIP_API_KEY"',
+        '-c', 'mcp_servers.paperclip-management.enabled=true',
         # The outer bwrap already confines files/processes and denies nested
         # user namespaces. Avoid a second Codex sandbox that cannot start.
         '-c', 'sandbox_mode="danger-full-access"',

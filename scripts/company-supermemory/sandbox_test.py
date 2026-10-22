@@ -38,6 +38,8 @@ class CompanySandboxTest(unittest.TestCase):
         self.assertIn('mcp_servers.host.enabled=false', cmd)
         self.assertIn('mcp_servers.supermemory.env_vars=["SUPERMEMORY_CONFIG_PATH"]', cmd)
         self.assertIn('features.apps=false', cmd)
+        self.assertIn('mcp_servers.paperclip-management.bearer_token_env_var="PAPERCLIP_API_KEY"', cmd)
+        self.assertIn('mcp_servers.paperclip-management.url="http://127.0.0.1:3100/api/mcp/crew-management"', cmd)
 
     def test_cross_company_home_denied(self):
         self.env['CODEX_HOME'] = str(self.root / 'companies' / 'other' / 'codex-home')
