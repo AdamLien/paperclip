@@ -10,12 +10,14 @@ import {
 } from "@paperclipai/shared";
 import { parseRunnerGoalCommand, TaskChatComposer } from "./TaskChatComposer";
 import { ComposerAddMenu } from "./ComposerAddMenu";
+import { setLocale } from "../../i18n";
 import { QuestionForm } from "./QuestionForm";
 import { DRAFT_DEBOUNCE_MS } from "../../lib/composer-draft";
 import {
   loadDraftSubmission,
   saveDraft,
   saveDraftSubmission,
+  saveDraftAttachments,
 } from "../../lib/composer-draft";
 import { CommentSubmissionUnknownError } from "../../lib/comment-submit-result";
 
@@ -608,7 +610,7 @@ describe("TaskChatComposer", () => {
     expect(onAttachImage).toHaveBeenCalledTimes(1);
   });
 
-  it("holds submission while an inline image upload is pending and binds its receipt", async () => {
+  it("holds submission while a preview image upload is pending and binds its receipt", async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     const id = "5e5f9946-c706-4785-8988-d4d6f0f499ab";
     let resolveUpload!: (value: unknown) => void;
@@ -625,10 +627,7 @@ describe("TaskChatComposer", () => {
       />,
     );
     typeText("Inspect the picture.");
-    const handler = mdxEditorMockState.imagePluginOptions!.imageUploadHandler!;
-    const upload = handler(
-      new File(["png"], "image.png", { type: "image/png" }),
-    );
+    expect(pasteFiles([new File(["png"], "image.png", { type: "image/png" })]).defaultPrevented).toBe(true);
     await flushAsync();
     expect(sendButton().disabled).toBe(true);
     pressKey("Enter", { metaKey: true });
@@ -638,8 +637,9 @@ describe("TaskChatComposer", () => {
       contentPath: `/api/attachments/${id}/content`,
       originalFilename: "image.png",
     });
-    const url = await upload;
-    typeText(`Inspect the picture.\n\n![image](${url})`);
+    await flushAsync();
+    expect(editable().textContent).toBe("Inspect the picture.");
+    expect(container.querySelector('img[alt="image.png"]')?.getAttribute("src")).toBe(`/api/attachments/${id}/content`);
     await flushAsync();
     flushSync(() => sendButton().click());
     await flushAsync();
@@ -685,12 +685,10 @@ describe("TaskChatComposer", () => {
       new File(["two"], "two.txt", { type: "text/plain" }),
     ]);
     await flushAsync();
-    const handler = mdxEditorMockState.imagePluginOptions!.imageUploadHandler!;
-    const retainedImage = await handler(
-      new File(["png"], "three.png", { type: "image/png" }),
-    );
-    await handler(new File(["png"], "removed.png", { type: "image/png" }));
-    typeText(`Only this picture remains ![three](${retainedImage})`);
+    pasteFiles([new File(["png"], "three.png", { type: "image/png" }), new File(["png"], "removed.png", { type: "image/png" })]);
+    await flushAsync();
+    typeText("Only this picture remains");
+    flushSync(() => container.querySelector<HTMLButtonElement>('button[aria-label="Remove removed.png"]')!.click());
     await flushAsync();
     flushSync(() =>
       container
@@ -706,7 +704,7 @@ describe("TaskChatComposer", () => {
     expect(onAdd.mock.calls[0]?.[0]).not.toContain("removed.png");
   });
 
-  it("restores file and inline image receipts after a fresh composer mount", async () => {
+  it("restores file and image preview receipts after a fresh composer mount", async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     const ids = [
       "9af8228f-0be7-45ae-a104-6fbe0af6f1d3",
@@ -729,17 +727,16 @@ describe("TaskChatComposer", () => {
     render(<TaskChatComposer {...props} />);
     pasteFiles([new File(["text"], "file.txt", { type: "text/plain" })]);
     await flushAsync();
-    const url = await mdxEditorMockState.imagePluginOptions!
-      .imageUploadHandler!(
-      new File(["png"], "image.png", { type: "image/png" }),
-    );
-    typeText(`Inspect both files ![image](${url})`);
+    pasteFiles([new File(["png"], "image.png", { type: "image/png" })]);
+    await flushAsync();
+    typeText("Inspect both files");
     await flushAsync();
     render(<div />);
     render(<TaskChatComposer {...props} />);
     await flushAsync();
     expect(container.textContent).toContain("file.txt");
-    expect(editable().textContent).toContain(url);
+    expect(editable().textContent).toBe("Inspect both files");
+    expect(container.querySelector('img[alt="image.png"]')).not.toBeNull();
     flushSync(() => sendButton().click());
     await flushAsync();
     expect(onAdd.mock.calls[0]?.[3]).toEqual(ids);
@@ -747,7 +744,7 @@ describe("TaskChatComposer", () => {
     expect(localStorage.getItem("receipt-reload:attachments:v1")).toBeNull();
   });
 
-  it("removes a pending inline image without a late insertion or restored receipt", async () => {
+  it("removes a pending preview image without a late insertion or restored receipt", async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     let resolveUpload!: (value: unknown) => void;
     const onAttachImage = vi.fn().mockReturnValue(
@@ -764,10 +761,7 @@ describe("TaskChatComposer", () => {
       />,
     );
     typeText("Keep this text");
-    const upload = mdxEditorMockState.imagePluginOptions!.imageUploadHandler!(
-      new File(["png"], "pending.png", { type: "image/png" }),
-    );
-    const rejected = expect(upload).rejects.toThrow("Attachment was removed");
+    pasteFiles([new File(["png"], "pending.png", { type: "image/png" })]);
     await flushAsync();
     expect(container.textContent).toContain("pending.png");
     expect(sendButton().disabled).toBe(true);
@@ -783,7 +777,6 @@ describe("TaskChatComposer", () => {
       contentPath:
         "/api/attachments/9af8228f-0be7-45ae-a104-6fbe0af6f1d3/content",
     });
-    await rejected;
     await flushAsync();
     expect(editable().textContent).toBe("Keep this text");
     expect(localStorage.getItem("removed-pending:attachments:v1")).toBeNull();
@@ -1125,7 +1118,51 @@ describe("TaskChatComposer", () => {
     expect(openPicker).toHaveBeenCalledOnce();
   });
 
-  it("wires the editor's inline image upload to onAttachImage and returns the attachment URL", async () => {
+  it("moves a tracked legacy draft image above the text without losing its receipt", async () => {
+    const id = "5e5f9946-c706-4785-8988-d4d6f0f499ab";
+    const path = `/api/attachments/${id}/content`;
+    saveDraft("legacy-preview", `Before ![image](${path}) after`);
+    saveDraftAttachments("legacy-preview", [{attachmentId: id, name: "image.png", inline: true, contentPath: path}]);
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    render(<TaskChatComposer onAdd={onAdd} workMode="standard" draftKey="legacy-preview" />);
+    await flushAsync();
+    expect(editable().textContent).toBe("Before  after");
+    expect(container.querySelector('img[alt="image.png"]')).not.toBeNull();
+    flushSync(() => sendButton().click());
+    await flushAsync();
+    expect(onAdd.mock.calls[0]?.[3]).toEqual([id]);
+  });
+
+  it("translates the add menu in Traditional Chinese and restores English", async () => {
+    try {
+      await setLocale("zh-TW");
+      render(<ComposerAddMenu mode="standard" onModeChange={vi.fn()} onAttachFile={vi.fn()} mobile />);
+      flushSync(() => container.querySelector<HTMLButtonElement>('button[aria-label="新增至編輯器"]')!.click());
+      expect(document.body.textContent).toContain("檔案與圖片");
+      expect(document.body.textContent).toContain("規劃模式先規劃再執行");
+      expect(document.body.textContent).toContain("詢問模式僅回答，不進行變更");
+      expect(document.body.textContent).not.toContain("Files and images");
+    } finally {
+      render(<div />);
+      await setLocale("en");
+    }
+  });
+
+  it("stages dropped files without changing the message", async () => {
+    const onAttachImage = vi.fn().mockImplementation(async (file: File) => ({contentPath: `/attachments/${file.name}`, originalFilename: file.name}));
+    render(<TaskChatComposer onAdd={vi.fn()} workMode="standard" onAttachImage={onAttachImage} />);
+    typeText("Keep this message");
+    const drop = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, "dataTransfer", {value: {files: [new File(["png"], "drop.png", {type: "image/png"})]}});
+    flushSync(() => editable().dispatchEvent(drop));
+    await flushAsync();
+    expect(drop.defaultPrevented).toBe(true);
+    expect(onAttachImage).toHaveBeenCalledTimes(1);
+    expect(editable().textContent).toBe("Keep this message");
+    expect(container.querySelector('img[alt="drop.png"]')).not.toBeNull();
+  });
+
+  it("previews pasted images above the text without inserting inline Markdown", async () => {
     const onAttachImage = vi.fn().mockResolvedValue({
       contentPath: "/attachments/shot.png",
       originalFilename: "shot.png",
@@ -1138,16 +1175,17 @@ describe("TaskChatComposer", () => {
       />,
     );
 
-    const handler = mdxEditorMockState.imagePluginOptions?.imageUploadHandler;
-    expect(handler).toBeTypeOf("function");
-
+    expect(mdxEditorMockState.imagePluginOptions).toBeNull();
+    typeText("Text stays here");
     const file = new File(["png-bytes"], "shot.png", { type: "image/png" });
-    await expect(handler!(file)).resolves.toBe("/attachments/shot.png");
-    expect(onAttachImage).toHaveBeenCalledWith(file);
-    // Inline images do not go through the attachment chip row.
-    expect(
-      container.querySelector('[data-testid="task-chat-composer-attachments"]'),
-    ).toBeNull();
+    expect(pasteFiles([file]).defaultPrevented).toBe(true);
+    await flushAsync();
+    expect(onAttachImage).toHaveBeenCalledExactlyOnceWith(file);
+    expect(editable().textContent).toBe("Text stays here");
+    const previews = container.querySelector('[data-testid="task-chat-composer-attachments"]')!;
+    const input = container.querySelector('[data-testid="task-chat-composer-input"]')!;
+    expect(previews.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(previews.querySelector('img')?.getAttribute("src")).toBe("/attachments/shot.png");
   });
 
   it("does not register the image plugin without an upload handler", () => {
@@ -1355,11 +1393,10 @@ describe("TaskChatComposer", () => {
     expect(chips?.textContent).toContain("Too large");
   });
 
-  it("leaves pasted images to the editor's image plugin (no chip, paste not swallowed)", async () => {
-    const onAttachImage = vi.fn().mockResolvedValue({
-      contentPath: "/attachments/notes.txt",
-      originalFilename: "notes.txt",
-    });
+  it("keeps mixed pasted images and files together above the message", async () => {
+    const onAttachImage = vi.fn().mockImplementation(async (file: File) => ({
+      contentPath: `/attachments/${file.name}`, originalFilename: file.name,
+    }));
     render(
       <TaskChatComposer
         onAdd={vi.fn()}
@@ -1373,14 +1410,14 @@ describe("TaskChatComposer", () => {
     const paste = pasteFiles([image, text]);
     await flushAsync();
 
-    // Mixed paste: the non-image is chipped, the image flows through untouched.
-    expect(paste.defaultPrevented).toBe(false);
+    // Both kinds are uploaded exactly once and never inserted into the text.
+    expect(paste.defaultPrevented).toBe(true);
     const chips = container.querySelector(
       '[data-testid="task-chat-composer-attachments"]',
     )!;
     expect(chips.textContent).toContain("notes.txt");
-    expect(chips.textContent).not.toContain("shot.png");
-    expect(onAttachImage).toHaveBeenCalledTimes(1);
+    expect(chips.textContent).toContain("shot.png");
+    expect(onAttachImage).toHaveBeenCalledTimes(2);
     expect(onAttachImage).toHaveBeenCalledWith(text);
   });
 

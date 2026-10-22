@@ -1,3 +1,4 @@
+import { loadPreviewDraft } from "./composer-preview-draft";
 import { AgentAvatar } from "../AgentAvatar";
 import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 import {
@@ -44,7 +45,7 @@ import {
   AttachmentMedia,
   AttachmentTitle,
 } from "@/components/ui/attachment";
-import { fileKindForName, formatFileSize } from "./task-chat-attachments";
+import { fileKindForName, formatFileSize, isImageFilename } from "./task-chat-attachments";
 import {
   MarkdownEditor,
   type MarkdownEditorRef,
@@ -362,18 +363,7 @@ function escapeMarkdownLabel(name: string): string {
   return name.replace(/[[\]]/g, "\\$&");
 }
 
-/**
- * Composer for the redesigned thread (v7 spec): the shared MarkdownEditor
- * (rich lists, @-mentions, /-commands, inline pasted images) over a 32px
- * comp-bar of [add] [optional mode chip] … [assignee] [send]. The add menu
- * offers files, supported goals, Plan, and Ask. Cmd/Ctrl+. and Shift+Tab cycle modes (captured before
- * Lexical); Cmd/Ctrl+Enter posts via the editor's native onSubmit; plain Enter
- * stays a newline / next list item. Pasted or dropped images upload through
- * `onAttachImage` (or the `onImageUpload` fallback) and land inline at the
- * caret via the editor's image plugin; non-image files render as shadcn
- * base/attachment chips (kind icon · name · size, remove ×, uploading/error
- * states) between the editor and the comp-bar.
- */
+/** Shared composer with attachment previews above the editable message and keyboard send shortcuts. */
 export function TaskChatComposer({
   onAdd,
   creation,
@@ -414,7 +404,7 @@ export function TaskChatComposer({
 }: TaskChatComposerProps) {
   const streamlined = useStreamlinedTaskChatPresentation();
   const stopControl = useComposerStop(onStop, stopPending);
-  const [localBody, setBody] = useState(() => (draftKey ? loadDraft(draftKey) : ""));
+  const [localBody, setBody] = useState(() => (draftKey ? loadPreviewDraft(draftKey).body : ""));
   const body = creation ? creation.value : localBody;
   const [submitting, setSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState(false);
@@ -448,7 +438,7 @@ export function TaskChatComposer({
   const [attachments, setAttachmentState] = useState<ComposerAttachment[]>(
     () =>
       draftKey
-        ? loadDraftAttachments(draftKey).map((item) => ({
+        ? loadPreviewDraft(draftKey).attachments.map((item) => ({
             ...item,
             id: `receipt:${item.attachmentId}`,
             status: "attached",
@@ -560,14 +550,14 @@ export function TaskChatComposer({
 
   useEffect(() => {
     if (!draftKey || queuedEdit) return;
-    bodyRef.current = loadDraft(draftKey);
+    bodyRef.current = loadPreviewDraft(draftKey).body;
     setBody(bodyRef.current);
   }, [draftKey, queuedEdit]);
 
   useEffect(() => {
     if (!draftKey) return;
     setAttachments(
-      loadDraftAttachments(draftKey).map((item) => ({
+      loadPreviewDraft(draftKey).attachments.map((item) => ({
         ...item,
         id: `receipt:${item.attachmentId}`,
         status: "attached",
@@ -729,31 +719,20 @@ export function TaskChatComposer({
     }
   }
 
-  /** Non-image files: attach to the task and track in the chip row. */
-  async function attachNonImageFile(file: File) {
+  /** Keep selected files separate from the editable message body. */
+  async function attachPickedFile(file: File) {
     const id = `${file.name}:${file.size}:${file.lastModified}:${Math.random().toString(36).slice(2)}`;
     setAttachments((prev) => [
       ...prev,
       { id, name: file.name, size: file.size, status: "uploading" },
     ]);
     try {
-      if (!onAttachImage) {
-        setAttachments((prev) =>
-          prev.map((item) =>
-            item.id === id
-              ? {
-                  ...item,
-                  status: "error",
-                  error: "This file type cannot be attached here",
-                }
-              : item,
-          ),
-        );
-        return;
+      if (!onAttachImage && !(onImageUpload && file.type.startsWith("image/"))) {
+        throw new Error("This file type cannot be attached here");
       }
-      const attachment = await onAttachImage(file);
-      if (!attachment?.contentPath)
-        throw new Error("Upload did not return a file URL");
+      const attachment = onAttachImage ? await onAttachImage(file) : undefined;
+      const contentPath = onAttachImage ? attachment?.contentPath : await onImageUpload?.(file);
+      if (!contentPath) throw new Error("Upload did not return a file URL");
       const name = attachment?.originalFilename ?? file.name;
       setAttachments((prev) =>
         prev.map((item) =>
@@ -763,7 +742,7 @@ export function TaskChatComposer({
                 name,
                 attachmentId: attachment?.id,
                 status: "attached",
-                contentPath: attachment?.contentPath,
+                contentPath,
               }
             : item,
         ),
@@ -780,22 +759,6 @@ export function TaskChatComposer({
             : item,
         ),
       );
-    }
-  }
-
-  /** Images picked from the + button go inline at the caret, like paste/drop. */
-  async function attachPickedFile(file: File) {
-    if (!file.type.startsWith("image/")) {
-      await attachNonImageFile(file);
-      return;
-    }
-    try {
-      const url = await uploadInlineImage(file);
-      editorRef.current?.insertMarkdown(
-        `![${escapeMarkdownLabel(file.name)}](${url})`,
-      );
-    } catch {
-      // uploadInlineImage retains the failed receipt in the removable chip row.
     }
   }
 
@@ -821,11 +784,6 @@ export function TaskChatComposer({
     requestAnimationFrame(() => editorRef.current?.focus());
   }
 
-  /**
-   * Pasted image files fall through to the editor's image plugin (inline at
-   * the caret); non-image files are attached to the task here. Only swallow
-   * the paste when it carries no images the plugin should handle.
-   */
   function handlePasteCapture(evt: ReactClipboardEvent<HTMLDivElement>) {
     if (pause || !canAcceptFiles) return;
     const files = Array.from(evt.clipboardData?.files ?? []);
@@ -843,14 +801,10 @@ export function TaskChatComposer({
       evt.stopPropagation();
       return;
     }
-    const nonImages = files.filter((file) => !file.type.startsWith("image/"));
-    if (nonImages.length === 0) return;
-    if (nonImages.length === files.length) {
-      evt.preventDefault();
-      evt.stopPropagation();
-    }
+    evt.preventDefault();
+    evt.stopPropagation();
     void (async () => {
-      for (const file of nonImages) await attachNonImageFile(file);
+      for (const file of files) await attachPickedFile(file);
     })();
   }
 
@@ -1286,6 +1240,17 @@ export function TaskChatComposer({
         }
       }}
         onPasteCapture={handlePasteCapture}
+        onDragOverCapture={(event) => {
+          if (!creation && canAcceptFiles && !pause && event.dataTransfer.types.includes("Files")) event.preventDefault();
+        }}
+        onDropCapture={(event) => {
+          if (creation || !canAcceptFiles || pause) return;
+          const files = Array.from(event.dataTransfer.files);
+          if (!files.length) return;
+          event.preventDefault();
+          event.stopPropagation();
+          void (async () => { for (const file of files) await attachPickedFile(file); })();
+        }}
       >
         {creation?.header}
         {uncertainSubmission ? (
@@ -1348,61 +1313,22 @@ export function TaskChatComposer({
               <p className="text-xs text-muted-foreground">Send /new to start a fresh session and resume this conversation.</p>
             </div>
           ) : null}
-          <div data-testid="task-chat-composer-input">
-            <MarkdownEditor
-              ref={editorRef}
-              value={body}
-              onChange={changeBody}
-              placeholder={
-                disabled
-                  ? (disabledReason ?? "Composer disabled")
-                  : effectivePlaceholder
-              }
-              readOnly={disabled || !!uncertainSubmission || Boolean(creation && submitting)}
-              mentions={mentions}
-              actionCommands={creation ? [] : conversationMode ? [{
-                id: "action:new", kind: "action", command: "new", name: "New session",
-                description: "Start fresh context here, preserving conversation history.", aliases: ["new"],
-                disabled,
-              }] : [goalCommandOption]}
-              onSubmit={() => void submit()}
-              imageUploadHandler={
-                canAcceptFiles && (!creation || onImageUpload) ? uploadInlineImage : undefined
-              }
-              onDropFile={canAcceptFiles && !creation ? attachNonImageFile : undefined}
-              bordered={false}
-              className={cn(disabled && "opacity-60")}
-              contentClassName={
-                mobile
-                  ? "max-h-(--sz-28dvh) min-h-(--sz-48px) overflow-y-auto px-1 py-1 text-base scrollbar-auto-hide"
-                  : "max-h-(--sz-28dvh) min-h-(--sz-48px) overflow-y-auto px-1 py-1 text-sm scrollbar-auto-hide"
-              }
-            />
-          </div>
-
-          {actionError ? (
-            <p
-              className="px-1 text-xs text-destructive"
-              role="alert"
-              data-testid={creation ? "task-chat-create-error" : "task-chat-goal-error"}
-            >
-              {actionError}
-            </p>
-          ) : null}
-
           {visibleAttachments.length > 0 ? (
             <AttachmentGroup
-              className="mb-1 px-1"
+              className="mb-3 items-start gap-2 px-1"
               data-testid="task-chat-composer-attachments"
             >
               {visibleAttachments.map((attachment) => {
                 const kind = fileKindForName(attachment.name);
                 const KindIcon = kind.icon;
+                const image = isImageFilename(attachment.name);
                 const sizeLabel = formatFileSize(attachment.size);
                 return (
                   <Attachment
                     key={attachment.id}
                     size="sm"
+                    orientation="vertical"
+                    className="w-28 overflow-hidden rounded-lg"
                     state={
                       attachment.status === "uploading"
                         ? "uploading"
@@ -1411,9 +1337,11 @@ export function TaskChatComposer({
                           : "done"
                     }
                   >
-                    <AttachmentMedia>
+                    <AttachmentMedia variant={image ? "image" : "icon"} className="h-24 w-full!">
                       {attachment.status === "uploading" ? (
                         <Loader2 className="animate-spin" aria-hidden />
+                      ) : image && attachment.contentPath ? (
+                        <img src={attachment.contentPath} alt={attachment.name} />
                       ) : (
                         <KindIcon aria-hidden />
                       )}
@@ -1427,7 +1355,7 @@ export function TaskChatComposer({
                           ? "Uploading…"
                           : attachment.status === "error"
                             ? (attachment.error ?? "Upload failed")
-                            : [kind.label, sizeLabel]
+                            : [translateUiLiteral(image ? "Image" : kind.label), sizeLabel]
                                 .filter(Boolean)
                                 .join(" · ")}
                       </AttachmentDescription>
@@ -1450,6 +1378,47 @@ export function TaskChatComposer({
               })}
             </AttachmentGroup>
           ) : null}
+          <div data-testid="task-chat-composer-input">
+            <MarkdownEditor
+              ref={editorRef}
+              value={body}
+              onChange={changeBody}
+              placeholder={
+                disabled
+                  ? (disabledReason ?? "Composer disabled")
+                  : effectivePlaceholder
+              }
+              readOnly={disabled || !!uncertainSubmission || Boolean(creation && submitting)}
+              mentions={mentions}
+              actionCommands={creation ? [] : conversationMode ? [{
+                id: "action:new", kind: "action", command: "new", name: "New session",
+                description: "Start fresh context here, preserving conversation history.", aliases: ["new"],
+                disabled,
+              }] : [goalCommandOption]}
+              onSubmit={() => void submit()}
+              imageUploadHandler={
+                canAcceptFiles && creation && onImageUpload ? uploadInlineImage : undefined
+              }
+              fileDropTarget={creation ? "editor" : "parent"}
+              bordered={false}
+              className={cn(disabled && "opacity-60")}
+              contentClassName={
+                mobile
+                  ? "max-h-(--sz-28dvh) min-h-(--sz-48px) overflow-y-auto px-1 py-1 text-base scrollbar-auto-hide"
+                  : "max-h-(--sz-28dvh) min-h-(--sz-48px) overflow-y-auto px-1 py-1 text-sm scrollbar-auto-hide"
+              }
+            />
+          </div>
+
+          {actionError ? (
+            <p
+              className="px-1 text-xs text-destructive"
+              role="alert"
+              data-testid={creation ? "task-chat-create-error" : "task-chat-goal-error"}
+            >
+              {actionError}
+            </p>
+          ) : null}
 
           {creation?.details}
 
@@ -1459,7 +1428,7 @@ export function TaskChatComposer({
           >
             <div className="flex min-w-0 max-w-full items-center gap-2">
             {canAcceptFiles ? (
-              <input ref={fileInputRef} type="file" className="hidden" multiple={Boolean(creation)} onChange={handleFileInputChange} />
+              <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFileInputChange} />
             ) : null}
             <ComposerAddMenu
               mode={pendingMode}
