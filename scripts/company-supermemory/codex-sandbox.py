@@ -23,11 +23,22 @@ def build_command(policy, env, cwd, args):
     if not beneath(home, company_root) or home == company_root:
         raise ValueError('Codex home must be inside its own company')
     agent = env.get('PAPERCLIP_AGENT_ID', '')
+    if not re.fullmatch(r'[A-Za-z0-9_-]+', agent):
+        raise ValueError('Invalid managed agent identity')
     workspace = instance / 'workspaces' / agent
     cwd = Path(cwd).resolve()
-    if not agent or not beneath(cwd, workspace) or cwd == instance / 'workspaces':
-        raise ValueError('Only the current agent managed workspace is allowed')
-    if not home.is_dir() or not cwd.is_dir():
+    project = None
+    projects = instance / 'projects' / company
+    if not beneath(cwd, workspace):
+        if agent in tenant.get('projectWorkspaceAgents', []) and beneath(cwd, projects):
+            parts = cwd.relative_to(projects).parts
+            if len(parts) >= 2 and re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}', parts[0]):
+                candidate = projects / parts[0]
+                if candidate.resolve() == candidate:
+                    project = candidate
+        if project is None:
+            raise ValueError('Only the current agent or an approved company project workspace is allowed')
+    if not home.is_dir() or not workspace.is_dir() or not cwd.is_dir():
         raise ValueError('Managed home/workspace missing')
     config = tomllib.loads((home / 'config.toml').read_text()) if (home / 'config.toml').exists() else {}
     # Start from an empty mount tree: never expose the host root or /home.
@@ -43,6 +54,9 @@ def build_command(policy, env, cwd, args):
     if beneath(resolver, Path('/run')) and resolver.is_file():
         cmd += ['--ro-bind', str(resolver), str(resolver)]
     cmd += ['--bind', str(home), str(home), '--bind', str(workspace), str(workspace)]
+    if project is not None:
+        # Mount this one company-owned project, never the shared project root.
+        cmd += ['--bind', str(project), str(project)]
     # OCX seeds its public model catalog as an absolute host path. Expose only
     # that file, never the surrounding host Codex home or credentials.
     catalog = config.get('model_catalog_json')

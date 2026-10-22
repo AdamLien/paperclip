@@ -44,6 +44,59 @@ class CompanySandboxTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             sandbox.build_command(self.policy, self.env, self.cwd, [])
 
+    def test_project_workspace_requires_explicit_agent_and_company_scope(self):
+        project_id = '2285741d-ebe9-4a59-b99c-725d17022e0e'
+        project = self.root / 'projects' / self.company / project_id
+        cwd = project / '_default'
+        cwd.mkdir(parents=True)
+        with self.assertRaises(ValueError):
+            sandbox.build_command(self.policy, self.env, cwd, [])
+        self.policy['tenants'][self.company]['projectWorkspaceAgents'] = [self.agent]
+        cmd = sandbox.build_command(self.policy, self.env, cwd, [])
+        self.assertIn(str(project), cmd)
+        self.assertNotIn(str(project.parent), cmd)
+        for denied in [project, project.parent, self.root / 'workspaces' / 'other-agent',
+                       self.root / 'projects' / 'other-company' / project_id / '_default']:
+            with self.subTest(path=denied), self.assertRaises(ValueError):
+                sandbox.build_command(self.policy, self.env, denied, [])
+
+    def test_project_workspace_symlink_cannot_escape_company(self):
+        project = self.root / 'projects' / self.company / '2285741d-ebe9-4a59-b99c-725d17022e0e'
+        project.mkdir(parents=True)
+        self.policy['tenants'][self.company]['projectWorkspaceAgents'] = [self.agent]
+        (project / 'outside').symlink_to(self.cwd, target_is_directory=True)
+        # Resolving to the agent's own workspace remains safe, but does not add a project mount.
+        cmd = sandbox.build_command(self.policy, self.env, project / 'outside', [])
+        self.assertNotIn(str(project), cmd)
+        (project / 'host').symlink_to(self.root, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            sandbox.build_command(self.policy, self.env, project / 'host', [])
+
+    @unittest.skipUnless(Path('/usr/bin/bwrap').exists(), 'Linux bubblewrap integration')
+    def test_project_mount_hides_other_projects_companies_and_host_secrets(self):
+        project_id = '2285741d-ebe9-4a59-b99c-725d17022e0e'
+        current = self.root / 'projects' / self.company / project_id / '_default'
+        other = self.root / 'projects' / self.company / '6df756ff-ad8c-4c8e-8e17-e8e5720486f2' / '_default'
+        foreign = self.root / 'projects' / 'other-company' / project_id / '_default'
+        secret = self.root / 'host-secret'
+        for path in [current, other, foreign]:
+            path.mkdir(parents=True)
+            (path / 'fixture').write_text('fixture')
+        secret.write_text('private')
+        tenant = self.policy['tenants'][self.company]
+        tenant['projectWorkspaceAgents'] = [self.agent]
+        for key in ['emptyAuth', 'clientConfig']:
+            file = self.root / key
+            file.write_text('{}')
+            (self.policy if key == 'emptyAuth' else tenant)[key] = str(file)
+        paths = [current / 'fixture', other / 'fixture', foreign / 'fixture', secret]
+        probe = f'import pathlib,json; print(json.dumps([pathlib.Path(p).exists() for p in {list(map(str, paths))!r}]))'
+        cmd = sandbox.build_command(self.policy, self.env, current, [])
+        cmd = cmd[:cmd.index('/usr/local/bin/codex')]
+        result = subprocess.run(cmd + ['/usr/bin/python3', '-c', probe], capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), [True, False, False, False])
+
     def test_governed_mcp_uses_local_transport_without_replacing_credentials(self):
         config = ('[mcp_servers.paperclip-connections]\n'
                   'url="https://crew.metabiz.work/mcp/runtime-tools"\n'

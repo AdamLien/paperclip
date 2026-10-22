@@ -28,6 +28,12 @@ sandbox is disabled to avoid attempting prohibited nested user namespaces.
 The public OCX model catalog is exposed read-only as one explicitly allowed
 file, while its surrounding host Codex home remains hidden.
 
+Named `projectWorkspaceAgents` can also run in an existing project workspace
+under `instanceRoot/projects/<own company>/<project UUID>/<workspace>`.
+Only that project is mounted; other projects, companies, host directories and
+the instance database remain hidden. This supports Crew's `project_primary`
+workspace selection without remapping task files into another directory.
+
 ## Configuration (not committed)
 
 - `/etc/crew-company-memory/server.json`: root-only upstream key and company
