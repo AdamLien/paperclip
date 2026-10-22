@@ -1,0 +1,7 @@
+[Unit]
+Description=Process mCrew preview deployment requests
+[Timer]
+OnBootSec=20
+OnUnitInactiveSec=5
+[Install]
+WantedBy=timers.target

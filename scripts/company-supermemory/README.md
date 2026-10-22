@@ -169,3 +169,48 @@ to Adam; do not send daily messages for unchanged results.
 
 Tests cover the stdio MCP handshake/tool calls, scope/argument/mutation denial,
 broad-account rejection, pagination, redaction, and per-agent sandbox opt-in.
+
+## Static Cloudflare Pages preview capability
+
+`pages-deploy.py` adds an operator-configured, per-agent file queue. It does not
+mount Cloudflare OAuth into any sandbox or add a host-shell fallback. An
+authorized agent calls `crew-pages-preview <static output directory>` inside its
+own workspace. The trusted oneshot worker snapshots the archive, accepts only
+bounded regular assets, and invokes an operator-owned Wrangler installation
+from a fresh trusted directory. Provider config, project, account and preview
+branch come from `/etc/crew-pages-preview.json`, never from request arguments.
+The queue is opened with an `O_NOFOLLOW` directory descriptor so swapping paths
+cannot redirect host writes. Links, traversal, hidden config, duplicate paths
+and executable Workers/Functions are rejected. Results include archive SHA256
+and the immutable Pages deployment URL; agents must verify the actual content.
+
+The operator installs the script and vendor dependencies read-only under
+`/opt/crew-pages-preview`, adds `/usr/local/bin/crew-pages-preview`, and configures
+`company`, `agent`, `workspace`, `state`, `authHome`, `account`, `project`,
+`branch`, `node` and `wrangler`. The credential home belongs to the trusted host
+service under `/var/lib/crew-pages-preview`; use mode 0700 and config mode 0600.
+Use an existing operator-authorized Pages scope. Do not copy it into company
+Codex homes. The public policy file contains paths and identifiers only.
+
+Install the adjacent service/timer templates after replacing the exact workspace
+placeholder. Keep the service single-instance. Choose a branch distinct from
+the project's production branch, with no production-domain alias. This helper
+is intentionally static-preview-only: production, DNS, R2 writes, Functions,
+remote Git credentials and additional companies require separately approved
+capabilities. No arbitrary build command runs on the trusted host.
+
+Rollback: stop and disable `crew-pages-preview.timer`, preserve queue/results and
+provider logs, remove the agent capability instructions, and retain the source
+checkout. This does not change existing production deployments or DNS.
+
+Run `python3 -m unittest discover -s scripts/company-supermemory -p '*_test.py'`
+through RTK. Queue integration tests execute a local stand-in provider process;
+only a successful real sandbox submission plus HTTP content readback proves
+Cloudflare deployment works.
+
+For the existing Next static export's `/ -> /zh/` homepage, the worker supplies
+locale-less HTML and RSC redirect aliases only in the deployment snapshot. Put
+these static rules before pre-existing wildcard rules, as required by the Pages
+redirect parser; otherwise the uploaded site can show a working homepage while
+its navigation returns 404. This does not modify the Git checkout or supply
+Functions/R2 behavior.

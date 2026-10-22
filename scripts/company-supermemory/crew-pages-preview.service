@@ -1,0 +1,16 @@
+[Unit]
+Description=mCrew static Pages preview deployment
+After=network-online.target
+[Service]
+Type=oneshot
+User=metabiz-admin
+Group=metabiz-admin
+ExecStart=/usr/bin/python3 /opt/crew-pages-preview/pages-deploy.py --worker
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# Substitute the exact allowlisted agent workspace when installing.
+ReadWritePaths=/var/lib/crew-pages-preview REPLACE_AGENT_WORKSPACE
+TimeoutStartSec=240
