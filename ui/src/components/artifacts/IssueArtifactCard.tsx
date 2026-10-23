@@ -1,3 +1,4 @@
+import { AttachmentFileCard } from "@/components/AttachmentFileCard";
 import { useContext, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -91,6 +92,9 @@ export function IssueArtifactFile(props: IssueArtifactFileProps) {
   const onOpen = () => {
     if (!openGallery?.(contentPath)) setGalleryOpen(true);
   };
+  if (attachmentId && openTextAttachment) return <AttachmentFileCard attachment={{
+    id: attachmentId, originalFilename: props.filename, contentType: props.contentType, byteSize: props.byteSize ?? 0,
+  }} onOpen={() => openTextAttachment(attachmentId, props.filename)} />;
   if ((image || video) && contentPath) {
     return (
       <>

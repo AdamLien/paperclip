@@ -1,10 +1,18 @@
 # Unified attachment preview implementation plan
 
-**Goal:** Supported attachments display directly inside conversation messages. Expand and original download remain separate explicit actions.
+**Goal:** Conversation attachments use consistent compact cards. Clicking opens a full-screen reader with filename, Download and Close; the original downloads only on an explicit action. This supersedes the earlier automatic inline-viewer design following device feedback.
 
 **Design:** Reuse the authorized task side panel and existing HTML/Markdown/Mermaid renderers. Add PDF.js page navigation for both original PDFs and PDF derivatives of Office documents. Convert Office documents locally with LibreOffice inside a networkless Bubblewrap sandbox; never give a document converter access to application credentials, company storage or host home directories. Preserve originals. No external document viewer.
 
 **Tech stack:** Existing React/Vite/Express, PDF.js 6.4.299, existing Linux LibreOffice and Bubblewrap.
+
+## Full-screen reader revision
+
+- One common attachment card and reader now serve message attachments, generated artifact cards, local attachment links and the image-gallery entry point. No automatically mounted inline document viewer or secondary tab/source toolbar.
+- PDF and Office pagination remains inside the content area. HTML uses the existing offline sandbox; media controls remain native. Closing restores the conversation.
+- 56 focused UI tests pass, including generated PPTX/HTML/image cards, six reader formats, authorization denial, explicit download and closing; direct UI TypeScript build passes.
+- Native iOS download requests explicitly copy URL-matching WebView cookies to the request, keep cross-origin/redirect guards, and distinguish authorization, missing-file and redirect errors. Native suite: 17 Node tests and 2 Python tests pass; arm64 Simulator build passes.
+- The screenshot alone does not establish the native failure's HTTP status. Physical iPhone download acceptance requires a new native binary and remains pending.
 
 ## Constraints and acceptance
 - Re-resolve each attachment from the task's authorized list before fetching content.

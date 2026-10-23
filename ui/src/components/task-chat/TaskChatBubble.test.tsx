@@ -11,10 +11,6 @@ import { IssueGalleryContext } from "@/context/IssueGalleryContext";
 import { TaskChatBubble } from "./TaskChatBubble";
 import type { TaskChatMessageItem } from "./task-chat-model";
 
-vi.mock("./InlineAttachmentPreview", async (original) => {
-  const actual = await original<typeof import("./InlineAttachmentPreview")>();
-  return { ...actual, InlineAttachmentPreview: ({ attachment, onExpand }: { attachment: IssueAttachment; onExpand?: () => void }) => <div data-testid="inline-preview">{attachment.contentType === "video/mp4" || attachment.originalFilename?.endsWith(".mp4") ? <video src={attachment.contentPath} /> : null}<button aria-label={`Open ${attachment.originalFilename}`} onClick={onExpand}>{attachment.originalFilename}</button></div> };
-});
 
 describe("TaskChatBubble attachment chips", () => {
   let container: HTMLDivElement;
@@ -87,7 +83,7 @@ describe("TaskChatBubble attachment chips", () => {
         </TextAttachmentContext.Provider>
       </ThemeProvider>,
     ));
-    const trigger = container.querySelector<HTMLButtonElement>(`button[aria-label="Open report.${extension}"]`);
+    const trigger = container.querySelector<HTMLButtonElement>(`button[aria-label="預覽 report.${extension}"]`);
     expect(trigger).not.toBeNull();
     expect(trigger?.closest("a[href]")).toBeNull();
     flushSync(() => trigger!.click());

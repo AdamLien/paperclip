@@ -1,4 +1,4 @@
-import { InlineAttachmentPreview, canPreviewInline } from "./InlineAttachmentPreview";
+import { AttachmentFileCard } from "@/components/AttachmentFileCard";
 import { TextAttachmentContext } from "@/context/TextAttachmentContext";
 import { ArtifactPreview } from "@/components/artifacts/ArtifactCard";
 import { isVideoLikeOutput } from "@/lib/issue-output";
@@ -269,11 +269,13 @@ function TaskChatBubbleContent({
           <span className="text-xs text-muted-foreground">
             Images · {imageRefs.length}
           </span>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="flex w-full flex-col gap-2">
             {imageRefs
               .slice(0, imageRefs.length > 4 ? 3 : 4)
-              .map((ref, index) => (
-                <button
+              .map((ref, index) => {
+                const file = attachments.find(a => a.id === ref.id);
+                if (file && openText) return <AttachmentFileCard key={ref.url} attachment={file} onOpen={() => openText(file.id, ref.name)} />;
+                return <button
                   key={ref.url}
                   type="button"
                   className="group aspect-video min-w-0 overflow-hidden rounded-md bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -287,7 +289,7 @@ function TaskChatBubbleContent({
                     className="h-full w-full object-cover transition-transform group-hover:scale-(--s-1_02)"
                   />
                 </button>
-              ))}
+              })}
             {imageRefs.length > 4 ? (
               <button
                 type="button"
@@ -312,7 +314,7 @@ function TaskChatBubbleContent({
           <AttachmentGroup className="w-full flex-col overflow-x-visible" data-testid="task-chat-bubble-attachments">
             {attachmentRefs.map((ref) => {
               const file = attachments.find((attachment) => attachment.id === ref.id);
-              if (file && canPreviewInline(file)) return <InlineAttachmentPreview key={ref.url} attachment={file} onExpand={isVideoLikeOutput(ref.contentType, ref.name) ? () => openImage(ref.url) : openText ? () => openText(file.id, ref.name) : undefined} />;
+              if (file && openText) return <AttachmentFileCard key={ref.url} attachment={file} onOpen={() => openText(file.id, ref.name)} />;
               const kind = fileKindForAttachment(ref);
               const KindIcon = kind.icon;
               const size = formatFileSize(ref.byteSize);

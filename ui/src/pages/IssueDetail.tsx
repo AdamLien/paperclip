@@ -1,5 +1,5 @@
 import { IssueApprovalBanner } from "../components/IssueApprovalBanner";
-import { TextAttachmentContext } from "../context/TextAttachmentContext";
+import { AttachmentPreviewProvider } from "../components/AttachmentPreviewProvider";
 import { useTaskBrowsers, useBrowserArrivals } from "@/hooks/useTaskBrowsers";
 import { WorkspaceExportRecovery } from "../components/WorkspaceExportRecovery";
 import { DispositionRecoveryProvider } from "../components/DispositionRecoveryNotice";
@@ -3723,12 +3723,6 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     setPanelVisible(true);
   }, [issue?.id, setPanelVisible, suppressPanelUntilPlan]);
   const handleAttachmentOpened = useCallback(() => setOpenAttachment(null), []);
-  const handleOpenTextAttachment = useCallback((id: string, title: string) => {
-    if (!issue?.id) return;
-    setOpenAttachment({ issueId: issue.id, id, title, requestId: Date.now() });
-    openTaskSidePanel();
-    if (isMobile) setMobilePropsOpen(true);
-  }, [issue?.id, openTaskSidePanel, isMobile]);
   const browserQuery = useTaskBrowsers(issue?.id);
   const { openBrowserId, openBrowser: setOpenBrowserId, acknowledgeBrowserOpened: handleBrowserOpened } =
     useBrowserArrivals(currentUserId ?? "anonymous", issue?.id, browserQuery.data);
@@ -7549,7 +7543,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
 
   return (
     <FileViewerProvider issueId={conversation && !conversation.issue ? "" : issue.id} enabled={fileViewerEnabled}>
-      <TextAttachmentContext.Provider value={taskChatShellEnabled ? handleOpenTextAttachment : null}><IssueGalleryContext.Provider value={openIssueGallery}>
+      <AttachmentPreviewProvider key={issue.id} issueId={issue.id} attachments={attachments ?? []} fallbackGallery={openIssueGallery}>
         <div
           data-task-chat-shell={taskChatShellEnabled ? "" : undefined}
           className={
@@ -8433,7 +8427,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           ) : null}
           <ScrollToBottom />
         </div>
-      </IssueGalleryContext.Provider></TextAttachmentContext.Provider>
+      </AttachmentPreviewProvider>
     </FileViewerProvider>
   );
 }

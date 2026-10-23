@@ -54,30 +54,13 @@ describe("CSV preview consent", () => {
         ),
       );
       expect(load).not.toHaveBeenCalled();
-      const open = container.querySelector<HTMLButtonElement>('button[aria-label="Open in tab: Data 0"]');
+      const open = container.querySelector<HTMLButtonElement>('button[aria-label="預覽 report-0.csv"]');
       await act(async () => open!.click());
       expect(openText).toHaveBeenCalledWith("attachment-0", "report-0.csv");
       expect(load).not.toHaveBeenCalled();
-      const preview = Array.from(container.querySelectorAll("button")).find(
-        (button) => button.textContent === "Preview data",
-      );
-      expect(preview).toBeDefined();
-      await act(async () => preview!.click());
-      await vi.waitFor(() =>
-        expect(container.textContent).toContain("Actual row"),
-      );
-      expect(load).toHaveBeenCalledTimes(1);
-      expect(load).toHaveBeenCalledWith(
-        "/api/attachments/csv-0/content",
-        expect.any(AbortSignal),
-      );
-      expect(container.textContent).toContain("View data");
-      const download = container.querySelector<HTMLAnchorElement>('a[download="report-0.csv"]');
-      expect(download?.textContent).toBe("Download file");
-      expect(download?.getAttribute("href")).toBe("/api/attachments/csv-0/content?download=1");
-      const openAfterPreview = container.querySelector<HTMLButtonElement>('button[aria-label="Open in tab: Data 0"]');
-      await act(async () => openAfterPreview!.click());
-      expect(openText).toHaveBeenCalledTimes(2);
+      expect(container.querySelectorAll('[data-testid="attachment-file-card"]')).toHaveLength(20);
+      expect(container.querySelector("a[download]")).toBeNull();
+      expect(load).not.toHaveBeenCalled();
     } finally {
       await act(async () => root.unmount());
       client.clear();
