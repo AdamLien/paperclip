@@ -1,4 +1,5 @@
 import { setIssueTitle } from "../services/issue-title.js";
+import { createOfficePreview, OfficePreviewError, officePreviewExtension, OFFICE_PREVIEW_MAX_BYTES } from "../services/office-preview.js";
 import { setIssueTitleSchema } from "@paperclipai/shared";
 import { resolveConfirmationFromComment } from "../services/confirmation-comment-resolution.js";
 import { createIssueReadTiming } from "../services/issue-read-timing.js";
@@ -18638,6 +18639,36 @@ export function issueRoutes(
       return;
     }
     if (!(await assertIssueReadAllowed(req, res, issue))) return;
+
+    // Derivatives use exactly the same company/issue authorization as originals.
+    if (req.query.preview === "pdf") {
+      if (!officePreviewExtension(attachment.originalFilename)) {
+        res.status(415).json({ error: "此格式尚未支援文件轉換預覽。" });
+        return;
+      }
+      if (attachment.byteSize > OFFICE_PREVIEW_MAX_BYTES) {
+        res.status(413).json({ error: "文件超過 20 MB 預覽上限。" });
+        return;
+      }
+      const controller = new AbortController();
+      const abort = () => { if (!res.writableEnded) controller.abort(); };
+      res.once("close", abort);
+      try {
+        const object = await storage.getObject(attachment.companyId, attachment.objectKey);
+        const pdf = await createOfficePreview({ filename: attachment.originalFilename, byteSize: attachment.byteSize, stream: object.stream, signal: controller.signal });
+        if (controller.signal.aborted) return;
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", "inline; filename=preview.pdf");
+        res.setHeader("Cache-Control", "private, no-store");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.send(pdf);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (error instanceof OfficePreviewError) res.status(error.status).json({ error: error.message });
+        else next(error);
+      } finally { res.off("close", abort); }
+      return;
+    }
 
     const contentLength = attachment.byteSize;
     const range = parseAttachmentRangeHeader(

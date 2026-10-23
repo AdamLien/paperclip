@@ -232,6 +232,7 @@ describe("issue attachment routes", () => {
     vi.doUnmock("../services/index.js");
     vi.doUnmock("../services/activity-log.js");
     vi.doUnmock("../routes/issues.js");
+    vi.doUnmock("../services/office-preview.js");
     vi.doUnmock("../routes/authz.js");
     vi.doUnmock("../middleware/index.js");
     registerRouteMocks();
@@ -290,6 +291,36 @@ describe("issue attachment routes", () => {
       }),
     );
     expect(res.body.contentType).toBe("application/zip");
+  });
+
+  it("serves an authorized Office derivative inline without changing original downloads", async () => {
+    const convert = vi.fn(async () => Buffer.from("%PDF-preview"));
+    vi.doMock("../services/office-preview.js", async () => ({
+      ...await vi.importActual<typeof import("../services/office-preview.js")>("../services/office-preview.js"), createOfficePreview: convert,
+    }));
+    const storage = createStorageService(Buffer.from("original"));
+    mockIssueService.getAttachmentById.mockResolvedValue({ ...makeAttachment("application/vnd.ms-powerpoint", "slides.ppt"), byteSize: 8 });
+    const app = await createApp(storage);
+    const preview = await request(app).get("/api/attachments/attachment-1/content?preview=pdf").buffer(true).parse(parseBinaryResponse);
+    expect(preview.status).toBe(200);
+    expect(preview.headers["content-type"]).toContain("application/pdf");
+    expect(preview.headers["content-disposition"]).toBe("inline; filename=preview.pdf");
+    expect(preview.headers["cache-control"]).toBe("private, no-store");
+    expect(convert).toHaveBeenCalledWith(expect.objectContaining({ filename: "slides.ppt", byteSize: 8 }));
+    expect(storage.getObject).toHaveBeenCalledWith("company-1", "issues/issue-1/slides.ppt");
+    const original = await request(app).get("/api/attachments/attachment-1/content?download=1").buffer(true).parse(parseBinaryResponse);
+    expect(original.body).toEqual(Buffer.from("original"));
+    expect(original.headers["content-disposition"]).toBe('attachment; filename="slides.ppt"');
+    expect(convert).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([["slides.pptx", 20 * 1024 * 1024 + 1, 413], ["bundle.zip", 4, 415]])("rejects unsupported or oversized preview %s before reading storage", async (name, size, status) => {
+    const storage = createStorageService();
+    mockIssueService.getAttachmentById.mockResolvedValue({ ...makeAttachment("application/octet-stream", String(name)), byteSize: size });
+    const app = await createApp(storage);
+    const response = await request(app).get("/api/attachments/attachment-1/content?preview=pdf");
+    expect(response.status).toBe(status);
+    expect(storage.getObject).not.toHaveBeenCalled();
   });
 
   it("removes a newly stored object when attachment registration is rejected", async () => {
@@ -699,12 +730,12 @@ describe("issue attachment routes", () => {
     expect(storage.getObject).not.toHaveBeenCalled();
   });
 
-  it("rejects cross-company attachment content reads", async () => {
+  it.each(["", "?preview=pdf"])("rejects cross-company attachment reads %s", async (query) => {
     const storage = createStorageService();
     mockIssueService.getAttachmentById.mockResolvedValue(makeAttachment("video/mp4", "clip.mp4"));
 
     const app = await createApp(storage, { companyIds: ["company-2"], source: "session" });
-    const res = await request(app).get("/api/attachments/attachment-1/content");
+    const res = await request(app).get(`/api/attachments/attachment-1/content${query}`);
 
     // Cross-tenant reads return 404 (not 403) so the status code cannot be
     // used as an existence oracle for other tenants' attachment ids.
@@ -713,7 +744,7 @@ describe("issue attachment routes", () => {
     expect(storage.getObject).not.toHaveBeenCalled();
   });
 
-  it("rejects same-company attachment content reads outside the parent issue boundary", async () => {
+  it.each(["", "?preview=pdf"])("rejects attachment reads outside the parent issue boundary %s", async (query) => {
     const storage = createStorageService();
     mockIssueService.getAttachmentById.mockResolvedValue(makeAttachment("video/mp4", "clip.mp4"));
     mockAccessService.decide.mockResolvedValue({
@@ -722,7 +753,7 @@ describe("issue attachment routes", () => {
     });
 
     const app = await createApp(storage);
-    const res = await request(app).get("/api/attachments/attachment-1/content");
+    const res = await request(app).get(`/api/attachments/attachment-1/content${query}`);
 
     expect(res.status).toBe(403);
     expect(storage.getObject).not.toHaveBeenCalled();
