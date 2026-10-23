@@ -32,7 +32,7 @@ export default function PdfAttachmentPreview({ url, title }: { url: string; titl
         const { default: workerUrl } = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
         if (cancelled) return;
         pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-        const loading = pdfjs.getDocument({ url, withCredentials: true, isEvalSupported: false, enableXfa: false });
+        const loading = pdfjs.getDocument({ url, withCredentials: true, enableXfa: false });
         task = loading;
         const pdf = await loading.promise;
         if (!cancelled) setDocument(pdf);

@@ -17,7 +17,7 @@ it("renders pages inside the app, bounds navigation, and destroys the loading ta
   mock.getDocument.mockReturnValue({ promise: Promise.resolve({ numPages: 2, getPage: mock.getPage }), destroy: mock.destroy });
   const host = document.createElement("div"); const root = createRoot(host);
   await act(async () => root.render(<PdfAttachmentPreview url="/api/attachments/id/content?preview=pdf" title="簡報" />));
-  expect(mock.getDocument).toHaveBeenCalledWith(expect.objectContaining({ withCredentials: true, isEvalSupported: false, enableXfa: false }));
+  expect(mock.getDocument).toHaveBeenCalledWith(expect.objectContaining({ withCredentials: true, enableXfa: false }));
   expect(host.textContent).toContain("1 / 2 頁");
   expect(host.querySelector("canvas")?.hidden).toBe(false);
   expect(host.querySelector<HTMLButtonElement>('[aria-label="上一頁"]')?.disabled).toBe(true);
