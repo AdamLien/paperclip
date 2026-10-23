@@ -1,6 +1,6 @@
 # Unified attachment preview implementation plan
 
-**Goal:** Clicking an attachment opens an in-app preview; downloading remains an explicit separate action.
+**Goal:** Supported attachments display directly inside conversation messages. Expand and original download remain separate explicit actions.
 
 **Design:** Reuse the authorized task side panel and existing HTML/Markdown/Mermaid renderers. Add PDF.js page navigation for both original PDFs and PDF derivatives of Office documents. Convert Office documents locally with LibreOffice inside a networkless Bubblewrap sandbox; never give a document converter access to application credentials, company storage or host home directories. Preserve originals. No external document viewer.
 
@@ -59,5 +59,7 @@
 ### In-conversation reading follow-up
 
 - User confirmed automatic previews inside conversation messages, with expand and original download as separate actions. Reuse the same authorized attachment panel in a bounded embedded card; mount only near the viewport and destroy viewers offscreen. Unknown/unbound links retain the existing file path behavior.
-- Release numbering: `YYYYMMDDNNN` using Asia/Taipei, UAT odd, production even. Build script validates format, date, environment and parity and records them in the hashed artifact manifest. Planned production build: `20261023002`.
-- SMS operational acceptance: the original proposal was expired with `send_called=false`. A fresh proposal for the unchanged, previously authorized recipient/content was reviewed as the connected admin and executed once as sammi. Remote receipt returned HTTP 200, `api_accepted`, `send_called=true`, `delivery_verified=false`. No recipient-delivery claim or resend. Tenant/recipient identifiers and credentials omitted from Git.
+- Release numbering: `YYYYMMDDNNN` using Asia/Taipei, UAT odd, production even. Build script validates format, date, environment and parity and records them in the hashed artifact manifest. Activated production build: `20261023002`, source `785184323cfb498a2ad6ae5d31b955674fa21731`. The Git-pinned, per-file hashed release was staged and activated atomically; paperclip.service confirmed active. Previous release retained for rollback.
+- SMS operational acceptance: the original proposal was expired with `send_called=false`. A fresh proposal for the unchanged, previously authorized recipient/content was reviewed as the connected admin and executed once as sammi. Remote receipt returned HTTP 200, `api_accepted`, `send_called=true`, `delivery_verified=false`. Adam subsequently confirmed the SMS was received. This is human-confirmed delivery, distinct from the provider receipt field. No resend. Tenant/recipient identifiers and credentials omitted from Git.
+
+- Current inline follow-up validation: 44 targeted tests passed (30 chat bubble, 13 attachment panel, 1 viewport lifecycle), direct UI TypeScript check and production build passed. Live chat automatically rendered the existing PPTX first page inside the message without opening the side panel. The subsequent final pagination/expand UI check was blocked when the background in-app browser reported a 0 by 0 viewport; it is not claimed as passed for the embedded variant. Earlier side-panel pagination remains separately verified above. Physical native App acceptance remains unverified.
