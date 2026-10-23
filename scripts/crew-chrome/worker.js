@@ -17,7 +17,8 @@ async function stop() {
 chrome.debugger.onDetach.addListener(source => { if (source.tabId === sharing?.tabId) void stop(); });
 chrome.tabs.onRemoved.addListener(tabId => { if (tabId === sharing?.tabId) void stop(); });
 async function page(tabId) {
-  const result = await send(tabId, 'Runtime.evaluate', { expression: 'JSON.stringify({url:location.href,title:document.title.slice(0,200),width:innerWidth,height:innerHeight,text:document.body.innerText.slice(0,45000)})', returnByValue: true });
+  const result = await send(tabId, 'Runtime.evaluate', { expression: 'JSON.stringify({url:location.href,title:document.title.slice(0,200),width:innerWidth,height:innerHeight,text:(document.body?.innerText??"").slice(0,45000)})', returnByValue: true });
+  if (typeof result.result?.value !== 'string') throw new Error('工作分頁內容尚未就緒，請重新啟動。');
   return JSON.parse(result.result.value);
 }
 async function execute(tabId, command) {

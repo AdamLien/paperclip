@@ -80,6 +80,14 @@ test('logged-in app starts a fresh Agent tab without copying a pairing code', as
   assert.equal(f.calls.find(([name]) => name === 'attach')[1].tabId, 9);
   assert.equal(f.requests.length, 1);
 });
+test('page snapshot tolerates a document whose body has not loaded yet', async () => {
+  const f = await fixture();
+  const dom = vm.createContext({ document: { title: '', body: null }, location: { href: 'https://example.com' }, innerWidth: 800, innerHeight: 600 });
+  f.context.chrome.debugger.sendCommand = async (_target, _method, params) => ({ result: { value: vm.runInContext(params.expression, dom) } });
+  const state = await vm.runInContext('page(9)', f.context);
+  assert.equal(state.url, 'https://example.com');
+  assert.equal(state.text, '');
+});
 test('app cannot select arbitrary existing tabs or use another environment selection', async () => {
   const f = await fixture();
   assert.ok((await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'selected', tabId: 99 }, appSender)).error);
