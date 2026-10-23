@@ -1,0 +1,7 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>mCrew 瀏覽器</title>
+<style>body{font:14px system-ui;width:300px;padding:12px}input,select,button{box-sizing:border-box;width:100%;padding:10px;margin:6px 0}label{display:block}#status{overflow-wrap:anywhere}</style>
+<h2>交給 mCrew</h2><p>只有目前選取的分頁會交給指定的 Agent。登入狀態留在 Chrome。配對最長兩小時。</p>
+<label>環境<select id="origin"><option value="https://crew.metabiz.work">正式環境</option><option value="https://crew-uat.metabiz.work">UAT</option></select></label>
+<button id="handoff">將此分頁交給 Agent</button><p>在 mCrew 選擇任務即可，不需配對碼。開啟新工作分頁可直接到 mCrew「瀏覽器」。</p><details><summary>手動配對（備用）</summary><label>App 顯示的配對碼<input id="token" type="password" autocomplete="off" spellcheck="false"></label>
+<button id="share">分享這個分頁</button></details><button id="stop">停止分享</button><p id="status" role="status"></p>
+<script type="module" src="popup.js"></script></html>
