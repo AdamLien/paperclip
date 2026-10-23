@@ -46,6 +46,35 @@ class CompanySandboxTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             sandbox.build_command(self.policy, self.env, self.cwd, [])
 
+    def test_notebooklm_never_inherits_host_credentials(self):
+        self.env.update(NOTEBOOKLM_HOME='/host-profile', NOTEBOOKLM_AUTH_JSON='host-secret')
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertNotIn('/host-profile', cmd)
+        self.assertNotIn('host-secret', cmd)
+        self.assertIn('NOTEBOOKLM_HOME', cmd)
+        self.assertIn('/run/crew-notebooklm', cmd)
+
+    def test_notebooklm_store_is_agent_scoped(self):
+        store = self.root / 'agent-secrets' / self.company / self.agent / 'notebooklm'
+        store.mkdir(parents=True)
+        self.policy['tenants'][self.company]['notebooklmAgents'] = [self.agent]
+        cmd = sandbox.build_command(self.policy, self.env, self.cwd, [])
+        self.assertIn(str(store), cmd)
+        other = self.root / 'workspaces' / 'agent-two'
+        other.mkdir()
+        cmd = sandbox.build_command(self.policy, dict(self.env, PAPERCLIP_AGENT_ID='agent-two'), other, [])
+        self.assertNotIn(str(store), cmd)
+
+    def test_notebooklm_store_missing_or_symlink_denied(self):
+        self.policy['tenants'][self.company]['notebooklmAgents'] = [self.agent]
+        with self.assertRaises(ValueError):
+            sandbox.build_command(self.policy, self.env, self.cwd, [])
+        store = self.root / 'agent-secrets' / self.company / self.agent / 'notebooklm'
+        store.parent.mkdir(parents=True)
+        store.symlink_to(self.cwd, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            sandbox.build_command(self.policy, self.env, self.cwd, [])
+
     def test_browser_mcp_for_every_agent_in_enabled_company(self):
         self.policy['tenants'][self.company]['browserEnabled'] = True
         for agent in [self.agent, 'agent-two']:

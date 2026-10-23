@@ -110,7 +110,17 @@ def build_command(policy, env, cwd, args):
         'PAPERCLIP_API_URL': 'http://127.0.0.1:3100',
         'SUPERMEMORY_CONFIG_PATH': '/run/crew-memory/client.json',
         'CREW_MEMORY_CONTAINER': tenant['containerTag'],
+        'NOTEBOOKLM_HOME': '/run/crew-notebooklm',
     }
+    # Never inherit the host's NotebookLM cookies or shared company profile.
+    # Login is provisioned separately for each explicitly authorized agent.
+    if agent in tenant.get('notebooklmAgents', []):
+        notebooklm_home = instance / 'agent-secrets' / company / agent / 'notebooklm'
+        if notebooklm_home.resolve() != notebooklm_home or not notebooklm_home.is_dir():
+            raise ValueError('Agent NotebookLM store must be a provisioned real directory')
+        cmd += ['--bind', str(notebooklm_home), '/run/crew-notebooklm']
+    else:
+        cmd += ['--dir', '/run/crew-notebooklm']
     # Personal Google tokens live outside the shared company Codex home.
     # Only an explicitly provisioned agent receives this mount and key.
     if agent in tenant.get('gogAgents', []):
