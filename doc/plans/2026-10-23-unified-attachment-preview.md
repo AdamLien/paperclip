@@ -48,3 +48,10 @@
 - The 16:47 mCRM auth receipt identified `adamlien329` as an admin and returned ready; later consumption lookup failed independently.
 - Opening the old SMS review URL now shows reconnect required. These are historical/current UI observations, not a new successful authorization or send.
 - Follow-up live verification: used the connector's native test dialog as sammi, with a single-call approval and no persistent policy change. Remote auth status succeeded in 1.9 seconds, selected operator role `admin`, state `ready`. This verifies the current connection; it does not repair the earlier consumption action or renew/send the old SMS proposal. No SMS was sent during this work.
+
+### Final release verification
+
+- Active source revision: `3fe656081580d6d03fbc83c3d0ccfdd91a0e2f53`; release `attachment-preview-3fe6560`. Versioned release activated atomically; user service restarted and confirmed active.
+- Removed the obsolete PDF.js 6 `isEvalSupported` option. Direct UI `tsc -b` passed, PDF viewer tests passed again, and the production UI build passed.
+- Reloaded the live sammi page against the final release: the existing 12-page PPTX rendered page 1, then page 2 after Next. Browser error log was empty. Final screenshot saved to `/Users/adamlien/.codex/visualizations/2026/10/23/mcrew-attachment-preview.png`.
+- Native iPhone/Android acceptance remains unverified.
