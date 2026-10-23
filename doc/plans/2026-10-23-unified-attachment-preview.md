@@ -10,9 +10,11 @@
 
 - One common attachment card and reader now serve message attachments, generated artifact cards, local attachment links and the image-gallery entry point. No automatically mounted inline document viewer or secondary tab/source toolbar.
 - PDF and Office pagination remains inside the content area. HTML uses the existing offline sandbox; media controls remain native. Closing restores the conversation.
-- 56 focused UI tests pass, including generated PPTX/HTML/image cards, six reader formats, authorization denial, explicit download and closing; direct UI TypeScript build passes.
+- 57 focused UI tests pass, including generated PPTX/HTML/image cards, six reader formats, authorization denial, explicit download, closing and embedded HTML image sanitization; direct UI TypeScript build passes.
 - Native iOS download requests explicitly copy URL-matching WebView cookies to the request, keep cross-origin/redirect guards, and distinguish authorization, missing-file and redirect errors. Native suite: 17 Node tests and 2 Python tests pass; arm64 Simulator build passes.
 - The screenshot alone does not establish the native failure's HTTP status. Physical iPhone download acceptance requires a new native binary and remains pending.
+- Live 390 × 844 verification on production build `20261023004`: full-screen HTML, one header and explicit Download/Close, PPTX page 1 to page 2 of 12; explicit original download is a valid 5,253,174-byte PPTX. Native changes: [mobile PR #4](https://github.com/AdamLien/paperclip-mobile/pull/4), stacked on #3.
+- Live HTML validation found embedded images stripped by the existing sanitizer. Preserve only base64 raster images on IMG elements; scripts, external URLs, SVG, srcset and network remain blocked. This follow-up is packaged as production build `20261023006` with the same Git/manifest staging process.
 
 ## Constraints and acceptance
 - Re-resolve each attachment from the task's authorized list before fetching content.

@@ -7,6 +7,8 @@ export function htmlReportPreviewDocument(html: string): string {
   for (const element of template.content.querySelectorAll("*")) {
     for (const attribute of [...element.attributes]) {
       const name = attribute.name.toLowerCase();
+      // Offline raster images are content; external URLs and SVG remain blocked.
+      if (name === "src" && element.tagName === "IMG" && /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(attribute.value)) continue;
       if (name.startsWith("on") || ["href", "xlink:href", "src", "srcset", "srcdoc", "ping", "action", "formaction", "poster", "background"].includes(name)) {
         element.removeAttribute(attribute.name);
       }
