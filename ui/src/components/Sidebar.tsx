@@ -22,6 +22,7 @@ import {
   GanttChartSquare,
   LayoutGrid,
   Users,
+  Globe,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -150,6 +151,7 @@ export function Sidebar({ children }: { children?: ReactNode }) {
           {personalAssistant && (
             <SidebarNavItem to={personalAssistant.to} label="我的秘書" icon={MessagesSquare} />
           )}
+          <SidebarNavItem to="/browser" label="瀏覽器" icon={Globe} />
           {/* New Task button aligned with nav items */}
           {(() => {
             const newTaskButton = (

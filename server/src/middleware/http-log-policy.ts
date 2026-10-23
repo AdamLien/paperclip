@@ -38,6 +38,7 @@ function normalizePath(url: string): string {
 }
 
 const SECRET_SENSITIVE_HTTP_PATHS = [
+  /^\/api\/(?:browser-workspace|companies\/[^/]+\/browser-workspace)(?:\/|$)/,
   /^\/mcp\/(?:oauth|paperclip)(?:\/|$)/,
   /^\/api\/mcp(?:\/|$)/,
   /^\/api\/chat-endpoints\/[^/]+\/setup(?:-secret)?(?:\/|$)/,

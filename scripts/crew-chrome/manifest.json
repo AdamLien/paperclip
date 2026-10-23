@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "metabiz Crew Chrome Companion",
+  "version": "0.1.0",
+  "description": "Share one selected Chrome tab with your mCrew browser session. Stop sharing at any time.",
+  "permissions": ["activeTab", "debugger"],
+  "host_permissions": ["https://crew.metabiz.work/*", "https://crew-uat.metabiz.work/*"],
+  "background": { "service_worker": "worker.js", "type": "module" },
+  "action": { "default_title": "mCrew 瀏覽器", "default_popup": "popup.html" }
+}

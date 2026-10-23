@@ -1,6 +1,7 @@
 import { cloudWarmStandbyMiddleware } from "./middleware/cloud-warm-standby.js";
 import type { CloudWarmStandby } from "./services/cloud-warm-standby.js";
 import { browserUseRoutes } from "./routes/browser-use.js";
+import { crewBrowserRoutes } from "./routes/crew-browser.js";
 import { browserUseService } from "./services/browser-use.js";
 import { slackToolRoutes } from "./routes/slack-tools.js";
 import { createPublicMcpOAuth, publicMcpConfig } from "./services/public-mcp/oauth.js";
@@ -684,6 +685,7 @@ export async function createApp(
   api.use(folderRoutes(db));
   api.use(companySkillRoutes(db));
   api.use(crewManagementRoutes(db));
+  api.use(crewBrowserRoutes(db));
   api.use(companySkillPolicyRoutes(db));
   api.use(inboxAgentPolicyRoutes(db));
   api.use(builtInAgentRoutes(db));
