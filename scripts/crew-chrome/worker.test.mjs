@@ -71,6 +71,9 @@ test('manual Chrome detach revokes the local session', async () => {
 const appSender = { id: 'companion', frameId: 0, url: 'https://crew.metabiz.work/META/browser', tab: { id: 3, url: 'https://crew.metabiz.work/META/browser' } };
 test('logged-in app starts a fresh Agent tab without copying a pairing code', async () => {
   const f = await fixture();
+  // Chrome omits URL metadata without a tabs/host/activeTab grant. Fresh tabs
+  // must work using debugger permission, without requesting all-site access.
+  f.context.chrome.tabs.get = async id => ({ id, status: 'complete' });
   const result = await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'new' }, appSender);
   assert.equal(result.started, true);
   assert.equal(f.calls.find(([name]) => name === 'create')[1].url, 'https://example.com');

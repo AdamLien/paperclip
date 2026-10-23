@@ -21,8 +21,7 @@ async function page(tabId) {
   return JSON.parse(result.result.value);
 }
 async function execute(tabId, command) {
-  const tab = await chrome.tabs.get(tabId);
-  if (!/^https?:\/\//.test(tab.url ?? '')) throw new Error('只能操作已分享的網站分頁');
+  if (!/^https?:\/\//.test((await page(tabId)).url)) throw new Error('只能操作已分享的網站分頁');
   switch (command.action) {
     case 'snapshot': {
       const state = await page(tabId);
@@ -74,14 +73,25 @@ async function loop(session) {
     } catch { if (sharing === session) await stop(); break; }
   }
 }
-async function share(tabId, origin, token) {
+async function share(tabId, origin, token, created = false) {
   if (!origins.includes(origin) || !/^[a-f0-9]{64}$/.test(token ?? '')) throw new Error('配對碼或環境不正確');
   if (pairing) throw new Error('正在啟動，請稍候。');
   pairing = true;
   try {
     const tab = await chrome.tabs.get(tabId);
-    if (!/^https?:\/\//.test(tab.url ?? '')) throw new Error('請先開啟要分享的網站');
+    // activeTab is granted by the popup for existing tabs. A newly-created tab
+    // has no such grant: validate its URL through our own debugger attachment.
+    if (!created && !/^https?:\/\//.test(tab.url ?? '')) throw new Error('請先開啟要分享的網站');
     const revision = await stop(); await chrome.debugger.attach({ tabId }, '1.3');
+    if (generation !== revision) { await chrome.debugger.detach({ tabId }).catch(() => {}); throw new Error('啟動已取消'); }
+    try {
+      let ready = false;
+      for (let i = 0; i < 40; i++) {
+        if (/^https?:\/\//.test((await page(tabId)).url)) { ready = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      if (!ready) throw new Error('工作分頁載入逾時，請重新啟動。');
+    } catch (error) { await chrome.debugger.detach({ tabId }).catch(() => {}); throw error; }
     if (generation !== revision) { await chrome.debugger.detach({ tabId }).catch(() => {}); throw new Error('啟動已取消'); }
     const session = { tabId, origin, token };
     sharing = session; await chrome.action.setBadgeText({ text: '分享中' });
@@ -121,16 +131,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       if (message.target === 'selected' && selectedTab?.origin !== origin) throw new Error('請先在擴充套件選擇分頁');
       const tabId = message.target === 'selected' ? selectedTab.id : (await chrome.tabs.create({ url: 'https://example.com', active: false })).id;
       try {
-        if (message.target === 'new') {
-          let ready = false;
-          for (let i = 0; i < 80; i++) {
-            const tab = await chrome.tabs.get(tabId);
-            if (/^https:\/\//.test(tab.url ?? '') && (!tab.status || tab.status === 'complete')) { ready = true; break; }
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-          if (!ready) throw new Error('工作分頁載入逾時，請重新啟動。');
-        }
-        await share(tabId, origin, message.token);
+        await share(tabId, origin, message.token, message.target === 'new');
       } catch (error) {
         if (message.target === 'new') await chrome.tabs.remove(tabId).catch(() => {});
         throw error;
