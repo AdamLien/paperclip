@@ -7,7 +7,7 @@ import time
 import urllib.request
 
 
-def request(path, body=None):
+def request(path, body=None, method=None):
     base = os.environ['PAPERCLIP_API_URL'].rstrip('/')
     if not base.startswith(('https://', 'http://127.0.0.1:', 'http://localhost:')):
         raise RuntimeError('Require HTTPS or local instance')
@@ -16,7 +16,7 @@ def request(path, body=None):
     headers = {'Authorization': 'Bearer ' + os.environ['PAPERCLIP_API_KEY'], 'Content-Type': 'application/json'}
     if os.environ.get('PAPERCLIP_RUN_ID'):
         headers['X-Paperclip-Run-Id'] = os.environ['PAPERCLIP_RUN_ID']
-    req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(), headers=headers)
+    req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(), headers=headers, method=method)
     # Do not forward credentials through redirects.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args):
@@ -27,7 +27,7 @@ def request(path, body=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['list', 'snapshot', 'navigate', 'click', 'type', 'key', 'scroll'])
+    parser.add_argument('action', choices=['list', 'snapshot', 'navigate', 'click', 'type', 'key', 'scroll', 'stop'])
     parser.add_argument('--session')
     parser.add_argument('--url')
     parser.add_argument('--text')
@@ -44,6 +44,9 @@ def main():
         parser.error('--session is required')
     import uuid
     uuid.UUID(args.session)
+    if args.action == 'stop':
+        print(json.dumps(request(root + '/' + args.session, method='DELETE'), ensure_ascii=False))
+        return
     body = {'action': args.action}
     for name in ['url', 'text', 'x', 'y', 'key', 'delta_y']:
         if getattr(args, name) is not None:

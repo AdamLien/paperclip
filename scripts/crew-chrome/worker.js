@@ -1,12 +1,16 @@
 let sharing = null;
 let pairing = false;
 let generation = 0;
+let selectedTab = null;
 const origins = ['https://crew.metabiz.work', 'https://crew-uat.metabiz.work'];
 const send = (tabId, method, params = {}) => chrome.debugger.sendCommand({ tabId }, method, params);
 async function stop() {
   const revision = ++generation;
   const previous = sharing; sharing = null;
-  if (previous) await chrome.debugger.detach({ tabId: previous.tabId }).catch(() => {});
+  if (previous) {
+    await chrome.debugger.detach({ tabId: previous.tabId }).catch(() => {});
+    await fetch(`${previous.origin}/api/browser-workspace/relay`, { method: 'DELETE', credentials: 'omit', redirect: 'error', headers: { 'X-Crew-Browser-Pairing': previous.token }, signal: AbortSignal.timeout(3000) }).catch(() => {});
+  }
   await chrome.action.setBadgeText({ text: '' });
   return revision;
 }
@@ -22,7 +26,7 @@ async function execute(tabId, command) {
   switch (command.action) {
     case 'snapshot': {
       const state = await page(tabId);
-      const controls = await send(tabId, 'Runtime.evaluate', { expression: 'JSON.stringify(Array.from(document.querySelectorAll("a,button,input,textarea,select,[role=button]")).map(el=>{const r=el.getBoundingClientRect();return {label:(el.getAttribute("aria-label")||el.innerText||el.getAttribute("placeholder")||el.tagName).slice(0,150),x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2),visible:r.width>0&&r.height>0&&r.x>=0&&r.y>=0&&r.right<=innerWidth&&r.bottom<=innerHeight}}).filter(x=>x.visible).slice(0,100))', returnByValue: true });
+      const controls = await send(tabId, 'Runtime.evaluate', { expression: 'JSON.stringify(Array.from(document.querySelectorAll("a,button,input,textarea,select,[role=button]")).map(el=>{const r=el.getBoundingClientRect();const sensitive=el.type==="password"||/password|cc-|one-time-code/i.test(el.autocomplete||"");return {label:(el.getAttribute("aria-label")||el.labels?.[0]?.innerText||el.innerText||el.getAttribute("placeholder")||el.tagName).slice(0,150),...(!sensitive&&["INPUT","TEXTAREA","SELECT"].includes(el.tagName)?{value:String(el.value||"").slice(0,1000)}:{}),...(["checkbox","radio"].includes(el.type)?{checked:el.checked}:{}),x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2),visible:r.width>0&&r.height>0&&r.x>=0&&r.y>=0&&r.right<=innerWidth&&r.bottom<=innerHeight}}).filter(x=>x.visible).slice(0,100))', returnByValue: true });
       return JSON.stringify({ ...state, controls: JSON.parse(controls.result.value) }).slice(0,50000);
     }
     case 'navigate': {
@@ -70,21 +74,71 @@ async function loop(session) {
     } catch { if (sharing === session) await stop(); break; }
   }
 }
-chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  if (sender.id !== chrome.runtime.id || !sender.url?.endsWith('/popup.html')) return;
-  if (message.type === 'stop') { void stop().then(() => respond({})); return true; }
-  if (message.type !== 'share') return;
-  if (pairing) { respond({ error: '正在配對，請稍候。' }); return; }
+async function share(tabId, origin, token) {
+  if (!origins.includes(origin) || !/^[a-f0-9]{64}$/.test(token ?? '')) throw new Error('配對碼或環境不正確');
+  if (pairing) throw new Error('正在啟動，請稍候。');
   pairing = true;
-  void (async () => {
-    if (!origins.includes(message.origin) || !/^[a-f0-9]{64}$/.test(message.token)) throw new Error('配對碼或環境不正確');
-    const tab = await chrome.tabs.get(message.tabId);
+  try {
+    const tab = await chrome.tabs.get(tabId);
     if (!/^https?:\/\//.test(tab.url ?? '')) throw new Error('請先開啟要分享的網站');
-    const revision = await stop(); await chrome.debugger.attach({ tabId: message.tabId }, '1.3');
-    if (generation !== revision) { await chrome.debugger.detach({ tabId: message.tabId }).catch(() => {}); throw new Error('配對已取消'); }
-    const session = { tabId: message.tabId, origin: message.origin, token: message.token };
+    const revision = await stop(); await chrome.debugger.attach({ tabId }, '1.3');
+    if (generation !== revision) { await chrome.debugger.detach({ tabId }).catch(() => {}); throw new Error('啟動已取消'); }
+    const session = { tabId, origin, token };
     sharing = session; await chrome.action.setBadgeText({ text: '分享中' });
-    void loop(session); respond({});
-  })().catch(error => respond({ error: error.message })).finally(() => { pairing = false; });
+    void loop(session);
+  } finally { pairing = false; }
+}
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (sender.id !== chrome.runtime.id) return;
+  const popup = sender.url === `chrome-extension://${chrome.runtime.id}/popup.html`;
+  let origin;
+  try { origin = new URL(sender.url).origin; } catch { return; }
+  const app = !popup && sender.frameId === 0 && origins.includes(origin)
+    && sender.tab && new URL(sender.tab.url).origin === origin;
+  if (!popup && !app) return;
+  void (async () => {
+    if (popup && message.type === 'stop') { await stop(); return {}; }
+    if (popup && message.type === 'select-tab') {
+      const tab = await chrome.tabs.get(message.tabId);
+      if (!/^https?:\/\//.test(tab.url ?? '') || !origins.includes(message.origin)) throw new Error('請選擇網站分頁');
+      selectedTab = { id: tab.id, origin: message.origin };
+      await chrome.tabs.create({ url: `${message.origin}/browser?share=1` });
+      return {};
+    }
+    // Manual pairing remains a fallback for older clients.
+    if (popup && message.type === 'share') { await share(message.tabId, message.origin, message.token); return {}; }
+    if (app && message.type === 'app-status') {
+      let target = null;
+      if (selectedTab?.origin === origin) {
+        try { const tab = await chrome.tabs.get(selectedTab.id); target = { title: tab.title ?? '', url: tab.url ?? '' }; }
+        catch { selectedTab = null; }
+      }
+      return { version: 2, target };
+    }
+    if (app && message.type === 'app-start') {
+      if (!/^[a-f0-9]{64}$/.test(message.token ?? '')) throw new Error('工作授權已失效，請重新啟動。');
+      if (!['new', 'selected'].includes(message.target)) throw new Error('不支援的啟動方式');
+      if (message.target === 'selected' && selectedTab?.origin !== origin) throw new Error('請先在擴充套件選擇分頁');
+      const tabId = message.target === 'selected' ? selectedTab.id : (await chrome.tabs.create({ url: 'https://example.com', active: false })).id;
+      try {
+        if (message.target === 'new') {
+          let ready = false;
+          for (let i = 0; i < 80; i++) {
+            const tab = await chrome.tabs.get(tabId);
+            if (/^https:\/\//.test(tab.url ?? '') && (!tab.status || tab.status === 'complete')) { ready = true; break; }
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          if (!ready) throw new Error('工作分頁載入逾時，請重新啟動。');
+        }
+        await share(tabId, origin, message.token);
+      } catch (error) {
+        if (message.target === 'new') await chrome.tabs.remove(tabId).catch(() => {});
+        throw error;
+      }
+      if (message.target === 'selected') selectedTab = null;
+      return { started: true };
+    }
+    throw new Error('不支援的操作');
+  })().then(respond).catch(error => respond({ error: error.message }));
   return true;
 });

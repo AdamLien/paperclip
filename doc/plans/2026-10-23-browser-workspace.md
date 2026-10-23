@@ -30,3 +30,14 @@ Production build `20261023010` was built from Git commit `a3cbc9e01af9b8d23ad19e
 The Git-built `crew-shared-browser` package was imported through the native company skill UI and assigned to all seven existing Agents. The UI confirmed seven assignments. Assignment is configuration evidence, not proof of an Agent operating Chrome.
 
 The desktop companion `20261023010` is built and packaged, but is not installed or paired. Human permission approval and harmless-page read/click/type/stop acceptance are still pending. The cloud interactive viewer remains disabled. This draft is not ready for general release or merge.
+
+
+## No-code daily launch — 2026-10-23
+
+Requested and approved in this conversation: install/sign in once, start a dedicated Agent tab from mCrew without copying a pairing code, and hand over an existing tab through the companion. Keep explicit task selection and immediate Stop. Implementation stays with the existing session broker; no new database or persistent bearer credential.
+
+The allowlisted mCrew origin gets a top-frame-only content-script bridge. Normal board session authentication creates the same company/user/Agent/task-scoped ephemeral capability. The bridge passes that credential directly to the worker; it is never put in a URL or stored. Dedicated launch creates a new harmless HTTPS tab; existing-tab handoff requires popup selection, then an explicit task/start click on the App. Mobile/webviews without the desktop bridge retain manual fallback. This is desktop Chrome integration, not remote mobile device discovery.
+
+Agent snapshots now return labels, safe form values and checkbox/radio state, omitting password/card/OTP values. The assigned active-task Agent may revoke its own session; other Agents/tasks cannot. Companion Stop also revokes the server capability. Skills instruct Agents to stop when work completes.
+
+Acceptance gates: bridge sender correlation/origin/frame checks; no arbitrary existing-tab IDs; correct environment; failed-start session rollback; Agent stop isolation; actual updated Chrome extension and Git-built server read/click/type/readback/stop. Automated checks do not replace the updated-extension device gate.

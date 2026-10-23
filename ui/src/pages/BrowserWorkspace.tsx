@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/context/CompanyContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
+import { crewChromeRequest } from "@/lib/crew-chrome";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,9 @@ export function BrowserWorkspace() {
   const cache = useQueryClient(); const [taskId, setTaskId] = useState(""); const [label, setLabel] = useState("我的 Mac Chrome");
   const [selected, setSelected] = useState<string | null>(null); const [pairing, setPairing] = useState<{ companyId: string; token: string } | null>(null);
   const [url, setUrl] = useState(""); const [message, setMessage] = useState<string | null>(null);
+  const company = useRef(selectedCompanyId); company.current = selectedCompanyId;
+  const [companion, setCompanion] = useState<{ version: number; target: { title: string; url: string } | null } | null>(null);
+  useEffect(() => { void crewChromeRequest("app-status").then(setCompanion).catch(() => setCompanion(null)); }, []);
   const root = `/companies/${selectedCompanyId}/browser-workspace`;
   const key = ["browser-workspace", selectedCompanyId];
   useEffect(() => { setBreadcrumbs([{ label: "瀏覽器" }]); }, [setBreadcrumbs]);
@@ -28,6 +32,21 @@ export function BrowserWorkspace() {
   const task = tasks.data?.find(t => t.id === taskId);
   const create = useMutation({ mutationFn: (input: { companyId: string; issueId: string; agentId: string; label: string }) => api.post<Session>(`/companies/${input.companyId}/browser-workspace`, { issueId: input.issueId, agentId: input.agentId, mode: "chrome", label: input.label }),
     onSuccess: (result, input) => { if (input.companyId !== selectedCompanyId) return; setPairing({ companyId: input.companyId, token: result.pairingToken! }); setSelected(result.id); void cache.invalidateQueries({ queryKey: key }); } });
+  const launch = useMutation({ mutationFn: async (input: { companyId: string; issueId: string; agentId: string; label: string; target: "new" | "selected" }) => {
+    const endpoint = `/companies/${input.companyId}/browser-workspace`;
+    const result = await api.post<Session>(endpoint, { issueId: input.issueId, agentId: input.agentId, mode: "chrome", label: input.label });
+    try {
+      if (company.current !== input.companyId) throw new Error("公司已切換，請重新啟動。");
+      await crewChromeRequest("app-start", { token: result.pairingToken, target: input.target });
+      if (company.current !== input.companyId) throw new Error("公司已切換，已停止剛才啟動的工作分頁。");
+      return result;
+    } catch (error) { await api.delete(`${endpoint}/${result.id}`).catch(() => {}); throw error; }
+  }, onSuccess: (result, input) => {
+    if (input.companyId !== company.current) return;
+    setSelected(result.id); setPairing(null); setMessage("已啟動，正在等待 Chrome 回傳畫面。");
+    setCompanion(current => current ? { ...current, target: null } : null);
+    void cache.invalidateQueries({ queryKey: key });
+  } });
   const stop = useMutation({ mutationFn: (id: string) => api.delete(`${root}/${id}`),
     onSuccess: () => { setSelected(null); setPairing(null); void cache.invalidateQueries({ queryKey: key }); } });
   const command = useMutation({ mutationFn: (body: Record<string, unknown>) => api.post(`${root}/${selected}/commands`, body),
@@ -38,15 +57,18 @@ export function BrowserWorkspace() {
     <header><h1 className="text-xl font-semibold">瀏覽器</h1><p className="mt-2 text-sm text-muted-foreground">選擇工作位置，與指定 Agent 共用分頁。停止分享後便無法繼續控制。</p></header>
     <div className="grid gap-4 md:grid-cols-2">
       <section className="space-y-3 rounded-xl border p-4"><h2 className="flex items-center gap-2 font-medium"><Globe className="size-5" />我的 Chrome</h2>
-        <p className="text-sm text-muted-foreground">使用電腦 Chrome 原本的登入狀態。由你在 Chrome 選擇一個分頁分享；配對最長兩小時。</p>
+        <p className="text-sm text-muted-foreground">在已安裝擴充套件的 Chrome 登入 mCrew，即可直接啟動 Agent 專用分頁，不用貼配對碼。控制最長兩小時，可隨時停止。</p>
         <label className="block text-sm">交給哪一項工作<select aria-label="選擇工作" className="mt-1 block w-full rounded-md border bg-background p-2" value={taskId} onChange={e => setTaskId(e.target.value)}>
           <option value="">請選擇已指派 Agent 的任務</option>{tasks.data?.filter(t => t.assigneeAgentId).map(t => <option key={t.id} value={t.id}>{t.identifier} · {t.title}</option>)}
         </select></label>
         <label className="block text-sm">裝置名稱<Input value={label} onChange={e => setLabel(e.target.value)} maxLength={80} /></label>
-        <Button disabled={!task?.assigneeAgentId || !label.trim() || create.isPending} onClick={() => { setMessage(null); create.mutate({ companyId: selectedCompanyId, issueId: taskId, agentId: task!.assigneeAgentId!, label }); }}>建立分頁配對</Button>
-        <details className="text-sm"><summary className="cursor-pointer">第一次連線</summary><ol className="mt-2 list-decimal space-y-2 pl-5">
-          <li>在電腦 Chrome 安裝公司提供的 mCrew Chrome Companion。</li><li>建立配對後，將配對碼貼到擴充套件。</li><li>切到要分享的網站，按「分享這個分頁」。</li>
-        </ol><p className="mt-2">配對碼等同本次分頁控制權，請只貼到公司擴充套件，不要傳到聊天。</p></details>
+        <p className="text-sm" role="status">{companion?.version === 2 ? "Chrome 擴充套件已連線" : "請在已安裝新版擴充套件的 Chrome 開啟此頁，並重新整理。"}</p>
+        <Button disabled={!companion || !task?.assigneeAgentId || !label.trim() || launch.isPending} onClick={() => { setMessage(null); launch.mutate({ companyId: selectedCompanyId, issueId: taskId, agentId: task!.assigneeAgentId!, label, target: "new" }); }}>啟動 Agent 分頁</Button>
+        {companion?.target && <div className="space-y-2"><p className="break-all text-sm">選定分頁：{companion.target.title} {companion.target.url}</p><Button variant="outline" disabled={!task?.assigneeAgentId || !label.trim() || launch.isPending} onClick={() => launch.mutate({ companyId: selectedCompanyId, issueId: taskId, agentId: task!.assigneeAgentId!, label, target: "selected" })}>交接選定分頁</Button></div>}
+        <details className="text-sm"><summary className="cursor-pointer">安裝與手動配對（備用）</summary><p className="mt-2">安裝公司提供的新版 mCrew Chrome Companion 後，重新整理此頁。交接既有網站時，在該分頁的擴充套件按「將此分頁交給 Agent」，再回到此頁選擇任務。</p>
+          <Button variant="outline" disabled={!task?.assigneeAgentId || !label.trim() || create.isPending} onClick={() => create.mutate({ companyId: selectedCompanyId, issueId: taskId, agentId: task!.assigneeAgentId!, label })}>建立分頁配對</Button>
+          <p className="mt-2">手動配對僅供舊版或跨裝置使用；將配對碼貼到公司擴充套件，不要傳到聊天。</p>
+        </details>
       </section>
       <section className="space-y-3 rounded-xl border p-4"><h2 className="flex items-center gap-2 font-medium"><Cloud className="size-5" />雲端瀏覽器</h2>
         <p className="text-sm text-muted-foreground">Agent 在伺服器的公司隔離環境執行，與你的電腦及個人 Chrome 分開。</p>
@@ -58,7 +80,7 @@ export function BrowserWorkspace() {
       <Input aria-label="分頁配對碼" type="password" readOnly value={pairing.token} autoComplete="off" />
       <Button variant="outline" onClick={() => void navigator.clipboard.writeText(pairing.token).then(() => setMessage("配對碼已複製，請貼到 Chrome 擴充套件。")).catch(() => setMessage("無法複製配對碼，請確認剪貼簿權限。"))}>複製配對碼</Button>
       <Button variant="ghost" onClick={() => setPairing(null)}>隱藏配對碼</Button></section>}
-    {(create.error || stop.error || command.error || sessions.error || detail.error || tasks.error) && <p role="alert" className="text-destructive">{(create.error || stop.error || command.error || sessions.error || detail.error || tasks.error)?.message}</p>}
+    {(launch.error || create.error || stop.error || command.error || sessions.error || detail.error || tasks.error) && <p role="alert" className="text-destructive">{(launch.error || create.error || stop.error || command.error || sessions.error || detail.error || tasks.error)?.message}</p>}
     {message && <p role="status" className="text-sm">{message}</p>}
     <div className="flex flex-wrap gap-2">{sessions.data?.map(s => <div key={s.id} className="flex gap-1"><Button variant={selected === s.id ? "default" : "outline"} onClick={() => { setSelected(s.id); setPairing(null); setMessage(null); }}>{s.label} · {s.status === "connected" ? "已連線" : s.status === "waiting" ? "等待分享" : "已中斷"}</Button><Button variant="ghost" aria-label={`停止 ${s.label}`} disabled={stop.isPending} onClick={() => stop.mutate(s.id)}><Square className="size-4" /></Button></div>)}</div>
     {session && <section className="overflow-hidden rounded-xl border">

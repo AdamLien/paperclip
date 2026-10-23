@@ -96,6 +96,12 @@ describe("browser HTTP boundary", () => {
     expect((await http(f.app).post("/browser-workspace/relay").set("X-Crew-Browser-Pairing", f.s.pairingToken).send(state)).status).toBe(200);
     expect((await http(f.app).get(`${root}/${f.s.id}`)).status).toBe(401);
   });
+  it("companion Stop revokes the server capability without browser cookies", async () => {
+    const f = fixture(); f.actor({ type: "none" });
+    expect((await http(f.app).delete("/browser-workspace/relay")).status).toBe(403);
+    expect((await http(f.app).delete("/browser-workspace/relay").set("X-Crew-Browser-Pairing", f.s.pairingToken)).status).toBe(200);
+    expect((await http(f.app).post("/browser-workspace/relay").set("X-Crew-Browser-Pairing", f.s.pairingToken).send(state)).status).toBe(403);
+  });
   it("denies another user or company", async () => {
     const f = fixture(); f.actor({ type: "board", userId: "other", companyIds: [scope.companyId] });
     expect((await http(f.app).get(`${root}/${f.s.id}`)).status).toBe(404);
@@ -111,6 +117,16 @@ describe("browser HTTP boundary", () => {
     expect((await http(f.app).get(root)).body).toEqual([]);
     f.actor({ ...agent, onBehalfOfUserId: undefined });
     expect((await http(f.app).get(`${root}/${f.s.id}`)).status).toBe(403);
+  });
+  it("lets only the assigned active-task agent stop, and revokes relay immediately", async () => {
+    const f = fixture();
+    const agent = { type: "agent" as const, companyId: scope.companyId, agentId: scope.agentId, onBehalfOfUserId: scope.ownerId, onBehalfOfMemberships: [{ companyId: scope.companyId, status: "active", membershipRole: "member" }], runId: randomUUID() };
+    f.actor(agent); f.otherTask();
+    expect((await http(f.app).delete(`${root}/${f.s.id}`)).status).toBe(403);
+    const g = fixture(); g.actor(agent);
+    expect((await http(g.app).delete(`${root}/${g.s.id}`)).status).toBe(200);
+    g.actor({ type: "none" });
+    expect((await http(g.app).post("/browser-workspace/relay").set("X-Crew-Browser-Pairing", g.s.pairingToken).send(state)).status).toBe(403);
   });
   it("lets the owner revoke after task reassignment and immediately rejects relay", async () => {
     const f = fixture(); f.reassign();

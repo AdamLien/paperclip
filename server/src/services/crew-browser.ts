@@ -38,6 +38,7 @@ export function crewBrowserService(now = () => Date.now()) {
         connectedAt: null, lastSeen: null, url: "", title: "", frame: null, width: 0, height: 0 };
       sessions.set(s.id, s); return { ...view(s), pairingToken: token };
     },
+    revoke(token: string) { const s = relay(token); sessions.delete(s.id); },
     list(scope: BrowserScope) { sweep(); return [...sessions.values()].filter(s => s.companyId === scope.companyId && s.ownerId === scope.ownerId && (!scope.agentId || s.agentId === scope.agentId)).map(view); },
     read(id: string, scope: BrowserScope) { return view(get(id, scope)); },
     stop(id: string, scope: BrowserScope) { get(id, scope); sessions.delete(id); },

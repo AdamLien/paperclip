@@ -31,6 +31,12 @@ export function crewBrowserRoutes(db: Db, service = crewBrowserService()) {
     if (!token) throw forbidden("Browser pairing required");
     res.json(service.exchange(token, exchange.parse(req.body)));
   });
+  router.delete("/browser-workspace/relay", (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const token = /^[a-f0-9]{64}$/.exec(req.header("x-crew-browser-pairing") ?? "")?.[0];
+    if (!token) throw forbidden("Browser pairing required");
+    service.revoke(token); res.json({ stopped: true });
+  });
   const root = "/companies/:companyId/browser-workspace";
   router.use(root, (req, res, next) => {
     uuid.parse(req.params.companyId); assertCompanyAccess(req, req.params.companyId);
@@ -92,10 +98,11 @@ export function crewBrowserRoutes(db: Db, service = crewBrowserService()) {
     const s = await accessible(req, res, uuid.parse(req.params.sessionId)); if (s) res.json(s);
   });
   router.delete(`${root}/:sessionId`, async (req, res) => {
-    assertBoard(req); const id = uuid.parse(req.params.sessionId);
-    const s = service.read(id, scope(req));
+    const id = uuid.parse(req.params.sessionId);
+    const s = req.actor.type === "agent" ? await accessible(req, res, id) : service.read(id, scope(req));
+    if (!s) return;
     service.stop(id, scope(req));
-    await logActivity(db, { companyId: scope(req).companyId, actorType: "user", actorId: getActorInfo(req).actorId,
+    await logActivity(db, { companyId: scope(req).companyId, actorType: getActorInfo(req).actorType, actorId: getActorInfo(req).actorId,
       action: "browser_workspace.stopped", entityType: "browser_session", entityId: id, issueId: s.issueId });
     res.json({ stopped: true });
   });

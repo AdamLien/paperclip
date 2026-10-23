@@ -17,7 +17,7 @@ async function fixture(response = { command: null }) {
           if (method === 'Page.captureScreenshot') return { data: 'YWJj' };
           return {};
         } },
-      tabs: { onRemoved: { addListener: fn => { listeners.removed = fn; } }, get: async id => ({ id, url: 'https://example.com' }), update: async (id, value) => calls.push(['update', { tabId: id }, value]) },
+      tabs: { create: async value => { calls.push(['create', value]); return { id: 9, ...value }; }, onRemoved: { addListener: fn => { listeners.removed = fn; } }, get: async id => ({ id, url: 'https://example.com' }), update: async (id, value) => calls.push(['update', { tabId: id }, value]) },
       action: { setBadgeText: async () => {} },
     },
   });
@@ -66,4 +66,49 @@ test('manual Chrome detach revokes the local session', async () => {
   const f = await fixture(); await f.share(); f.listeners.detach({ tabId: 7 });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(vm.runInContext('sharing', f.context), null);
+});
+
+const appSender = { id: 'companion', frameId: 0, url: 'https://crew.metabiz.work/META/browser', tab: { id: 3, url: 'https://crew.metabiz.work/META/browser' } };
+test('logged-in app starts a fresh Agent tab without copying a pairing code', async () => {
+  const f = await fixture();
+  const result = await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'new' }, appSender);
+  assert.equal(result.started, true);
+  assert.equal(f.calls.find(([name]) => name === 'create')[1].url, 'https://example.com');
+  assert.equal(f.calls.find(([name]) => name === 'attach')[1].tabId, 9);
+  assert.equal(f.requests.length, 1);
+});
+test('app cannot select arbitrary existing tabs or use another environment selection', async () => {
+  const f = await fixture();
+  assert.ok((await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'selected', tabId: 99 }, appSender)).error);
+  await f.message({ type: 'select-tab', tabId: 7, origin: 'https://crew-uat.metabiz.work' });
+  assert.ok((await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'selected' }, appSender)).error);
+  assert.equal(f.calls.filter(([name])=>name==='attach').length,0);
+});
+test('popup-selected tab can be handed to the app once without a code', async () => {
+  const f = await fixture();
+  await f.message({ type: 'select-tab', tabId: 7, origin: 'https://crew.metabiz.work' });
+  assert.ok((await f.message({ type: 'app-status' }, appSender)).target);
+  assert.equal((await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'selected' }, appSender)).started, true);
+  assert.equal((await f.message({ type: 'app-status' }, appSender)).target, null);
+  assert.ok((await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'selected' }, appSender)).error);
+});
+test('untrusted sites, nested frames and spoofed extension pages cannot launch', async () => {
+  const f = await fixture();
+  for (const sender of [ { ...appSender, url: 'https://evil.example/META/browser' }, { ...appSender, frameId: 1 }, { ...appSender, id: 'other' }, { ...appSender, url: 'https://evil.example/popup.html' } ]) {
+    assert.equal(await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'new' }, sender), undefined);
+  }
+  assert.equal(f.calls.length,0);
+});
+test('snapshot reads form values and checkbox state without returning password or OTP values', async () => {
+  const f = await fixture();
+  const element = (type, value, extra = {}) => ({ type, value, tagName: 'INPUT', autocomplete: '', labels: [{ innerText: 'Test field' }], getAttribute: () => null, getBoundingClientRect: () => ({ x: 0, y: 0, width: 20, height: 20, right: 20, bottom: 20 }), ...extra });
+  const elements = [element('text', 'MCREW-CHROME-TEST'), element('checkbox', 'on', { checked: true }), element('password', 'secret-password'), element('text', '123456', { autocomplete: 'one-time-code' })];
+  const dom = vm.createContext({ document: { querySelectorAll: () => elements, title: 'Test', body: { innerText: 'Test form' } }, location: { href: 'https://example.com' }, innerWidth: 800, innerHeight: 600 });
+  f.context.chrome.debugger.sendCommand = async (_target, _method, params) => ({ result: { value: vm.runInContext(params.expression, dom) } });
+  const result = JSON.parse(await vm.runInContext('execute(7, {action:"snapshot"})', f.context));
+  assert.equal(result.controls[0].value, 'MCREW-CHROME-TEST');
+  assert.equal(result.controls[1].checked, true);
+  assert.equal('value' in result.controls[2], false);
+  assert.equal('value' in result.controls[3], false);
+  assert.ok(!JSON.stringify(result).includes('secret-password'));
 });

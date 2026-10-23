@@ -1,40 +1,14 @@
 # mCrew Chrome Companion
 
-Status: development preview. Chrome device acceptance is pending. The server and UI must be deployed together before pairing can work. The UAT host in this build is a reserved target; its availability must be checked before use.
+Use only the company-provided package. Browser control remains limited to one task/Agent-bound tab, with a two-hour maximum. No cookie export, public CDP port, stored browser password or persistent pairing credential.
 
-This extension shares one desktop Chrome tab selected by the human. It sends the tab URL, title and screenshot to the selected mCrew server. A snapshot command also returns visible text and labeled controls. The assigned task Agent can navigate, click, type, press supported keys and scroll. A shared page can contain private data; share only the tab needed for the task.
+## Daily use
 
-## Installation and pairing
+1. Install/update the companion, then reload mCrew in the **same Chrome profile**.
+2. Sign in normally. Open mCrew **瀏覽器**, select the task, and click **啟動 Agent 分頁**. The extension creates a dedicated `https://example.com` tab and mCrew passes the short-lived task credential automatically. The Agent can then navigate that tab.
+3. For an existing tab, click the companion **將此分頁交給 Agent**. It opens mCrew; select the task and click **交接選定分頁**. Only that explicitly selected tab can be handed over, once.
+4. Stop from mCrew, the companion, or the assigned Agent's `stop` client command. The server capability is revoked. A command already dispatched can finish; stopping cannot undo submitted actions.
 
-1. Check the source revision, build number and file hashes in the adjacent build manifest.
-2. Unzip the extension into a dedicated folder. Open `chrome://extensions` in desktop Chrome, enable Developer mode, then choose **Load unpacked** and this folder.
-3. Review Chrome's debugger permission prompt yourself. The debugger permission is powerful. This extension restricts operations to the single tab you choose; it does not export the browser cookie store.
-4. In mCrew, open **瀏覽器**, select a task assigned to an Agent and create a pairing code. The code is valid for five minutes until first contact.
-5. Select the website tab in desktop Chrome. Open the companion, select the matching environment, paste the code and press **分享這個分頁**.
-6. Confirm the device label, task, Agent, site URL and screenshot in mCrew before asking the Agent to operate.
-7. Press **停止分享** in Chrome or **停止控制** in mCrew to revoke control. Chrome's own debugger banner can also disconnect the companion. A command already sent to the page can finish; stopping cannot undo a submitted action.
+The bridge is injected only into the two allowlisted mCrew HTTPS origins and rejects iframe/untrusted senders. Normal mCrew login and company/task authorization remain required. Tabs are not automatically shared simply because the extension is installed. Native mobile Apps and other browsers without the companion do not have this local bridge; manual pairing remains a fallback in collapsed settings.
 
-No passwords, cookies or pairing codes belong in an Agent conversation. Pairing tokens are held only in extension memory. Browser/server restart or two-hour expiry requires a new share. A network failure stops sharing; action commands are not retried. No arbitrary Agent-supplied JavaScript is accepted.
-
-## Agent client
-
-Install `skills/crew-shared-browser/` through the company skill workflow and assign it to the task Agent. Its bundled Python client uses the current run's Paperclip API credential and responsible-user context. The server requires an active run for that exact task. Installation and assignment remain deployment steps; this package alone does not change Agent permissions.
-
-## Build
-
-From the repository root, after committing source:
-
-```sh
-node scripts/build-crew-chrome.mjs /absolute/new/output YYYYMMDDNNN uat
-```
-
-Use today's Taipei date. UAT serials are odd; production serials are even. The command reads Git source, makes an unpacked directory, ZIP and SHA-256 manifest, and never activates a release.
-
-## Remaining acceptance
-
-- Deploy the server and UI against the verified runtime baseline.
-- Install and assign the bundled Agent skill.
-- Human installation and explicit tab sharing in actual Chrome.
-- An assigned Agent reads, clicks and types on a harmless test page.
-- Device screenshot in App, company switching and stop/revocation checks.
-- Cloud interactive worker integration under the existing company sandbox. The existing isolated Agent browser is a separate tool and is not a completed live viewer here.
+A snapshot includes visible text, labels, safe editable values and checked states. Password/card/OTP values are omitted. Tab contents/screenshots may contain sensitive data: share only pages needed for the authorized task. The debugger banner shows ongoing Chrome access.

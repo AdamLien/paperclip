@@ -16,7 +16,7 @@ const sourceRevision = git('rev-parse', 'HEAD');
 const output = resolve(outputArg); const extension = join(output, 'extension');
 await mkdir(output); await mkdir(extension);
 const hashes = {};
-for (const file of ['manifest.json', 'popup.html', 'popup.js', 'worker.js', 'README.md']) {
+for (const file of ['manifest.json', 'popup.html', 'popup.js', 'worker.js', 'bridge.js', 'README.md']) {
   let data = execFileSync('git', ['show', `${sourceRevision}:scripts/crew-chrome/${file}`]);
   if (file === 'manifest.json') {
     const manifest = JSON.parse(data.toString()); manifest.version_name = `${manifest.version} (${buildNumber} ${environment})`;
