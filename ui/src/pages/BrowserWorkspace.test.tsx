@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserWorkspace } from "./BrowserWorkspace";
+import { applyCompanyPrefix, toCompanyRelativePath } from "@/lib/company-routes";
 const mock = vi.hoisted(() => ({ company: "company-a", get: vi.fn(), post: vi.fn(), delete: vi.fn(), breadcrumbs: vi.fn() }));
 vi.mock("@/context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: mock.company }) }));
 vi.mock("@/context/BreadcrumbContext", () => ({ useBreadcrumbs: () => ({ setBreadcrumbs: mock.breadcrumbs }) }));
@@ -11,6 +12,11 @@ vi.mock("@/api/client", () => ({ api: { get: mock.get, post: mock.post, delete: 
 vi.mock("@/lib/router", () => ({ Link: ({ to, children, ...props }: any) => <a href={to} {...props}>{children}</a> }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => { mock.company = "company-a"; vi.clearAllMocks(); document.body.innerHTML = ""; });
+
+it("keeps the browser sidebar entry and company switching in the selected company", () => {
+  expect(applyCompanyPrefix("/browser", "META")).toBe("/META/browser");
+  expect(toCompanyRelativePath("/META/browser")).toBe("/browser");
+});
 
 it("shows waiting until relay evidence, clears the pairing when company changes, and supports stopping", async () => {
   const session = { id: "session", issueId: "task", agentId: "agent", mode: "chrome", label: "我的 Mac Chrome", status: "waiting", frame: null, url: "", title: "" };
