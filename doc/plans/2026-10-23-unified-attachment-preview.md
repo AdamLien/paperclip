@@ -15,6 +15,7 @@
 - The screenshot alone does not establish the native failure's HTTP status. Physical iPhone download acceptance requires a new native binary and remains pending.
 - Live 390 × 844 verification on production build `20261023004`: full-screen HTML, one header and explicit Download/Close, PPTX page 1 to page 2 of 12; explicit original download is a valid 5,253,174-byte PPTX. Native changes: [mobile PR #4](https://github.com/AdamLien/paperclip-mobile/pull/4), stacked on #3.
 - Live HTML validation found embedded images stripped by the existing sanitizer. Preserve only base64 raster images on IMG elements; scripts, external URLs, SVG, srcset and network remain blocked. This follow-up is packaged as production build `20261023006` with the same Git/manifest staging process.
+- Final live acceptance: `20261023006` activated from `014bba67f461acb04e47ca14b29fac37bf1645c3`; service active, previous `20261023004` retained. At 390 × 844, HTML's embedded PNG is visibly rendered with the single Download/Close header. Screenshot: `/Users/adamlien/.codex/visualizations/2026/10/23/mcrew-fullscreen-html.png`. Image reader and PPTX pagination/original download were verified above; physical native download remains pending.
 
 ## Constraints and acceptance
 - Re-resolve each attachment from the task's authorized list before fetching content.
