@@ -27,6 +27,9 @@ describe("text attachment tabs", () => {
     expect(host.querySelector("[data-pdf-url]")?.getAttribute("data-pdf-url")).toBe(`/api/attachments/document/content${query}`);
     expect(host.querySelector("a")?.getAttribute("href")).toBe("/api/attachments/document/content?download=1");
     expect(fetch).not.toHaveBeenCalled();
+    await act(async () => root.render(<QueryClientProvider client={client}><TaskAttachmentPanel issueId="task" attachmentId="document" embedded /></QueryClientProvider>));
+    expect(host.querySelector("[data-pdf-url]")?.getAttribute("data-pdf-url")).toBe(`/api/attachments/document/content${query}`);
+    expect(host.querySelector("header")).toBeNull();
     await act(async () => root.render(<QueryClientProvider client={client}><TaskAttachmentPanel issueId="task" attachmentId="not-authorized" /></QueryClientProvider>));
     expect(host.querySelector("[data-pdf-url]")).toBeNull();
     await act(async () => root.unmount()); client.clear();

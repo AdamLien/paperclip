@@ -8,6 +8,13 @@ import { transform, version as esbuildVersion } from "esbuild";
 
 const [outputArg, baselineArg, baseRevision] = process.argv.slice(2);
 if (!outputArg || !baselineArg || !baseRevision) throw new Error("Usage: node scripts/metabiz-build-attachment-preview.mjs OUTPUT PREVIOUS_ISSUES_JS BASE_GIT_REVISION");
+const buildNumber = process.env.METABIZ_BUILD_NUMBER;
+const environment = process.env.METABIZ_RELEASE_ENV;
+if (!/^\d{8}\d{3}$/.test(buildNumber ?? "") || !["uat", "prod"].includes(environment)) throw new Error("Set METABIZ_BUILD_NUMBER=YYYYMMDDNNN and METABIZ_RELEASE_ENV=uat|prod.");
+const serial = Number(buildNumber.slice(8));
+if (serial < 1 || serial % 2 !== (environment === "uat" ? 1 : 0)) throw new Error("UAT builds must be odd; production builds must be even.");
+const buildDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()).replaceAll("-", "");
+if (buildNumber.slice(0, 8) !== buildDate) throw new Error("Build date must match today's Taipei date.");
 const output = resolve(outputArg);
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 if (git("diff", "HEAD", "--", "server/src", "ui/src", "ui/package.json", "scripts/metabiz-build-attachment-preview.mjs")) throw new Error("Commit source changes before building.");
@@ -35,5 +42,5 @@ async function inventory(directory, prefix = "") {
   }
 }
 await inventory(output);
-await writeFile(join(output, "manifest.json"), JSON.stringify({ sourceRevision, baseRevision, baselineIssuesSha256: sha(baseline), esbuildVersion, builtAt: new Date().toISOString(), hashes }, null, 2));
+await writeFile(join(output, "manifest.json"), JSON.stringify({ buildNumber, environment, sourceRevision, baseRevision, baselineIssuesSha256: sha(baseline), esbuildVersion, builtAt: new Date().toISOString(), hashes }, null, 2));
 console.log(JSON.stringify({ output, sourceRevision, files: Object.keys(hashes).length, activated: false }));

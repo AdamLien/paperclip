@@ -55,3 +55,9 @@
 - Removed the obsolete PDF.js 6 `isEvalSupported` option. Direct UI `tsc -b` passed, PDF viewer tests passed again, and the production UI build passed.
 - Reloaded the live sammi page against the final release: the existing 12-page PPTX rendered page 1, then page 2 after Next. Browser error log was empty. Final screenshot saved to `/Users/adamlien/.codex/visualizations/2026/10/23/mcrew-attachment-preview.png`.
 - Native iPhone/Android acceptance remains unverified.
+
+### In-conversation reading follow-up
+
+- User confirmed automatic previews inside conversation messages, with expand and original download as separate actions. Reuse the same authorized attachment panel in a bounded embedded card; mount only near the viewport and destroy viewers offscreen. Unknown/unbound links retain the existing file path behavior.
+- Release numbering: `YYYYMMDDNNN` using Asia/Taipei, UAT odd, production even. Build script validates format, date, environment and parity and records them in the hashed artifact manifest. Planned production build: `20261023002`.
+- SMS operational acceptance: the original proposal was expired with `send_called=false`. A fresh proposal for the unchanged, previously authorized recipient/content was reviewed as the connected admin and executed once as sammi. Remote receipt returned HTTP 200, `api_accepted`, `send_called=true`, `delivery_verified=false`. No recipient-delivery claim or resend. Tenant/recipient identifiers and credentials omitted from Git.

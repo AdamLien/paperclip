@@ -1,3 +1,4 @@
+import { InlineAttachmentPreview, canPreviewInline } from "./InlineAttachmentPreview";
 import { TextAttachmentContext } from "@/context/TextAttachmentContext";
 import { ArtifactPreview } from "@/components/artifacts/ArtifactCard";
 import { isVideoLikeOutput } from "@/lib/issue-output";
@@ -304,12 +305,14 @@ function TaskChatBubbleContent({
         </div>
       ) : null}
       {attachmentRefs.length > 0 ? (
-        <div className="flex max-w-(--pct-85) flex-col gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2">
           <span className="text-xs text-muted-foreground">
             Files · {attachmentRefs.length}
           </span>
-          <AttachmentGroup data-testid="task-chat-bubble-attachments">
+          <AttachmentGroup className="w-full flex-col overflow-x-visible" data-testid="task-chat-bubble-attachments">
             {attachmentRefs.map((ref) => {
+              const file = attachments.find((attachment) => attachment.id === ref.id);
+              if (file && canPreviewInline(file)) return <InlineAttachmentPreview key={ref.url} attachment={file} onExpand={isVideoLikeOutput(ref.contentType, ref.name) ? () => openImage(ref.url) : openText ? () => openText(file.id, ref.name) : undefined} />;
               const kind = fileKindForAttachment(ref);
               const KindIcon = kind.icon;
               const size = formatFileSize(ref.byteSize);

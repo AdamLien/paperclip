@@ -11,6 +11,11 @@ import { IssueGalleryContext } from "@/context/IssueGalleryContext";
 import { TaskChatBubble } from "./TaskChatBubble";
 import type { TaskChatMessageItem } from "./task-chat-model";
 
+vi.mock("./InlineAttachmentPreview", async (original) => {
+  const actual = await original<typeof import("./InlineAttachmentPreview")>();
+  return { ...actual, InlineAttachmentPreview: ({ attachment, onExpand }: { attachment: IssueAttachment; onExpand?: () => void }) => <div data-testid="inline-preview">{attachment.contentType === "video/mp4" || attachment.originalFilename?.endsWith(".mp4") ? <video src={attachment.contentPath} /> : null}<button aria-label={`Open ${attachment.originalFilename}`} onClick={onExpand}>{attachment.originalFilename}</button></div> };
+});
+
 describe("TaskChatBubble attachment chips", () => {
   let container: HTMLDivElement;
   let root: Root | null = null;

@@ -38,19 +38,20 @@ export async function readTextPreview(response: Response) {
   }
 }
 
-export function TextAttachmentPreview({ title, text, markdown, html = false, mermaid = false, downloadUrl }: {
+export function TextAttachmentPreview({ title, text, markdown, html = false, mermaid = false, downloadUrl, embedded = false }: {
   title: string;
   text: string;
   markdown: boolean;
   html?: boolean;
   mermaid?: boolean;
   downloadUrl: string;
+  embedded?: boolean;
 }) {
   const [raw, setRaw] = useState(false);
   const previewDocument = useMemo(() => html ? htmlReportPreviewDocument(text) : null, [html, text]);
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center gap-2 border-b border-border px-3 py-2">
+      {!embedded ? <header className="flex items-center gap-2 border-b border-border px-3 py-2">
         <h2 className="min-w-0 flex-1 truncate text-sm font-medium" title={title}>{title}</h2>
         {markdown || html || mermaid ? (
           <div className="flex gap-1" role="group" aria-label={html ? "HTML view" : "Markdown view"}>
@@ -65,7 +66,7 @@ export function TextAttachmentPreview({ title, text, markdown, html = false, mer
         <Button asChild variant="ghost" size="icon-sm">
           <a href={downloadUrl} download aria-label={`Download ${title}`} title={`Download ${title}`}><Download aria-hidden /></a>
         </Button>
-      </header>
+      </header> : null}
       {html && !raw && previewDocument ? (
         <iframe title={title} sandbox="" referrerPolicy="no-referrer" srcDoc={previewDocument} className="min-h-0 w-full flex-1 border-0 bg-white" />
       ) : <div className="min-h-0 flex-1 overflow-auto p-4">
@@ -77,7 +78,7 @@ export function TextAttachmentPreview({ title, text, markdown, html = false, mer
   );
 }
 
-export function TaskAttachmentPanel({ issueId, attachmentId }: { issueId: string; attachmentId: string }) {
+export function TaskAttachmentPanel({ issueId, attachmentId, embedded = false }: { issueId: string; attachmentId: string; embedded?: boolean }) {
   const [audioError, setAudioError] = useState(false);
   useEffect(() => setAudioError(false), [attachmentId]);
   const attachments = useQuery({
@@ -109,13 +110,13 @@ export function TaskAttachmentPanel({ issueId, attachmentId }: { issueId: string
     const title = attachment.originalFilename ?? attachment.id;
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <header className="flex items-center gap-2 border-b border-border px-3 py-2">
+        {!embedded ? <header className="flex items-center gap-2 border-b border-border px-3 py-2">
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium" title={title}>{title}</h2>
           <span className="shrink-0 text-xs text-muted-foreground">預覽</span>
           <Button asChild variant="ghost" size="icon-sm">
             <a href={downloadUrl} download aria-label={`下載原檔 ${title}`} title="下載原檔"><Download aria-hidden /></a>
           </Button>
-        </header>
+        </header> : null}
         {office || pdf ? <Suspense fallback={<p role="status" className="p-4 text-sm">載入文件預覽…</p>}>
           <PdfAttachmentPreview key={attachment.id} url={office ? `${contentUrl}?preview=pdf` : contentUrl} title={title} />
         </Suspense> : <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
@@ -138,5 +139,5 @@ export function TaskAttachmentPanel({ issueId, attachmentId }: { issueId: string
     );
   }
   if (content.data === undefined) return <p className="p-4 text-sm" role="status">Loading file…</p>;
-  return <TextAttachmentPreview key={attachment.id} title={attachment.originalFilename ?? attachment.id} text={content.data} markdown={isMarkdownAttachment(attachment)} html={isHtmlAttachment(attachment)} mermaid={isMermaidAttachment(attachment)} downloadUrl={downloadUrl} />;
+  return <TextAttachmentPreview key={attachment.id} title={attachment.originalFilename ?? attachment.id} text={content.data} markdown={isMarkdownAttachment(attachment)} html={isHtmlAttachment(attachment)} mermaid={isMermaidAttachment(attachment)} downloadUrl={downloadUrl} embedded={embedded} />;
 }
