@@ -29,7 +29,7 @@ Production build `20261023010` was built from Git commit `a3cbc9e01af9b8d23ad19e
 
 The Git-built `crew-shared-browser` package was imported through the native company skill UI and assigned to all seven existing Agents. The UI confirmed seven assignments. Assignment is configuration evidence, not proof of an Agent operating Chrome.
 
-The desktop companion `20261023010` is built and packaged, but is not installed or paired. Human permission approval and harmless-page read/click/type/stop acceptance are still pending. The cloud interactive viewer remains disabled. This draft is not ready for general release or merge.
+The desktop companion `20261023010` was subsequently installed by the human. The assigned Agent typed a test string and checked a checkbox on a public Selenium fixture; independent Chrome accessibility state confirmed both. The owner revoked the session, and the Agent confirmed it disappeared. That version did not return form values in snapshots and the Agent could not revoke its own session; both limitations are addressed below. The cloud interactive viewer remains disabled. This draft is not ready for general release or merge.
 
 
 ## No-code daily launch — 2026-10-23
@@ -41,3 +41,9 @@ The allowlisted mCrew origin gets a top-frame-only content-script bridge. Normal
 Agent snapshots now return labels, safe form values and checkbox/radio state, omitting password/card/OTP values. The assigned active-task Agent may revoke its own session; other Agents/tasks cannot. Companion Stop also revokes the server capability. Skills instruct Agents to stop when work completes.
 
 Acceptance gates: bridge sender correlation/origin/frame checks; no arbitrary existing-tab IDs; correct environment; failed-start session rollback; Agent stop isolation; actual updated Chrome extension and Git-built server read/click/type/readback/stop. Automated checks do not replace the updated-extension device gate.
+
+## Automatic-launch server receipt — 2026-10-23
+
+Production server build `20261023012`, source `487fac6a9a32de13ad62a85d7fb36d7815482700`, was staged with artifact SHA-256 `8e3927577edb20d4861bbf5c7422c4e7cbbf566f1b7565ede9df8f9ab916b1a7`. Baseline and staged hashes passed; the active versioned binding was switched and service health passed. Every static asset referenced by the served index matches the release artifact. The pre-existing health endpoint reports its older base commit; the overlay revision is recorded in `deployment.json`, so that health field is not evidence of this overlay's source revision. Previous server `20261023010` and the previous company skill directory remain available for rollback. The company skill now points to the Git-built versioned package, preserving assignments.
+
+The updated extension's handshake succeeded in actual Chrome. Build `20261023012` then timed out starting a new background tab: fresh tabs do not have the popup-granted `activeTab` metadata access. Extension build `20261023014`, source `df13f6a14f24ed333d808594bad5b33782f2f00c`, validates the created tab through its scoped debugger attachment instead; no global tabs/all-site permission was added. Eleven companion/bridge tests cover this missing-URL case and safe form readback; nineteen focused server/UI tests and UI typecheck pass. Updated-extension end-to-end acceptance is pending.
