@@ -14,7 +14,7 @@ Existing `.71` crew_browser remains independent and isolated. Interactive cloud 
 
 - 82 focused server/browser and HTTP log privacy tests pass.
 - Five mocked Chrome companion lifecycle tests pass. These are not actual Chrome device acceptance.
-- Browser workspace UI lifecycle test, UI typecheck and UI production build pass.
+- 17 browser workspace and company-route UI tests pass. UI typecheck and UI production build pass.
 - Server-wide typecheck does not pass in this checkout: runner package declarations are missing and downstream native-runtime errors remain. No full repository test/build success is claimed.
 - Token gate reports four violations in the pre-existing attachment reader files. The browser workspace adds no arbitrary bracket values. The earlier attachment work is outside this PR's base diff.
 - No database migration or provider credential is included. The lockfile's existing local change is excluded.
@@ -22,3 +22,11 @@ Existing `.71` crew_browser remains independent and isolated. Interactive cloud 
 - The browser artifact and companion ZIP are built from committed source; build does not activate or install them. Production and device acceptance remain separate gates.
 
 Manual acceptance must include a harmless page, matching company/user/task/Agent, Chrome permission approval, visible screenshot, Agent read/click/type, a company switch, local Stop and server Stop. Do not mark this feature ready for general use before those checks and review.
+
+## Production receipt — 2026-10-23
+
+Production build `20261023010` was built from Git commit `a3cbc9e01af9b8d23ad19ec4e00c6f50dee00446`, staged independently, and activated using the existing versioned server binding. Hashes and baseline validation passed. Local health and the authenticated public Browser page were verified separately; the sidebar preserves the company URL prefix. Previous release `20261023008` remains available for rollback. Server-side anonymous requests to the public health URL returned an edge 403; they were not used as the service-health gate.
+
+The Git-built `crew-shared-browser` package was imported through the native company skill UI and assigned to all seven existing Agents. The UI confirmed seven assignments. Assignment is configuration evidence, not proof of an Agent operating Chrome.
+
+The desktop companion `20261023010` is built and packaged, but is not installed or paired. Human permission approval and harmless-page read/click/type/stop acceptance are still pending. The cloud interactive viewer remains disabled. This draft is not ready for general release or merge.
