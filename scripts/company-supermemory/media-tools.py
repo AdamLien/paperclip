@@ -6,10 +6,11 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 from urllib.parse import urlparse
 import zipfile
 
-PYTHON = '/opt/crew-media/venv/bin/python'
+PYTHON = sys.executable
 MODEL = '/opt/crew-media/models/whisper-small'
 
 

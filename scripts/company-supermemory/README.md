@@ -132,6 +132,18 @@ The company boundary is for agent execution and company-scoped credentials;
 the trusted host administrator can manage both tenants. This does not claim
 hardening of every Paperclip management endpoint, model-provider billing,
 customer mCRM credentials, or a complete commercial tenant-security audit.
+
+NotebookLM uses the same per-agent provisioning boundary. The operator installs
+the pinned CLI under `/opt/crew-notebooklm/releases/<version>/venv` and points
+`/usr/local/bin/notebooklm` at the selected release. The sandbox always sets
+`NOTEBOOKLM_HOME=/run/crew-notebooklm` and discards host NotebookLM environment
+variables. Only agents listed in their tenant's `notebooklmAgents` receive the
+private `agent-secrets/<company>/<agent>/notebooklm` mount; missing stores or
+symlinked paths refuse launch. Other agents receive an empty ephemeral directory.
+Provision credentials only after explicit account and agent authorization, keep
+the directory mode 0700 and credential files 0600, and never commit credentials.
+Verify `auth check --test --passive --json` and a read-only notebook listing from
+the actual agent sandbox. A successful version probe alone does not verify login.
 Customer data remains disabled until the customer runtime is provisioned and
 verified. Agents must not create alternative unconfined runners or change the
 memory connection. The control plane must retain operator control over runtime

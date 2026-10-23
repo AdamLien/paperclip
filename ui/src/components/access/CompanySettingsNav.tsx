@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from "@/lib/router";
 
 const items = [
   { value: "general", label: "General", href: "/company/settings" },
+  { value: "management", label: "能力與設定", href: "/company/settings/management" },
   { value: "export", label: "Export", href: "/company/export" },
   { value: "import", label: "Import", href: "/company/import" },
   { value: "members", label: "Members", href: "/company/settings/members" },
@@ -37,6 +38,7 @@ const hiddenSettingKeyByTab: Partial<Record<CompanySettingsTab, string>> = {
 };
 
 export function getCompanySettingsTab(pathname: string): CompanySettingsTab {
+  if (pathname.includes("/company/settings/management")) return "management";
   if (pathname.includes(`${INSTANCE_SETTINGS_PATH_PREFIX}/profile`)) {
     return "instance-profile";
   }
