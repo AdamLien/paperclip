@@ -62,6 +62,35 @@ test('stops and detaches on relay failure without retry', async () => {
   assert.equal(vm.runInContext('sharing', f.context), null);
   assert.equal(f.calls.at(-1)[0], 'detach');
 });
+test('a stalled screenshot cannot block heartbeat or command dispatch', async () => {
+  const f = await fixture({ command: { id: 'command', action: 'click', x: 12, y: 34 } });
+  const send = f.context.chrome.debugger.sendCommand;
+  f.context.chrome.debugger.sendCommand = (...args) => args[1] === 'Page.captureScreenshot' ? new Promise(() => {}) : send(...args);
+  await f.share();
+  assert.equal(f.requests.filter(r => r.options.method === 'POST').length, 1);
+  assert.equal(f.calls.filter(([method]) => method === 'Input.dispatchMouseEvent').length, 2);
+  await f.message({ type: 'stop' });
+  assert.equal(vm.runInContext('sharing', f.context), null);
+});
+test('only one screenshot runs at a time and late capture cannot revive a stopped session', async () => {
+  const f = await fixture();
+  const timers = []; let finishCapture; let captures = 0;
+  const send = f.context.chrome.debugger.sendCommand;
+  f.context.setTimeout = fn => timers.push(fn);
+  f.context.chrome.debugger.sendCommand = (...args) => {
+    if (args[1] !== 'Page.captureScreenshot') return send(...args);
+    captures++; return new Promise(resolve => { finishCapture = resolve; });
+  };
+  await f.share(); timers.shift()();
+  for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(captures, 1);
+  assert.equal(f.requests.filter(r => r.options.method === 'POST').length, 2);
+  await f.message({ type: 'stop' });
+  finishCapture({ data: 'YWJj' }); timers.shift()();
+  for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(vm.runInContext('sharing', f.context), null);
+  assert.equal(f.requests.filter(r => r.options.method === 'POST').length, 2);
+});
 test('manual Chrome detach revokes the local session', async () => {
   const f = await fixture(); await f.share(); f.listeners.detach({ tabId: 7 });
   await new Promise(resolve => setImmediate(resolve));
@@ -91,13 +120,22 @@ test('page snapshot tolerates a document whose body has not loaded yet', async (
 test('app cannot select arbitrary existing tabs or use another environment selection', async () => {
   const f = await fixture();
   assert.ok((await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'selected', tabId: 99 }, appSender)).error);
+  await f.message({ type: 'app-status' }, { ...appSender, url: 'https://crew-uat.metabiz.work/META/browser', tab: { id: 4, url: 'https://crew-uat.metabiz.work/META/browser' } });
   await f.message({ type: 'select-tab', tabId: 7, origin: 'https://crew-uat.metabiz.work' });
   assert.ok((await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'selected' }, appSender)).error);
   assert.equal(f.calls.filter(([name])=>name==='attach').length,0);
 });
+test('popup requires a known company browser page rather than opening a prefixless route', async () => {
+  const f = await fixture();
+  const result = await f.message({ type: 'select-tab', tabId: 7, origin: 'https://crew.metabiz.work' });
+  assert.ok(result.error);
+  assert.equal(f.calls.filter(([name]) => name === 'create').length, 0);
+});
 test('popup-selected tab can be handed to the app once without a code', async () => {
   const f = await fixture();
+  await f.message({ type: 'app-status' }, appSender);
   await f.message({ type: 'select-tab', tabId: 7, origin: 'https://crew.metabiz.work' });
+  assert.equal(f.calls.find(([name]) => name === 'create')[1].url, 'https://crew.metabiz.work/META/browser?share=1');
   assert.ok((await f.message({ type: 'app-status' }, appSender)).target);
   assert.equal((await f.message({ type: 'app-start', token: 'a'.repeat(64), target: 'selected' }, appSender)).started, true);
   assert.equal((await f.message({ type: 'app-status' }, appSender)).target, null);

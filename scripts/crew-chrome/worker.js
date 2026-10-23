@@ -2,6 +2,7 @@ let sharing = null;
 let pairing = false;
 let generation = 0;
 let selectedTab = null;
+const workspacePaths = new Map();
 const origins = ['https://crew.metabiz.work', 'https://crew-uat.metabiz.work'];
 const send = (tabId, method, params = {}) => chrome.debugger.sendCommand({ tabId }, method, params);
 async function stop() {
@@ -49,18 +50,32 @@ async function execute(tabId, command) {
 }
 async function loop(session) {
   let result;
+  let capturing = false;
+  let pendingFrame;
   while (sharing === session) {
     try {
       const state = await page(session.tabId);
       if (!/^https?:\/\//.test(state.url)) throw new Error('分頁已離開網站');
-      const capture = await send(session.tabId, 'Page.captureScreenshot', { format: 'jpeg', quality: 45, captureBeyondViewport: false });
+      // A background tab's compositor can stall. Keep relay/commands alive
+      // independently, with at most one capture in flight and no action retries.
+      if (!capturing) {
+        capturing = true;
+        void send(session.tabId, 'Page.captureScreenshot', { format: 'jpeg', quality: 45, captureBeyondViewport: false })
+          .then(capture => {
+            const frame = `data:image/jpeg;base64,${capture.data}`;
+            if (sharing === session && frame.length <= 1500000) pendingFrame = { url: state.url, frame };
+          })
+          .catch(() => { if (sharing === session) void stop(); })
+          .finally(() => { capturing = false; });
+      }
       if (sharing !== session) break;
-      const frame = `data:image/jpeg;base64,${capture.data}`;
+      const frame = pendingFrame?.url === state.url ? pendingFrame.frame : undefined;
+      pendingFrame = undefined;
       const response = await fetch(`${session.origin}/api/browser-workspace/relay`, {
         method: 'POST', credentials: 'omit', redirect: 'error',
         headers: { 'Content-Type': 'application/json', 'X-Crew-Browser-Pairing': session.token },
         body: JSON.stringify({ url: state.url.slice(0,2048), title: state.title, width: state.width, height: state.height,
-          ...(frame.length <= 1500000 ? { frame } : {}), ...(result ? { result } : {}) }),
+          ...(frame ? { frame } : {}), ...(result ? { result } : {}) }),
         signal: AbortSignal.timeout(8000),
       });
       if (!response.ok) throw new Error('分享已停止或配對失效');
@@ -107,13 +122,19 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   const app = !popup && sender.frameId === 0 && origins.includes(origin)
     && sender.tab && new URL(sender.tab.url).origin === origin;
   if (!popup && !app) return;
+  if (app) {
+    const path = new URL(sender.url).pathname;
+    if (/^\/[A-Za-z0-9_-]+\/browser\/?$/.test(path)) workspacePaths.set(origin, path.replace(/\/$/, ''));
+  }
   void (async () => {
     if (popup && message.type === 'stop') { await stop(); return {}; }
     if (popup && message.type === 'select-tab') {
       const tab = await chrome.tabs.get(message.tabId);
       if (!/^https?:\/\//.test(tab.url ?? '') || !origins.includes(message.origin)) throw new Error('請選擇網站分頁');
+      const workspacePath = workspacePaths.get(message.origin);
+      if (!workspacePath) throw new Error('請先在 Chrome 開啟 mCrew 的瀏覽器頁，再交接分頁。');
       selectedTab = { id: tab.id, origin: message.origin };
-      await chrome.tabs.create({ url: `${message.origin}/browser?share=1` });
+      await chrome.tabs.create({ url: `${message.origin}${workspacePath}?share=1` });
       return {};
     }
     // Manual pairing remains a fallback for older clients.
