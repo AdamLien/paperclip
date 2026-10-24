@@ -11,6 +11,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { getRememberedInvitePath } from "../lib/invite-memory";
 import { Button } from "@/components/ui/button";
 import { MorbitWelcome } from "@/components/MorbitWelcome";
+import { MdeckBrand } from "@/components/MdeckBrand";
 import { PaperclipLoading } from "@/components/AnimatedPaperclipIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -109,10 +110,7 @@ export function AuthPage() {
       <div className="morbit-auth-form">
         <div className="morbit-auth-form-content w-full max-w-md mx-auto my-auto px-8">
           <div className="mb-8">
-            <div className="morbit-auth-mark" aria-label="metabiz mDeck">
-              <img src="/mdeck-app.png" alt="" width="48" height="48" />
-              <strong aria-hidden="true">mDeck</strong>
-            </div>
+            <MdeckBrand />
           </div>
 
           <h1 className="text-xl font-semibold">

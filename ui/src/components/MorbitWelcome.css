@@ -35,3 +35,15 @@
 .morbit-welcome-controls button { cursor: pointer; border: var(--morbit-slogan-border); border-radius: var(--radius); padding: var(--morbit-gap); color: var(--morbit-welcome-muted); background: transparent; font-size: var(--morbit-small-type); }
 .morbit-welcome-controls button[aria-current="true"] { background: var(--morbit-welcome-gold); color: var(--morbit-carousel-selected); }
 .morbit-welcome-controls button:focus-visible { outline: var(--morbit-slogan-border); outline-offset: var(--morbit-gap); }
+
+/* Keep first-run fields first on narrow screens; the same story sits beside
+   the form on desktop, without introducing another welcome/login screen. */
+.morbit-onboarding .morbit-auth-form { padding-top: var(--morbit-form-desktop-padding); }
+.morbit-onboarding .morbit-welcome { display: none; }
+.morbit-onboarding .morbit-auth-form button[data-slot="button"][data-variant="default"] {
+  background: var(--morbit-welcome-gold);
+  color: var(--morbit-carousel-selected);
+}
+@media (min-width: 768px) {
+  .morbit-onboarding .morbit-welcome { display: flex; }
+}

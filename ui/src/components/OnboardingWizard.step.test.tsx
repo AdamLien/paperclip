@@ -4,6 +4,9 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ThemeProvider } from "../context/ThemeContext";
+import { setLocale } from "../i18n";
+import { FooterNav } from "./onboarding/FooterNav";
 import { ApiError } from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
 import { ONBOARDING_AGENT_STEP } from "../lib/onboarding-route";
@@ -139,7 +142,7 @@ describe("OnboardingWizard — which step it lands on", () => {
     await act(async () => {
       root!.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <ThemeProvider><OnboardingWizard /></ThemeProvider>
         </QueryClientProvider>,
       );
     });
@@ -150,7 +153,7 @@ describe("OnboardingWizard — which step it lands on", () => {
     await act(async () => {
       root!.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <ThemeProvider><OnboardingWizard /></ThemeProvider>
         </QueryClientProvider>,
       );
     });
@@ -225,6 +228,39 @@ describe("OnboardingWizard — which step it lands on", () => {
    * walk is four and this is the second. A self-hosted company that simply has
    * no agents yet was asked nothing before this, so its walk is three.
    */
+  it("shares the mDeck identity, keeps Chinese input intact and creates the named organization", async () => {
+    dialogState.onboardingOpen = true;
+    mockCompaniesApi.create.mockResolvedValue({ id: "company-new", name: "行銷部", issuePrefix: "MKT" });
+    await render();
+    await settle();
+    expect(document.querySelector('[aria-label="metabiz mDeck"]')).not.toBeNull();
+    expect(document.querySelector('[aria-label="關於 mDeck"]')).not.toBeNull();
+    expect(document.querySelector('select[aria-label="Interface language"]')).not.toBeNull();
+    const input = document.querySelector<HTMLInputElement>("#onboarding-company-name")!;
+    expect(document.querySelector('label[for="onboarding-company-name"]')?.textContent).toBe("Organization name");
+    const primary = () => [...document.querySelectorAll("button")].find(button => button.textContent === "Continue")!;
+    expect(primary().disabled).toBe(true);
+    await act(async () => setControlledValue(input, "行銷部"));
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", isComposing: true, bubbles: true })));
+    expect(mockCompaniesApi.create).not.toHaveBeenCalled();
+    await act(async () => primary().click());
+    await settle();
+    expect(mockCompaniesApi.create).toHaveBeenCalledWith({ name: "行銷部" });
+    expect(currentStep()).toBe("agent");
+    expect(document.querySelector('[aria-label="metabiz mDeck"]')).not.toBeNull();
+  });
+
+  it("translates the dynamic footer label and updates it when the locale changes", async () => {
+    root = createRoot(container);
+    await act(async () => {
+      setLocale("zh-TW");
+      root!.render(<FooterNav primaryLabel="Continue" onPrimary={() => {}} />);
+    });
+    expect(container.textContent).toBe("繼續");
+    await act(async () => setLocale("en"));
+    expect(container.textContent).toBe("Continue");
+  });
+
   describe("progress strip length", () => {
     function announcedCount(): string | null {
       return (
