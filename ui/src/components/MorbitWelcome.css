@@ -6,7 +6,6 @@
 .morbit-auth-mark { position: relative; display: inline-flex; align-items: center; gap: var(--morbit-mark-gap); }
 .morbit-auth-mark img { width: var(--morbit-mark-size); height: var(--morbit-mark-size); object-fit: contain; }
 .morbit-auth-mark strong { font-size: var(--morbit-mark-type); letter-spacing: var(--morbit-mark-tracking); }
-.morbit-auth-mark span { position: absolute; left: var(--morbit-deck-left); top: var(--morbit-deck-top); color: var(--morbit-deck-accent); font-size: var(--morbit-deck-type); font-weight: var(--morbit-deck-weight); }
 .morbit-welcome { order: 1; color: var(--morbit-welcome-foreground); background: var(--morbit-welcome-background); padding: var(--morbit-welcome-padding); }
 .morbit-welcome-content { max-width: var(--morbit-welcome-width); margin: auto; }
 .morbit-welcome-content > * { animation: morbit-arrive var(--morbit-welcome-duration) var(--morbit-welcome-ease) both; }

@@ -110,9 +110,8 @@ export function AuthPage() {
         <div className="morbit-auth-form-content w-full max-w-md mx-auto my-auto px-8">
           <div className="mb-8">
             <div className="morbit-auth-mark" aria-label="metabiz mDeck">
-              <img src="/metabiz-gold.png" alt="" width="48" height="48" />
-              <span aria-hidden="true">Deck</span>
-              <strong aria-hidden="true">metabiz</strong>
+              <img src="/mdeck-app.png" alt="" width="48" height="48" />
+              <strong aria-hidden="true">mDeck</strong>
             </div>
           </div>
 
