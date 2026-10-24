@@ -118,9 +118,9 @@ describe("AuthPage", () => {
     return { root, queryClient };
   }
 
-  it("presents the mOrbit welcome without delaying the sign-in form", async () => {
+  it("presents the mDeck welcome without delaying the sign-in form", async () => {
     const { root } = await mount();
-    expect(container.textContent).toContain("mOrbit，你的智能同事。");
+    expect(container.textContent).toContain("mDeck，你的智能同事。");
     expect(container.textContent).toContain("懂你業務、能辦事的 AI 同事。");
     expect(container.textContent).toContain("多一位智能同事，少一堆忙不完的事。");
     expect(container.textContent).toContain("查資料、做報告、跟進任務、開發程式——交代下去，一起完成。");

@@ -38,3 +38,16 @@ Feature branch → develop → UAT. This change does not deploy the server or
 release a new Electron installer. Real UAT and device acceptance remain pending.
 The whole-monorepo test, typecheck and build matrix is not part of this scoped
 local UI check; CI and release validation remain required before merge.
+
+## 2026-10-24 name consistency correction
+
+Adam clarified that the product he opens must consistently say **mDeck**.
+Use mDeck in the welcome headline, accessible panel name, static page title,
+startup notices, installed Web-app name and breadcrumb page titles. mOrbit
+remains the suite/repository name. Technical identifiers, storage keys, app IDs,
+URLs and upstream attribution are not renamed.
+
+Read-only runtime investigation found that the existing UAT and production
+hostnames point to one service. That service runs an installed package outside
+a Git checkout. No live deployment was performed or claimed. Updating one
+hostname would also update the other; a separate release plan is required.
