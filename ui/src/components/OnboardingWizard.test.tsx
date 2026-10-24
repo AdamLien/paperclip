@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+vi.mock("./ThemeToggle", () => ({ ThemeToggle: () => null }));
+
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -539,7 +541,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         await flushReact();
       } else {
         const anyName = document.body.querySelector(
-          'input[placeholder="e.g. Northwind Labs"]',
+          '#onboarding-company-name',
         ) as HTMLInputElement;
         await act(async () => {
           setControlledValue(anyName, "Initech");
@@ -680,7 +682,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       const { root } = await openStepOne();
 
       const nameInput = document.body.querySelector(
-        'input[placeholder="e.g. Northwind Labs"]',
+        '#onboarding-company-name',
       ) as HTMLInputElement;
       await act(async () => {
         nameInput.dispatchEvent(
@@ -711,7 +713,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       const { root } = await openStepOne();
 
       const nameInput = document.body.querySelector(
-        'input[placeholder="e.g. Northwind Labs"]',
+        '#onboarding-company-name',
       ) as HTMLInputElement;
       await act(async () => {
         for (let i = 0; i < 4; i++) {
@@ -2282,7 +2284,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
           .querySelector('[role="radiogroup"]')!
           .className.includes("justify-center");
       const cta = () =>
-        [...document.body.querySelectorAll("button")].pop()?.textContent?.trim();
+        [...document.body.querySelectorAll(".morbit-auth-form button")].pop()?.textContent?.trim();
 
       // Nothing chosen yet on a fresh arrival: the row is a question.
       expect(rowCentred()).toBe(false);
@@ -2360,7 +2362,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       // waiting for that left about a second of a button still reading
       // "Waiting for code" after the code had gone in.
       expect(
-        [...document.body.querySelectorAll("button")].pop()?.textContent?.trim(),
+        [...document.body.querySelectorAll(".morbit-auth-form button")].pop()?.textContent?.trim(),
       ).toBe("Connecting");
 
       await act(async () => root.unmount());
@@ -2386,7 +2388,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       for (let i = 0; i < 4; i++) await flushReact();
 
       const cta = () =>
-        [...document.body.querySelectorAll("button")].pop()?.textContent?.trim();
+        [...document.body.querySelectorAll(".morbit-auth-form button")].pop()?.textContent?.trim();
       // The paste really did start Connecting; without this the assertion
       // below would hold for a flow that never got that far.
       expect(cta(), "the paste should have started Connecting").toBe("Connecting");
@@ -2414,7 +2416,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       await pickSource(/Claude/);
 
       const cta = () =>
-        [...document.body.querySelectorAll("button")].pop()?.textContent?.trim();
+        [...document.body.querySelectorAll(".morbit-auth-form button")].pop()?.textContent?.trim();
       expect(cta()).toBe("Sign in to Claude");
 
       const field = document.body.querySelector(
@@ -2459,7 +2461,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       for (let i = 0; i < 4; i++) await flushReact();
 
       const cta = () =>
-        [...document.body.querySelectorAll("button")].pop()?.textContent?.trim();
+        [...document.body.querySelectorAll(".morbit-auth-form button")].pop()?.textContent?.trim();
       expect(mockAgentsApi.submitClaudeSetupTokenBrowserCode).toHaveBeenCalledTimes(1);
       expect(cta(), "the paste should have started Connecting").toBe("Connecting");
 
@@ -2552,7 +2554,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         // The completion read is out and has not answered, and the card is up.
         expect(mockAgentsApi.completeClaudeSetupTokenLogin).toHaveBeenCalledTimes(1);
         const cta = () =>
-          [...document.body.querySelectorAll("button")].pop()?.textContent?.trim();
+          [...document.body.querySelectorAll(".morbit-auth-form button")].pop()?.textContent?.trim();
         expect(cta()).toBe("Sign in to Claude");
 
         // Hold the exit open, as above, so the success lands inside it.
@@ -2662,7 +2664,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalled();
       expect(mockAgentsApi.startClaudeSetupTokenLogin).not.toHaveBeenCalled();
 
-      const cta = [...document.body.querySelectorAll("button")].pop()!;
+      const cta = [...document.body.querySelectorAll(".morbit-auth-form button")].pop()!;
       expect(cta.textContent?.trim()).toBe("Sign in to OpenAI");
       // The code is the card's own content, and it arrives with the URL.
       expect(document.body.textContent).toContain("Q2RJ-E1YIF");
@@ -2697,7 +2699,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       for (let i = 0; i < 8; i++) await flushReact();
 
       const cta = () =>
-        [...document.body.querySelectorAll("button")].pop()?.textContent?.trim();
+        [...document.body.querySelectorAll(".morbit-auth-form button")].pop()?.textContent?.trim();
       expect(cta(), "success should have taken the button to the hold").toBe(
         "Connecting",
       );
@@ -2773,7 +2775,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       expect(document.body.textContent).not.toContain("Warnings");
       // And the button goes on saying what is happening rather than going quiet.
       expect(
-        [...document.body.querySelectorAll("button")].pop()?.textContent?.trim(),
+        [...document.body.querySelectorAll(".morbit-auth-form button")].pop()?.textContent?.trim(),
       ).toBe("Connecting…");
 
       await act(async () => finishHire({ agent: { id: "agent-1" }, approval: null }));

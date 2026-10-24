@@ -1,0 +1,49 @@
+/* Visual values are defined in the shared token layer. */
+.morbit-auth { display: flex; flex-direction: column; overflow-y: auto; }
+.morbit-auth-controls { display: flex; align-items: center; gap: var(--morbit-gap); }
+.morbit-auth-form { order: 2; width: 100%; }
+.morbit-auth-form-content { padding-top: var(--morbit-form-top); padding-bottom: var(--morbit-form-bottom); }
+.morbit-auth-mark { position: relative; display: inline-flex; align-items: center; gap: var(--morbit-mark-gap); }
+.morbit-auth-mark img { width: var(--morbit-mark-size); height: var(--morbit-mark-size); object-fit: contain; }
+.morbit-auth-mark strong { font-size: var(--morbit-mark-type); letter-spacing: var(--morbit-mark-tracking); }
+.morbit-welcome { order: 1; color: var(--morbit-welcome-foreground); background: var(--morbit-welcome-background); padding: var(--morbit-welcome-padding); }
+.morbit-welcome-content { max-width: var(--morbit-welcome-width); margin: auto; }
+.morbit-welcome-slide > * { animation: morbit-arrive var(--morbit-welcome-duration) var(--morbit-welcome-ease) both; }
+.morbit-welcome-position { color: var(--morbit-welcome-gold); font-size: var(--morbit-small-type); line-height: var(--morbit-small-leading); }
+.morbit-welcome-title { margin: var(--morbit-title-margin); font-size: var(--morbit-welcome-title-size); font-weight: var(--morbit-title-weight); letter-spacing: var(--morbit-title-tracking); line-height: var(--morbit-title-leading); text-wrap: balance; animation-delay: var(--morbit-title-delay); }
+.morbit-welcome-description { color: var(--morbit-welcome-muted); max-width: var(--morbit-description-width); font-size: var(--morbit-description-type); line-height: var(--morbit-description-leading); animation-delay: var(--morbit-description-delay); }
+.morbit-welcome-slogan { margin-top: var(--morbit-slogan-margin); padding-top: var(--morbit-slogan-padding); border-top: var(--morbit-slogan-border); color: var(--morbit-welcome-gold); font-size: var(--morbit-small-type); line-height: var(--morbit-small-leading); animation-delay: var(--morbit-slogan-delay); }
+@keyframes morbit-arrive {
+  from { opacity: 0; transform: translateY(var(--morbit-welcome-distance)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (min-width: 768px) {
+  .morbit-auth { flex-direction: row; overflow: hidden; }
+  .morbit-auth-form { order: 1; width: 50%; overflow-y: auto; display: flex; flex-direction: column; }
+  .morbit-auth-form-content { padding-top: var(--morbit-form-desktop-padding); padding-bottom: var(--morbit-form-desktop-padding); }
+  .morbit-welcome { order: 2; width: 50%; display: flex; align-items: center; overflow-y: auto; padding: var(--morbit-welcome-desktop-padding); }
+  .morbit-welcome-slogan { margin-top: var(--morbit-slogan-desktop-margin); padding-top: var(--morbit-slogan-desktop-padding); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .morbit-welcome-slide > * { animation: none; }
+}
+
+.morbit-welcome-slide { min-height: var(--morbit-carousel-height); }
+.morbit-welcome-title { white-space: pre-line; }
+.morbit-welcome-controls, .morbit-welcome-controls > div { display: flex; align-items: center; gap: var(--morbit-gap); }
+.morbit-welcome-controls { justify-content: space-between; margin-top: var(--morbit-slogan-margin); }
+.morbit-welcome-controls button { cursor: pointer; border: var(--morbit-slogan-border); border-radius: var(--radius); padding: var(--morbit-gap); color: var(--morbit-welcome-muted); background: transparent; font-size: var(--morbit-small-type); }
+.morbit-welcome-controls button[aria-current="true"] { background: var(--morbit-welcome-gold); color: var(--morbit-carousel-selected); }
+.morbit-welcome-controls button:focus-visible { outline: var(--morbit-slogan-border); outline-offset: var(--morbit-gap); }
+
+/* Keep first-run fields first on narrow screens; the same story sits beside
+   the form on desktop, without introducing another welcome/login screen. */
+.morbit-onboarding .morbit-auth-form { padding-top: var(--morbit-form-desktop-padding); }
+.morbit-onboarding .morbit-welcome { display: none; }
+.morbit-onboarding .morbit-auth-form button[data-slot="button"][data-variant="default"] {
+  background: var(--morbit-welcome-gold);
+  color: var(--morbit-carousel-selected);
+}
+@media (min-width: 768px) {
+  .morbit-onboarding .morbit-welcome { display: flex; }
+}

@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { CTA_LABEL_IN, CTA_WIDTH } from "./onboarding-motion";
+import { translateUiLiteral, useUiLiteralLocale } from "@/i18n/LegacyLiteralLocalizer";
 
 /** What sits after the primary label. */
 export type FooterPrimaryIcon = "arrow" | "spinner" | "none";
@@ -45,7 +46,8 @@ export function FooterNav({
   primaryIcon?: FooterPrimaryIcon;
   onPrimary: () => void;
 }) {
-  const label = loading && loadingLabel ? loadingLabel : primaryLabel;
+  useUiLiteralLocale();
+  const label = translateUiLiteral(loading && loadingLabel ? loadingLabel : primaryLabel);
   const icon: FooterPrimaryIcon = primaryIcon ?? (loading ? "spinner" : "arrow");
 
   return (

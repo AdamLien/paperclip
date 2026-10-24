@@ -832,6 +832,8 @@
   "Create account": "建立帳號",
   "Create your Paperclip account": "建立 Paperclip 帳號",
   "Sign in to Paperclip": "登入 Paperclip",
+  "Sign in to mDeck": "登入 mDeck",
+  "Create your mDeck account": "建立 mDeck 帳號",
   "Create an account for this instance. Email confirmation is not required in v1.": "建立此執行個體的帳號。目前版本不需要驗證電子郵件。",
   "Already have an account?": "已有帳號？",
   "Don't have an account?": "還沒有帳號？",
@@ -902,5 +904,8 @@
   "Unable to check sign-in. Refresh and try again.": "無法確認登入狀態，請重新整理後再試一次。",
   "Authentication failed": "身分驗證失敗",
   "Hide password": "隱藏密碼",
-  "Show password": "顯示密碼"
+  "Show password": "顯示密碼",
+  "e.g. metabiz or Marketing team": "例如：metabiz、行銷部或你的專案團隊",
+  "A company, department or team — give your shared workspace a name.": "公司、部門或團隊都可以，為你與智能同事的工作空間取個名字。",
+  "mDeck works with your subscription or API keys.": "mDeck 可以使用你的模型訂閱或 API 金鑰。"
 }

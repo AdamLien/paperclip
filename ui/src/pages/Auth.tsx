@@ -10,10 +10,10 @@ import { tenantSignInReturnPath } from "@/lib/cloudLinks";
 import { queryKeys } from "../lib/queryKeys";
 import { getRememberedInvitePath } from "../lib/invite-memory";
 import { Button } from "@/components/ui/button";
-import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
+import { MorbitWelcome } from "@/components/MorbitWelcome";
+import { MdeckBrand } from "@/components/MdeckBrand";
 import { PaperclipLoading } from "@/components/AnimatedPaperclipIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { PaperclipLockup } from "../components/PaperclipLockup";
 
 type AuthMode = "sign_in" | "sign_up";
 
@@ -101,20 +101,20 @@ export function AuthPage() {
   }
 
   return (
-    <div className="fixed inset-0 flex bg-background">
-      <div className="absolute top-4 right-4 z-10">
+    <div className="morbit-auth fixed inset-0 bg-background">
+      <div className="morbit-auth-controls absolute top-4 right-4 z-10">
         <UiLocaleSelect />
         <ThemeToggle />
       </div>
       {/* Left half — form */}
-      <div className="w-full md:w-1/2 flex flex-col overflow-y-auto">
-        <div className="w-full max-w-md mx-auto my-auto px-8 py-12">
+      <div className="morbit-auth-form">
+        <div className="morbit-auth-form-content w-full max-w-md mx-auto my-auto px-8">
           <div className="mb-8">
-            <PaperclipLockup className="h-5 w-auto" />
+            <MdeckBrand />
           </div>
 
           <h1 className="text-xl font-semibold">
-            {mode === "sign_in" ? "Sign in to Paperclip" : "Create your Paperclip account"}
+            {mode === "sign_in" ? "Sign in to mDeck" : "Create your mDeck account"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "sign_in"
@@ -222,10 +222,7 @@ export function AuthPage() {
         </div>
       </div>
 
-      {/* Right half — ASCII art animation (hidden on mobile) */}
-      <div className="hidden md:block w-1/2 overflow-hidden">
-        <AsciiArtAnimation />
-      </div>
+      <MorbitWelcome />
     </div>
   );
 }
