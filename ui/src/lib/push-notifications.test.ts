@@ -61,6 +61,14 @@ describe("push notifications", () => {
     expect(environmentForAppId("https://shared-host")).toBeNull();
   });
 
+  it("opens approval notifications only inside an accessible company", () => {
+    const companyId="00000000-0000-4000-8000-000000000001";
+    const approvalId="00000000-0000-4000-8000-000000000002";
+    expect(pushIssuePath({companyId,approvalId},[{id:companyId,issuePrefix:"META"}],"u")).toBe(`/META/approvals/${approvalId}`);
+    expect(pushIssuePath({companyId,approvalId},[],"u")).toBeNull();
+    expect(pushIssuePath({companyId,approvalId},[{id:companyId,issuePrefix:"META"}],null)).toBeNull();
+  });
+
   it("does not request permission or send a registration in a browser", async () => {
     await expect(enablePushNotifications({ userId: "user-1", companyId: "company-1" })).rejects.toThrow();
     expect(post).not.toHaveBeenCalled();
@@ -104,6 +112,25 @@ describe("push notifications", () => {
     expect(getStoredPushBinding()).toMatchObject({ userId: "user-1", companyId: "company-1" });
     await act(async () => root.unmount());
     container.remove();
+  });
+
+  it("does not let an obsolete native identity lookup revoke the new company binding", async () => {
+    const { app }=installNative();
+    await enablePushNotifications({userId:'user-1',companyId:'company-2'});
+    let resolveIdentity!:(value:{id:string})=>void;
+    app.getInfo.mockImplementationOnce(()=>new Promise(resolve=>{resolveIdentity=resolve;}));
+    const container=document.createElement('div');document.body.appendChild(container);
+    const root=createRoot(container);
+    function Harness({companyId}:{companyId:string}){
+      usePushNotifications({userId:'user-1',companyId,companies:[],navigate:()=>undefined});return null;
+    }
+    try{
+      await act(async()=>root.render(createElement(Harness,{companyId:'company-1'})));
+      await act(async()=>root.render(createElement(Harness,{companyId:'company-2'})));
+      await act(async()=>resolveIdentity({id:'work.metabiz.crew.uat'}));
+      expect(del).not.toHaveBeenCalled();
+      expect(getStoredPushBinding()?.companyId).toBe('company-2');
+    }finally{await act(async()=>root.unmount());container.remove();}
   });
 
   it("serializes enable and disable so a double tap cannot leave a binding behind", async () => {

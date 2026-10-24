@@ -2,10 +2,11 @@ import { createSign } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { and, eq, gte, isNull, lte, lt, or, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
-import { companyMemberships, companies, pushCompletionEvents, pushDevices, pushNotificationDeliveries } from "@paperclipai/db";
+import { activityLog, companyMemberships, companies, pushCompletionEvents, pushDevices, pushNotificationDeliveries } from "@paperclipai/db";
 import type { PushDeviceRegistration } from "@paperclipai/shared";
 import { forbidden } from "../errors.js";
 import { logger } from "../middleware/logger.js";
+import { workNotification } from "./work-notification.js";
 
 const MAX_ATTEMPTS = 8;
 const MAX_BACKOFF_MS = 15 * 60 * 1000;
@@ -80,7 +81,8 @@ async function readFcmAccessToken(): Promise<{ projectId: string; accessToken: s
   return { projectId: configuredProject, accessToken: body.access_token };
 }
 
-async function sendFcm(device: typeof pushDevices.$inferSelect, event: { eventId: string; issueId: string; companyId: string }) {
+type NotificationEvent = { eventId: string; issueId: string; companyId: string; notice?: NonNullable<ReturnType<typeof workNotification>> };
+async function sendFcm(device: typeof pushDevices.$inferSelect, event: NotificationEvent) {
   const auth = await readFcmAccessToken();
   if (!auth) return { kind: "disabled" as const };
   const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(auth.projectId)}/messages:send`, {
@@ -93,12 +95,14 @@ async function sendFcm(device: typeof pushDevices.$inferSelect, event: { eventId
     body: JSON.stringify({
       message: {
         token: device.token,
-        notification: { title: "任務已完成", body: "Crew 任務已完成，點擊查看結果。" },
+        notification: { title: event.notice?.title ?? "工作已完成", body: event.notice?.body ?? "你的工作已有結果，點擊查看。" },
+        android: { collapse_key: event.eventId, notification: { tag: event.eventId } },
+        apns: { headers: { "apns-collapse-id": event.eventId } },
         data: {
           eventId: event.eventId,
           companyId: event.companyId,
-          issueId: event.issueId,
-          navigation: `/companies/${event.companyId}/issues/${event.issueId}`,
+          kind: event.notice?.kind ?? "completed",
+          ...(event.notice?.route === "approvals" ? { approvalId: event.issueId } : { issueId: event.issueId }),
         },
       },
     }),
@@ -115,7 +119,7 @@ type PushSendResult =
   | { kind: "invalid"; error: string }
   | { kind: "retry"; error: string };
 
-export function pushNotificationService(db: Db, options: { send?: (device: typeof pushDevices.$inferSelect, event: { eventId: string; issueId: string; companyId: string }) => Promise<PushSendResult> } = {}) {
+export function pushNotificationService(db: Db, options: { send?: (device: typeof pushDevices.$inferSelect, event: NotificationEvent) => Promise<PushSendResult> } = {}) {
   let timer: ReturnType<typeof setInterval> | null = null;
   let running = false;
 
@@ -213,7 +217,13 @@ export function pushNotificationService(db: Db, options: { send?: (device: typeo
         }
         let result: Awaited<ReturnType<typeof sendFcm>>;
         try {
-          result = await (options.send ?? sendFcm)(fresh, { eventId: row.event.id, issueId: row.event.issueId, companyId: row.event.companyId });
+          const activity = await db.select().from(activityLog).where(eq(activityLog.id,row.event.activityLogId)).then(rows=>rows[0]);
+          const notice = activity ? workNotification(activity) : null;
+          if(!notice) {
+            await db.update(pushNotificationDeliveries).set({status:"failed",leaseUntil:null,lastError:"notification source unavailable",updatedAt:new Date()}).where(eq(pushNotificationDeliveries.id,row.delivery.id));
+            continue;
+          }
+          result = await (options.send ?? sendFcm)(fresh, { eventId: row.event.id, issueId: row.event.issueId, companyId: row.event.companyId, notice });
         } catch {
           result = { kind: "retry", error: "FCM request failed" };
         }

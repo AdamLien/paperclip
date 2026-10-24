@@ -7,6 +7,7 @@ import { badRequest, forbidden } from "../errors.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 import { logActivity } from "../services/index.js";
 import { pushNotificationService } from "../services/push-notifications.js";
+import { listNotificationInbox } from "../services/notification-inbox.js";
 
 export function pushDeviceRoutes(db: Db) {
   const router = Router();
@@ -21,6 +22,13 @@ export function pushDeviceRoutes(db: Db) {
     if (!req.actor.userId) throw forbidden("Authenticated board user required");
     return req.actor.userId;
   };
+
+  router.get("/notifications", async (req, res) => {
+    const userId=ownUser(req);
+    if(req.query.cursor!==undefined && typeof req.query.cursor!=="string") throw badRequest("Invalid notification cursor");
+    res.setHeader("Cache-Control","no-store");
+    res.json(await listNotificationInbox(db,userId,req.query.cursor as string|undefined));
+  });
 
   router.get("/companies/:companyId/push-devices", async (req, res) => {
     const companyId = req.params.companyId as string;

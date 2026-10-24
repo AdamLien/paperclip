@@ -10,6 +10,7 @@ import { sanitizeRecord } from "../redaction.js";
 import { logger } from "../middleware/logger.js";
 import type { PluginEventBus } from "./plugin-event-bus.js";
 import { instanceSettingsService } from "./instance-settings.js";
+import { workNotification } from "./work-notification.js";
 
 const PLUGIN_EVENT_SET: ReadonlySet<string> = new Set(PLUGIN_EVENT_TYPES);
 const ACTIVITY_ACTION_TO_PLUGIN_EVENT: Readonly<Record<string, PluginEventType>> = {
@@ -177,17 +178,8 @@ export async function persistActivity(db: Db, input: LogActivityInput) {
     if (!activity) throw new Error("activity log insert returned no row");
     return activity;
   };
-  const details = redactedDetails as Record<string, unknown> | null;
-  const previous = details?._previous;
-  const previousStatus = previous && typeof previous === "object"
-    ? (previous as Record<string, unknown>).status
-    : undefined;
-  const shouldEnqueueCompletion = input.entityType === "issue" &&
-    input.action === "issue.updated" &&
-    typeof responsibleUserId === "string" &&
-    details?.status === "done" &&
-    typeof previousStatus === "string" &&
-    previousStatus !== "done";
+  const shouldEnqueueCompletion = typeof responsibleUserId === "string" &&
+    workNotification({ ...input, details: redactedDetails }) !== null;
 
   let activity;
   if (shouldEnqueueCompletion) {
