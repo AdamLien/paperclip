@@ -28,12 +28,6 @@ vi.mock("../api/auth", () => ({
   },
 }));
 
-// The ASCII art animation drives a canvas/requestAnimationFrame loop that adds
-// nothing to these assertions, so stub it out.
-vi.mock("@/components/AsciiArtAnimation", () => ({
-  AsciiArtAnimation: () => null,
-}));
-
 // The auth page renders a ThemeToggle, which reads ThemeContext. The provider
 // lives in main.tsx (above the router), so mock the hook here the same way
 // SidebarAccountMenu.test.tsx does.
@@ -123,6 +117,17 @@ describe("AuthPage", () => {
     await flushReact();
     return { root, queryClient };
   }
+
+  it("presents the mDeck welcome without delaying the sign-in form", async () => {
+    const { root } = await mount();
+    expect(container.textContent).toContain("一個人，\n也有一整隊。");
+    expect(container.textContent).toContain("mDeck，你的智能辦公室。");
+    expect(container.textContent).toContain("少一點分身乏術，多一隊並肩作戰。");
+    expect(container.textContent).toContain("從每天的瑣事，到想完成的大事，身邊都有智能同事一起接手。");
+    expect(container.querySelector<HTMLInputElement>("#email")?.disabled).toBe(false);
+    expect(container.querySelector<HTMLInputElement>("#password")?.disabled).toBe(false);
+    await act(() => root.unmount());
+  });
 
   it.each(["https://my.paperclip.app", "https://my-staging.paperclip.app"])("recovers Cloud auth through %s without rendering an instance form", async (origin) => {
     healthMock.mockResolvedValue({ cloud: { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: origin, stackSlug: "team" } });

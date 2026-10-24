@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+vi.mock("./ThemeToggle", () => ({ ThemeToggle: () => null }));
+
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

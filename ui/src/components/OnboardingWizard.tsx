@@ -1,4 +1,8 @@
 import { healthApi } from "@/api/health";
+import { MdeckBrand } from "./MdeckBrand";
+import { MorbitWelcome } from "./MorbitWelcome";
+import { UiLocaleSelect } from "./UiLocaleSelect";
+import { ThemeToggle } from "./ThemeToggle";
 import { LocalProviderLoginInstructions } from "./AdapterLoginChrome";
 import { useLocalAiLogin } from "./ai-connections/useLocalAiLogin";
 import { aiConnectionsApi } from "@/api/ai-connections";
@@ -2400,13 +2404,14 @@ function OnboardingWizardInner({
             mean rather than depending on whatever happens to render. */}
         <div
           data-testid="onboarding-wizard"
-          className="fixed inset-0 z-50 flex"
+          className="morbit-auth morbit-onboarding fixed inset-0 z-50 bg-background"
           onKeyDown={handleKeyDown}
         >
-          {/* Form column — the wizard opens directly on step 1, so there is no
-              front-door choice ahead of it, and it fills the width on every
-              step (the mission step's half-width split is gone). */}
-          <div className="w-full flex flex-col overflow-y-auto">
+          <div className="morbit-auth-controls absolute top-4 right-4 z-10">
+            <UiLocaleSelect />
+            <ThemeToggle />
+          </div>
+          <div className="morbit-auth-form">
             <div
               className={cn(
                 // my-auto, not items-center on the column: they look identical
@@ -2445,6 +2450,7 @@ function OnboardingWizardInner({
                   : "w-full max-w-md px-8 py-12",
               )}
             >
+              <div className="mb-8"><MdeckBrand /></div>
               {/* Full-length progress bar (brand .wsteps/.wstep) — segment N
                   filled once step ≥ N. Completed segments jump back.
                   Hidden for a run that entered on the agent arc: the arc strip
@@ -2575,7 +2581,7 @@ function OnboardingWizardInner({
                       <p className="pt-2 text-base leading-relaxed text-muted-foreground">
                         <motion.span key={step} {...titleSwapMotion} className="inline-block">
                           {step === 4
-                            ? "Paperclip works with your subscription or API keys."
+                            ? "mDeck works with your subscription or API keys."
                             : `${agentName.trim() || "Your first agent"} is ready to work!`}
                         </motion.span>
                       </p>
@@ -2602,21 +2608,25 @@ function OnboardingWizardInner({
               {step === 1 && (
                 <motion.div key="step-1" {...stepContentMotion} exit={stepHandoff ? stepContentMotion.exit : undefined} className="mx-auto flex w-full flex-col gap-9">
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="onboarding-company-name">Name</Label>
+                    <Label htmlFor="onboarding-company-name">Organization name</Label>
                     <Input
                       id="onboarding-company-name"
                       className="h-(--sz-44px) rounded-lg border-transparent bg-muted shadow-none dark:bg-muted"
-                      placeholder="e.g. Northwind Labs"
+                      placeholder="e.g. metabiz or Marketing team"
+                      aria-describedby="onboarding-company-help"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && companyName.trim()) {
+                        if (e.key === "Enter" && !e.nativeEvent.isComposing && companyName.trim()) {
                           e.preventDefault();
                           void handleCreateCompany();
                         }
                       }}
                       autoFocus
                     />
+                    <p id="onboarding-company-help" className="text-sm text-muted-foreground">
+                      A company, department or team — give your shared workspace a name.
+                    </p>
                   </div>
                 </motion.div>
               )}
@@ -3135,6 +3145,7 @@ function OnboardingWizardInner({
               )}
             </div>
           </div>
+          <MorbitWelcome />
         </div>
       </DialogPortal>
     </Dialog>
