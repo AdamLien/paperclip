@@ -120,10 +120,10 @@ describe("AuthPage", () => {
 
   it("presents the mDeck welcome without delaying the sign-in form", async () => {
     const { root } = await mount();
-    expect(container.textContent).toContain("mDeck，你的智能同事。");
-    expect(container.textContent).toContain("懂你業務、能辦事的 AI 同事。");
-    expect(container.textContent).toContain("多一位智能同事，少一堆忙不完的事。");
-    expect(container.textContent).toContain("查資料、做報告、跟進任務、開發程式——交代下去，一起完成。");
+    expect(container.textContent).toContain("一個人，\n也有一整隊。");
+    expect(container.textContent).toContain("mDeck，你的智能辦公室。");
+    expect(container.textContent).toContain("少一點分身乏術，多一隊並肩作戰。");
+    expect(container.textContent).toContain("從每天的瑣事，到想完成的大事，身邊都有智能同事一起接手。");
     expect(container.querySelector<HTMLInputElement>("#email")?.disabled).toBe(false);
     expect(container.querySelector<HTMLInputElement>("#password")?.disabled).toBe(false);
     await act(() => root.unmount());

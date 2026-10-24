@@ -92,6 +92,8 @@
 
 :root {
   /* mOrbit login brand and finite welcome animation. */
+  --morbit-carousel-height: 24rem;
+  --morbit-carousel-selected: #181917;
   --morbit-gap: .5rem;
   --morbit-form-top: 2rem;
   --morbit-form-bottom: 3rem;
