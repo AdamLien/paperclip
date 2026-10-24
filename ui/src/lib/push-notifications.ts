@@ -238,11 +238,12 @@ export async function syncPushToken(token: string, expected?: { userId: string; 
 
 export function pushIssuePath(payload: unknown, companies: Array<{ id: string; issuePrefix: string }>, userId: string | null): string | null {
   if (!userId || !payload || typeof payload !== "object") return null;
-  const data = payload as { companyId?: unknown; issueId?: unknown };
+  const data = payload as { companyId?: unknown; issueId?: unknown; approvalId?: unknown };
   if (typeof data.companyId !== "string" || !UUID.test(data.companyId)) return null;
-  if (typeof data.issueId !== "string" || !UUID.test(data.issueId)) return null;
   const company = companies.find((item) => item.id === data.companyId);
-  return company ? `/${company.issuePrefix}/issues/${data.issueId}` : null;
+  if(!company)return null;
+  if(typeof data.approvalId==="string" && UUID.test(data.approvalId))return `/${company.issuePrefix}/approvals/${data.approvalId}`;
+  return typeof data.issueId==="string" && UUID.test(data.issueId) ? `/${company.issuePrefix}/issues/${data.issueId}` : null;
 }
 
 export function usePushNotifications(input: {
@@ -273,10 +274,13 @@ export function usePushNotifications(input: {
       const native = plugins();
       if (!native?.messaging.addListener || !native.app.getInfo) return;
       const identity = await nativeIdentity(native);
-      const binding = readBinding();
-      if (binding && (binding.userId !== current.userId || binding.companyId !== current.companyId || binding.appId !== identity.appId)) {
-        await revokeBinding(binding);
-      }
+      await withPushOperation(async () => {
+        if (!active || revision !== lifecycleRevision.current) return;
+        const binding = readBinding();
+        if (binding && (binding.userId !== current.userId || binding.companyId !== current.companyId || binding.appId !== identity.appId)) {
+          await revokeBinding(binding);
+        }
+      });
       if (!active || revision !== lifecycleRevision.current) return;
       setEnabled(Boolean(readBinding()?.userId === current.userId && readBinding()?.companyId === current.companyId));
       const registeredHandles = await Promise.all([

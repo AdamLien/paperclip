@@ -107,6 +107,16 @@ databaseSuite("native push recipient isolation", () => {
       });
       const completionEvents = await db.select().from(pushCompletionEvents).where(eq(pushCompletionEvents.activityLogId, completion.activity.id));
       expect(completionEvents).toHaveLength(1);
+      const ownInbox = await request(routeApp(activeActor)).get('/notifications').expect(200);
+      expect(ownInbox.headers['cache-control']).toBe('no-store');
+      expect(ownInbox.body.userId).toBe(responsibleUserId);
+      expect(ownInbox.body.items).toEqual([expect.objectContaining({id:completion.activity.id,kind:'completed'})]);
+      expect(JSON.stringify(ownInbox.body)).not.toContain('responsible-token');
+      const otherInbox = await request(routeApp(activeOtherActor)).get('/notifications').expect(200);
+      expect(otherInbox.body.items).toHaveLength(0);
+      const nextInbox = await request(routeApp(activeActor)).get('/notifications').query({cursor:ownInbox.body.cursor}).expect(200);
+      expect(nextInbox.body.items).toHaveLength(0);
+      await request(routeApp(activeActor)).get('/notifications').query({cursor:'invalid'}).expect(400);
 
       let sendCount = 0;
       const service = pushNotificationService(db, { send: async () => { sendCount += 1; return { kind: "sent" }; } });
@@ -159,6 +169,15 @@ databaseSuite("native push recipient isolation", () => {
       await retryService.process();
       await retryService.process();
       expect(rebindSendCount).toBe(1);
+      const approval = await persistActivity(db, {
+        companyId, actorType:'agent',actorId:randomUUID(),action:'approval.created',entityType:'approval',entityId:randomUUID(),
+        details:{secret:'must never appear'},responsibleUserIdOverride:responsibleUserId,
+      });
+      const approvalInbox = await request(routeApp(activeActor)).get('/notifications').expect(200);
+      expect(approvalInbox.body.items).toContainEqual(expect.objectContaining({id:approval.activity.id,kind:'approval'}));
+      expect(JSON.stringify(approvalInbox.body)).not.toContain('must never appear');
+      const suspendedInbox = await request(routeApp(activeOtherActor)).get('/notifications').expect(200);
+      expect(suspendedInbox.body.items).toHaveLength(0);
     } finally {
       if (previousProject === undefined) delete process.env.PAPERCLIP_FCM_PROJECT_ID;
       else process.env.PAPERCLIP_FCM_PROJECT_ID = previousProject;
@@ -167,5 +186,5 @@ databaseSuite("native push recipient isolation", () => {
       await db.$client.end();
       await temporary?.cleanup();
     }
-  });
+  }, 120000);
 });
