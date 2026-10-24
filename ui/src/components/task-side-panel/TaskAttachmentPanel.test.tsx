@@ -8,10 +8,32 @@ import { TaskAttachmentPanel, TextAttachmentPreview, readTextPreview, TEXT_PREVI
 import { isAudioAttachment, isMermaidAttachment, isHtmlAttachment, isTextAttachment } from "@/lib/issue-attachments";
 import { readTaskSidePanelState, taskPanelAttachmentTab, writeTaskSidePanelState } from "@/lib/task-side-panel-state";
 vi.mock("@/components/MarkdownBody", () => ({ MarkdownBody: ({ children }: { children: string }) => <article data-rendered>{children}</article> }));
+vi.mock("./PdfAttachmentPreview", () => ({ default: ({ url }: { url: string }) => <div data-pdf-url={url}>文件預覽</div> }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => { window.localStorage.clear(); vi.unstubAllGlobals(); });
 
 describe("text attachment tabs", () => {
+  it.each([
+    ["slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "?preview=pdf"],
+    ["letter.docx", "application/octet-stream", "?preview=pdf"],
+    ["sheet.xlsx", "application/octet-stream", "?preview=pdf"],
+    ["report.pdf", "application/pdf", ""],
+  ])("opens %s in the app and keeps original download separate", async (name, type, query) => {
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
+    client.setQueryData(queryKeys.issues.attachments("task"), [{ id: "document", originalFilename: name, contentType: type, byteSize: 5_000_000, contentPath: "/api/attachments/document/content" }]);
+    const host = document.createElement("div"); const root = createRoot(host);
+    await act(async () => root.render(<QueryClientProvider client={client}><TaskAttachmentPanel issueId="task" attachmentId="document" /></QueryClientProvider>));
+    expect(host.querySelector("[data-pdf-url]")?.getAttribute("data-pdf-url")).toBe(`/api/attachments/document/content${query}`);
+    expect(host.querySelector("a")?.getAttribute("href")).toBe("/api/attachments/document/content?download=1");
+    expect(fetch).not.toHaveBeenCalled();
+    await act(async () => root.render(<QueryClientProvider client={client}><TaskAttachmentPanel issueId="task" attachmentId="document" embedded /></QueryClientProvider>));
+    expect(host.querySelector("[data-pdf-url]")?.getAttribute("data-pdf-url")).toBe(`/api/attachments/document/content${query}`);
+    expect(host.querySelector("header")).toBeNull();
+    await act(async () => root.render(<QueryClientProvider client={client}><TaskAttachmentPanel issueId="task" attachmentId="not-authorized" /></QueryClientProvider>));
+    expect(host.querySelector("[data-pdf-url]")).toBeNull();
+    await act(async () => root.unmount()); client.clear();
+  });
   it("does not fetch missing or oversized attachments and offers download for oversized files", async () => {
     const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
     const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });

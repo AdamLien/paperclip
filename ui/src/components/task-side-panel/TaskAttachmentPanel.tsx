@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Code2, Download, Eye } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { Button } from "@/components/ui/button";
 import { MarkdownBody } from "@/components/MarkdownBody";
-import { attachmentDownloadPath, isAudioAttachment, isMermaidAttachment, isHtmlAttachment, isMarkdownAttachment, isTextAttachment } from "@/lib/issue-attachments";
+import { attachmentDownloadPath, isImageAttachment, isVideoAttachment, isAudioAttachment, isMermaidAttachment, isHtmlAttachment, isMarkdownAttachment, isTextAttachment } from "@/lib/issue-attachments";
+import { isOfficeAttachment, isPdfAttachment } from "@/lib/attachment-preview";
 import { htmlReportPreviewDocument } from "@/lib/html-report-preview";
 import { queryKeys } from "@/lib/queryKeys";
+
+const PdfAttachmentPreview = lazy(() => import("./PdfAttachmentPreview"));
 
 export const TEXT_PREVIEW_MAX_BYTES = 512 * 1024;
 
@@ -35,19 +38,20 @@ export async function readTextPreview(response: Response) {
   }
 }
 
-export function TextAttachmentPreview({ title, text, markdown, html = false, mermaid = false, downloadUrl }: {
+export function TextAttachmentPreview({ title, text, markdown, html = false, mermaid = false, downloadUrl, embedded = false }: {
   title: string;
   text: string;
   markdown: boolean;
   html?: boolean;
   mermaid?: boolean;
   downloadUrl: string;
+  embedded?: boolean;
 }) {
   const [raw, setRaw] = useState(false);
   const previewDocument = useMemo(() => html ? htmlReportPreviewDocument(text) : null, [html, text]);
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center gap-2 border-b border-border px-3 py-2">
+      {!embedded ? <header className="flex items-center gap-2 border-b border-border px-3 py-2">
         <h2 className="min-w-0 flex-1 truncate text-sm font-medium" title={title}>{title}</h2>
         {markdown || html || mermaid ? (
           <div className="flex gap-1" role="group" aria-label={html ? "HTML view" : "Markdown view"}>
@@ -62,7 +66,7 @@ export function TextAttachmentPreview({ title, text, markdown, html = false, mer
         <Button asChild variant="ghost" size="icon-sm">
           <a href={downloadUrl} download aria-label={`Download ${title}`} title={`Download ${title}`}><Download aria-hidden /></a>
         </Button>
-      </header>
+      </header> : null}
       {html && !raw && previewDocument ? (
         <iframe title={title} sandbox="" referrerPolicy="no-referrer" srcDoc={previewDocument} className="min-h-0 w-full flex-1 border-0 bg-white" />
       ) : <div className="min-h-0 flex-1 overflow-auto p-4">
@@ -74,7 +78,7 @@ export function TextAttachmentPreview({ title, text, markdown, html = false, mer
   );
 }
 
-export function TaskAttachmentPanel({ issueId, attachmentId }: { issueId: string; attachmentId: string }) {
+export function TaskAttachmentPanel({ issueId, attachmentId, embedded = false }: { issueId: string; attachmentId: string; embedded?: boolean }) {
   const [audioError, setAudioError] = useState(false);
   useEffect(() => setAudioError(false), [attachmentId]);
   const attachments = useQuery({
@@ -97,21 +101,30 @@ export function TaskAttachmentPanel({ issueId, attachmentId }: { issueId: string
   if (attachments.isError) return <div className="p-4" role="alert">Could not load attachment details. <Button onClick={() => void attachments.refetch()}>Retry</Button></div>;
   if (!attachment) return <p className="p-4 text-sm" role="status">File no longer available. Close this tab or choose another file.</p>;
   const downloadUrl = attachmentDownloadPath(attachment);
-  if (isAudioAttachment(attachment)) {
+  const office = isOfficeAttachment(attachment);
+  const pdf = isPdfAttachment(attachment);
+  const image = isImageAttachment(attachment);
+  const video = isVideoAttachment(attachment);
+  if (isAudioAttachment(attachment) || office || pdf || image || video) {
+    const contentUrl = `/api/attachments/${encodeURIComponent(attachment.id)}/content`;
+    const title = attachment.originalFilename ?? attachment.id;
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <header className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{attachment.originalFilename ?? attachment.id}</h2>
+        {!embedded ? <header className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-medium" title={title}>{title}</h2>
+          <span className="shrink-0 text-xs text-muted-foreground">預覽</span>
           <Button asChild variant="ghost" size="icon-sm">
-            <a href={downloadUrl} download aria-label={`Download ${attachment.originalFilename ?? attachment.id}`}><Download aria-hidden /></a>
+            <a href={downloadUrl} download aria-label={`下載原檔 ${title}`} title="下載原檔"><Download aria-hidden /></a>
           </Button>
-        </header>
-        <div className="space-y-3 p-4">
-          <audio controls preload="metadata" src={`/api/attachments/${encodeURIComponent(attachment.id)}/content`}
-            aria-label={attachment.originalFilename ?? attachment.id} className="w-full"
-            onError={() => setAudioError(true)} />
-          {audioError ? <p role="status" className="text-sm text-muted-foreground">無法播放此音訊，可能是格式不支援或連線失敗；請重試或下載檔案。</p> : null}
-        </div>
+        </header> : null}
+        {office || pdf ? <Suspense fallback={<p role="status" className="p-4 text-sm">載入文件預覽…</p>}>
+          <PdfAttachmentPreview key={attachment.id} url={office ? `${contentUrl}?preview=pdf` : contentUrl} title={title} />
+        </Suspense> : <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
+          {image ? <img src={contentUrl} alt={title} className="mx-auto max-h-full max-w-full object-contain" onError={() => setAudioError(true)} />
+            : video ? <video controls playsInline preload="metadata" src={contentUrl} aria-label={title} className="max-h-full w-full" onError={() => setAudioError(true)} />
+              : <audio controls preload="metadata" src={contentUrl} aria-label={title} className="w-full" onError={() => setAudioError(true)} />}
+          {audioError ? <p role="status" className="text-sm text-muted-foreground">無法播放或顯示此附件，可能是格式不支援或連線失敗；請重試或下載原檔。</p> : null}
+        </div>}
       </div>
     );
   }
@@ -126,5 +139,5 @@ export function TaskAttachmentPanel({ issueId, attachmentId }: { issueId: string
     );
   }
   if (content.data === undefined) return <p className="p-4 text-sm" role="status">Loading file…</p>;
-  return <TextAttachmentPreview key={attachment.id} title={attachment.originalFilename ?? attachment.id} text={content.data} markdown={isMarkdownAttachment(attachment)} html={isHtmlAttachment(attachment)} mermaid={isMermaidAttachment(attachment)} downloadUrl={downloadUrl} />;
+  return <TextAttachmentPreview key={attachment.id} title={attachment.originalFilename ?? attachment.id} text={content.data} markdown={isMarkdownAttachment(attachment)} html={isHtmlAttachment(attachment)} mermaid={isMermaidAttachment(attachment)} downloadUrl={downloadUrl} embedded={embedded} />;
 }

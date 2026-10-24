@@ -11,6 +11,7 @@ import { IssueGalleryContext } from "@/context/IssueGalleryContext";
 import { TaskChatBubble } from "./TaskChatBubble";
 import type { TaskChatMessageItem } from "./task-chat-model";
 
+
 describe("TaskChatBubble attachment chips", () => {
   let container: HTMLDivElement;
   let root: Root | null = null;
@@ -82,7 +83,7 @@ describe("TaskChatBubble attachment chips", () => {
         </TextAttachmentContext.Provider>
       </ThemeProvider>,
     ));
-    const trigger = container.querySelector<HTMLButtonElement>(`button[aria-label="Open report.${extension}"]`);
+    const trigger = container.querySelector<HTMLButtonElement>(`button[aria-label="預覽 report.${extension}"]`);
     expect(trigger).not.toBeNull();
     expect(trigger?.closest("a[href]")).toBeNull();
     flushSync(() => trigger!.click());

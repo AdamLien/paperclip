@@ -1,4 +1,5 @@
 import { TextAttachmentContext } from "@/context/TextAttachmentContext";
+import { AttachmentFileCard } from "@/components/AttachmentFileCard";
 import { isTextAttachment } from "@/lib/issue-attachments";
 import { getAttachmentArtifactWorkProductMetadata } from "@paperclipai/shared";
 import { useContext, useState, type CSSProperties } from "react";
@@ -240,6 +241,20 @@ export function RichWorkProductCard({ workProduct, href, variant = "card" }: Ric
   const openGallery = () => {
     if (mediaPath && !openIssueGallery?.(mediaPath)) setGalleryOpen(true);
   };
+
+  if (openText && textMetadata) {
+    return (
+      <AttachmentFileCard
+        attachment={{
+          id: textMetadata.attachmentId,
+          originalFilename: textMetadata.originalFilename ?? workProduct.title,
+          contentType: textMetadata.contentType,
+          byteSize: textMetadata.byteSize,
+        }}
+        onOpen={() => openText(textMetadata.attachmentId, textMetadata.originalFilename ?? workProduct.title)}
+      />
+    );
+  }
 
   if (variant === "gallery" && mediaPath) {
     return (
