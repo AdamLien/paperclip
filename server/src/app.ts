@@ -1,3 +1,5 @@
+import { morbitManagementRoutes, morbitManagementAssets, morbitWikiWriteGuard } from "./routes/morbit-management.js";
+import { managementDependencies } from "./services/morbit-management.js";
 import { cloudWarmStandbyMiddleware } from "./middleware/cloud-warm-standby.js";
 import type { CloudWarmStandby } from "./services/cloud-warm-standby.js";
 import { browserUseRoutes } from "./routes/browser-use.js";
@@ -959,6 +961,10 @@ export async function createApp(
     (session, run) => toolGateway.browserUseSessionAuthorized({ ...session, runId: run.heartbeatRunId, invocationId: run.invocationId }));
   api.use(browserUseRoutes(db, browserUse));
   api.use(toolGatewayRoutes(db, toolGateway));
+  const morbitManagement = managementDependencies(db, workerManager);
+  api.use(morbitManagementRoutes(morbitManagement));
+  api.use(morbitWikiWriteGuard(morbitManagement));
+  app.use("/management", morbitManagementAssets(morbitManagement, process.env.PAPERCLIP_MDECK_ADMIN_DIR));
   api.use(
     pluginRoutes(
       db,
