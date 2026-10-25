@@ -178,7 +178,8 @@ export function morbitWikiWriteGuard(deps: ManagementDependencies) {
     const path = req.path.toLowerCase().replace(/\/+$/, "");
     const action = path.startsWith("/actions/") ? path.slice("/actions/".length)
       : path === "/bridge/action" ? req.body?.key : undefined;
-    const isMutation = action !== undefined || path.startsWith("/api/");
+    const folderWorkspace = req.path.match(/^\/companies\/([^/]+)\/local-folders\/[^/]+(?:\/validate)?\/?$/i)?.[1];
+    const isMutation = action !== undefined || path.startsWith("/api/") || folderWorkspace !== undefined;
     if (!isMutation || action === "start-query") return next();
     const key = String(req.params.pluginId);
     const wiki = await deps.wiki();
@@ -186,7 +187,7 @@ export function morbitWikiWriteGuard(deps: ManagementDependencies) {
     assertAuthenticated(req);
     // Agent execution retains the existing tool/host authorization boundary.
     if (req.actor.type === "agent") return next();
-    const companyId = req.body?.companyId ?? req.body?.params?.companyId ?? req.query.companyId;
+    const companyId = folderWorkspace ?? req.body?.companyId ?? req.body?.params?.companyId ?? req.query.companyId;
     if (typeof companyId !== "string") throw badRequest("Explicit Wiki workspace required");
     await managementScope(deps, req, companyId, true);
     next();
