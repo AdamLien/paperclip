@@ -62,6 +62,7 @@ import { getOperatorSettingDefaults } from "./services/setting-defaults.js";
 import { setupEnvironmentCustomImageTerminalWebSocketServer } from "./realtime/environment-custom-image-terminal-ws.js";
 import { setupLiveEventsWebSocketServer } from "./realtime/live-events-ws.js";
 import { setupRunnerPrpWebSocketServer } from "./realtime/runner-prp-ws.js";
+import { setupMorbitConsoleWebSocketServer } from "./services/morbit-native-entry.js";
 import { cloudActorHeaderSourceFromHeaders, resolveCloudTenantActor } from "./middleware/auth.js";
 import {
   feedbackService,
@@ -962,6 +963,29 @@ async function startServerWithDatabaseTeardown(
 
   let startupListenerBound = false;
   try {
+  setupMorbitConsoleWebSocketServer({
+    server,
+    upstream: process.env.MORBIT_UAT_OCX_URL,
+    adminTokenFile: process.env.MORBIT_UAT_OCX_ADMIN_TOKEN_FILE || "/run/secrets/ocx_admin",
+    bridgeOrigin: process.env.PAPERCLIP_PUBLIC_URL,
+    authorize: async (request) => {
+      if (!resolveSessionFromHeaders) return false;
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(request.headers)) {
+        if (typeof value === "string") headers.set(name, value);
+        else if (Array.isArray(value)) headers.set(name, value.join(", "));
+      }
+      const session = await resolveSessionFromHeaders(headers);
+      const userId = session?.user?.id;
+      if (!userId) return false;
+      const role = await db
+        .select({ id: instanceUserRoles.id })
+        .from(instanceUserRoles)
+        .where(and(eq(instanceUserRoles.userId, userId), eq(instanceUserRoles.role, "instance_admin")))
+        .then(rows => rows[0] ?? null);
+      return !!role;
+    },
+  });
   setupRunnerPrpWebSocketServer(server, { apiUrl: configuredApiUrl });
   setupEnvironmentCustomImageTerminalWebSocketServer(server, db as any, {
     pluginWorkerManager,

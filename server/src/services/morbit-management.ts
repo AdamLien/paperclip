@@ -9,7 +9,7 @@ import { getActorInfo } from "../routes/authz.js";
 import { HttpError } from "../errors.js";
 import type { ManagementDependencies } from "../routes/morbit-management.js";
 import { createMorbitModelAdapter } from "./morbit-base.js";
-import { readMorbitNativeEntry } from "./morbit-native-entry.js";
+import { createMorbitConsoleProxy, readMorbitNativeEntry } from "./morbit-native-entry.js";
 
 /** Bridge to existing services, with no separate users, storage, OAuth or credential copies. */
 export function managementDependencies(db: Db, workers: PluginWorkerManager): ManagementDependencies {
@@ -23,6 +23,11 @@ export function managementDependencies(db: Db, workers: PluginWorkerManager): Ma
       ? () => readFile(process.env.MORBIT_UAT_OCX_TOKEN_FILE!, "utf8") : undefined,
     readAdminToken: process.env.MORBIT_UAT_OCX_ADMIN_TOKEN_FILE
       ? () => readFile(process.env.MORBIT_UAT_OCX_ADMIN_TOKEN_FILE!, "utf8") : undefined,
+  });
+  const consoleProxy = createMorbitConsoleProxy({
+    upstream: process.env.MORBIT_UAT_OCX_URL,
+    adminTokenFile: process.env.MORBIT_UAT_OCX_ADMIN_TOKEN_FILE || "/run/secrets/ocx_admin",
+    bridgeOrigin: process.env.PAPERCLIP_PUBLIC_URL,
   });
   return {
     companies: () => companies.list(),
@@ -50,5 +55,6 @@ export function managementDependencies(db: Db, workers: PluginWorkerManager): Ma
         action, entityType: "company", entityId: companyId, details });
     },
     nativeEntry: () => readMorbitNativeEntry(),
+    consoleProxy,
   };
 }
