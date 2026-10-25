@@ -2,6 +2,7 @@ import express, { Router, type Request } from "express";
 import { z } from "zod";
 import { assertAuthenticated, assertBoard, assertCompanyAccess, assertInstanceAdmin } from "./authz.js";
 import { badRequest, forbidden, notFound, HttpError } from "../errors.js";
+import type { MorbitNativeEntry } from "../services/morbit-native-entry.js";
 
 export type ModelObservation = {
   state: "unconfigured" | "authorization_required" | "unverified" | "ready" | "degraded";
@@ -19,6 +20,7 @@ export interface ManagementDependencies {
   modelTest(): Promise<{ model: string; text: string; checkedAt: string }>;
   wikiCall(key: string, params: Record<string, unknown>, action: boolean, pluginId: string, req: Request): Promise<unknown>;
   audit(req: Request, companyId: string, action: string, details: Record<string, unknown>): Promise<void>;
+  nativeEntry?: () => MorbitNativeEntry | null;
 }
 
 const wikiReadKeys = ["overview", "pages", "sources", "page-content", "spaces", "space"];
@@ -35,13 +37,26 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
 
   const scope = (req: Request, requireManager = false) => managementScope(deps, req, String(req.params.companyId), requireManager);
 
+  router.get("/morbit/base/settings", (req, res) => {
+    res.set("Cache-Control", "no-store");
+    assertAuthenticated(req);
+    assertBoard(req);
+    assertInstanceAdmin(req);
+    if (Object.keys(req.query).length > 0) throw badRequest("Destination parameters are not supported");
+    const entry = deps.nativeEntry?.();
+    if (!entry) throw notFound("Native OCX management is not configured");
+    res.redirect(302, entry.url);
+  });
+
   router.get("/morbit/workspaces", async (req, res) => {
     const workspaces = await managementWorkspaces(deps, req);
     // Instance authority permits service status, never another workspace's data.
     const instance = req.actor.isInstanceAdmin === true || req.actor.source === "local_implicit";
     const model = instance ? await deps.modelStatus() : undefined;
+    const nativeEntry = instance ? deps.nativeEntry?.() : null;
     reply(res, { workspaces, ...(model ? {instance:{can_manage_instance:true,
-      base:{state:model.state,...(model.version?{version:model.version}:{}),...(model.model?{model:model.model}:{})},
+      base:{state:model.state,...(model.version?{version:model.version}:{}),...(model.model?{model:model.model}:{}),
+        ...(nativeEntry ? { settings_url: "/api/morbit/base/settings", ...(nativeEntry.localOnly ? { settings_local_only: true } : {}) } : {})},
       identity:{local:"configured",ldap:"unconfigured"}}} : {}) });
   });
 
@@ -57,6 +72,7 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
 
   router.get(`${root}/management`, async (req, res) => {
     const s = await scope(req, true);
+    const nativeEntry = s.instance ? deps.nativeEntry?.() : null;
     const [wiki, base] = await Promise.all([
       deps.wiki(), s.instance ? deps.modelStatus() : Promise.resolve({ state: "restricted" }),
     ]);
@@ -76,7 +92,8 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
         ...(wiki ? { version: wiki.version } : {}) },
       base: { state: base.state, ...("model" in base ? { model: base.model } : {}),
         ...("version" in base ? { version: base.version } : {}),
-        ...("checkedAt" in base ? { checked_at: base.checkedAt } : {}) },
+        ...("checkedAt" in base ? { checked_at: base.checkedAt } : {}),
+        ...(nativeEntry ? { settings_url: "/api/morbit/base/settings", ...(nativeEntry.localOnly ? { settings_local_only: true } : {}) } : {}) },
       identity: { local: "configured", ldap: "unconfigured" },
     });
   });
