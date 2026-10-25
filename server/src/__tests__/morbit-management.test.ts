@@ -38,6 +38,21 @@ function setup(actor: Record<string, unknown> = manager, directory?: string) {
 const path = (id = company) => `/api/companies/${id}/morbit`;
 
 describe("mDeck management authority and truthful status", () => {
+  it("instance owner without memberships can inspect global state without reading company data", async () => {
+    const {app,deps} = setup({type:"board",source:"session",userId:"owner",isInstanceAdmin:true,companyIds:[],memberships:[]});
+    const result=await request(app).get("/api/morbit/workspaces");
+    expect(result.status).toBe(200);
+    expect(result.body.data.workspaces).toEqual([]);
+    expect(result.body.data.instance).toMatchObject({can_manage_instance:true,base:{state:"unconfigured"}});
+    expect(deps.company).not.toHaveBeenCalled();
+    expect((await request(app).get(`${path()}/management`)).status).toBe(403);
+    const dir=await mkdtemp(join(tmpdir(),"morbit-instance-"));
+    try {
+      await writeFile(join(dir,"index.html"),"instance setup");
+      const owner=setup({type:"board",source:"session",userId:"owner",isInstanceAdmin:true,companyIds:[],memberships:[]},dir);
+      expect((await request(owner.app).get("/management/")).status).toBe(200);
+    } finally {await rm(dir,{recursive:true,force:true});}
+  });
   it("denies anonymous API access", async () => {
     const { app, deps } = setup({ type: "none" });
     expect((await request(app).get(`${path()}/management`)).status).toBe(401);

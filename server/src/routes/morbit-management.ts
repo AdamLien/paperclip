@@ -36,7 +36,13 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
   const scope = (req: Request, requireManager = false) => managementScope(deps, req, String(req.params.companyId), requireManager);
 
   router.get("/morbit/workspaces", async (req, res) => {
-    reply(res, { workspaces: await managementWorkspaces(deps, req) });
+    const workspaces = await managementWorkspaces(deps, req);
+    // Instance authority permits service status, never another workspace's data.
+    const instance = req.actor.isInstanceAdmin === true || req.actor.source === "local_implicit";
+    const model = instance ? await deps.modelStatus() : undefined;
+    reply(res, { workspaces, ...(model ? {instance:{can_manage_instance:true,
+      base:{state:model.state,...(model.version?{version:model.version}:{}),...(model.model?{model:model.model}:{})},
+      identity:{local:"configured",ldap:"unconfigured"}}} : {}) });
   });
 
   function reply(res: import("express").Response, data: unknown) {
@@ -145,7 +151,7 @@ export function morbitManagementAssets(deps: ManagementDependencies, directory: 
   router.use(async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     const workspaces = await managementWorkspaces(deps, req);
-    if (!workspaces.length) throw forbidden("Workspace management access required");
+    if (!workspaces.length && !req.actor.isInstanceAdmin && req.actor.source !== "local_implicit") throw forbidden("Workspace management access required");
     if (!directory) throw new HttpError(503, "Management UI assets are not installed");
     next();
   });
