@@ -9,6 +9,7 @@ import { getActorInfo } from "../routes/authz.js";
 import { HttpError } from "../errors.js";
 import type { ManagementDependencies } from "../routes/morbit-management.js";
 import { createMorbitModelAdapter } from "./morbit-base.js";
+import { readMorbitNativeEntry } from "./morbit-native-entry.js";
 
 /** Bridge to existing services, with no separate users, storage, OAuth or credential copies. */
 export function managementDependencies(db: Db, workers: PluginWorkerManager): ManagementDependencies {
@@ -48,5 +49,6 @@ export function managementDependencies(db: Db, workers: PluginWorkerManager): Ma
       await logActivity(db, { companyId, actorType: actor.actorType, actorId: actor.actorId,
         action, entityType: "company", entityId: companyId, details });
     },
+    nativeEntry: () => readMorbitNativeEntry(),
   };
 }

@@ -6,6 +6,7 @@ import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import { morbitManagementRoutes, morbitManagementAssets, morbitWikiWriteGuard, type ManagementDependencies } from "../routes/morbit-management.js";
 import { errorHandler } from "../middleware/error-handler.js";
+import { readMorbitNativeEntry } from "../services/morbit-native-entry.js";
 
 const company = "22222222-2222-4222-8222-222222222222";
 const other = "33333333-3333-4333-8333-333333333333";
@@ -23,6 +24,7 @@ function setup(actor: Record<string, unknown> = manager, directory?: string) {
     modelTest: vi.fn(async () => ({ model: "test-model", text: "OK", checkedAt: "2026-10-25T00:00:00Z" })),
     wikiCall: vi.fn(async (_key, params) => ({ companyId: params.companyId, pages: [] })),
     audit: vi.fn(async () => {}),
+    nativeEntry: vi.fn(() => null),
   };
   const state = { actor };
   const app = express();
@@ -38,6 +40,51 @@ function setup(actor: Record<string, unknown> = manager, directory?: string) {
 const path = (id = company) => `/api/companies/${id}/morbit`;
 
 describe("mDeck management authority and truthful status", () => {
+  it.each([
+    ["", null],
+    ["http://example.com", null],
+    ["https://example.com/admin", null],
+    ["https://user:pass@example.com", null],
+    ["https://example.com/?next=evil", null],
+    ["https://example.com/#other", null],
+  ])("rejects unsafe native OCX management URL %s", (raw, expected) => {
+    expect(readMorbitNativeEntry(raw)).toEqual(expected);
+  });
+
+  it("normalizes configured native OCX management URLs and marks loopback", () => {
+    expect(readMorbitNativeEntry("https://ocx.example/#providers")).toEqual({
+      url: "https://ocx.example/#providers", localOnly: false,
+    });
+    expect(readMorbitNativeEntry("http://127.0.0.1:8080")).toEqual({
+      url: "http://127.0.0.1:8080/", localOnly: true,
+    });
+  });
+
+  it("exposes and redirects only the configured native settings entry", async () => {
+    const admin = setup({ ...manager, isInstanceAdmin: true });
+    vi.mocked(admin.deps.nativeEntry!).mockReturnValue({ url: "https://ocx.example/#providers", localOnly: false });
+    const management = await request(admin.app).get(`${path()}/management`);
+    expect(management.body.data.base).toMatchObject({ settings_url: "/api/morbit/base/settings" });
+    const workspaces = await request(admin.app).get("/api/morbit/workspaces");
+    expect(workspaces.body.data.instance.base).toMatchObject({ settings_url: "/api/morbit/base/settings" });
+    expect((await request(admin.app).get("/api/morbit/base/settings")).status).toBe(302);
+    expect((await request(admin.app).get("/api/morbit/base/settings")).headers.location).toBe("https://ocx.example/#providers");
+    expect((await request(admin.app).get("/api/morbit/base/settings?destination=https://evil.example")).status).toBe(400);
+    vi.mocked(admin.deps.nativeEntry!).mockReturnValue({ url: "http://127.0.0.1:8080/", localOnly: true });
+    expect((await request(admin.app).get(`${path()}/management`)).body.data.base.settings_local_only).toBe(true);
+    expect((await request(admin.app).get("/api/morbit/workspaces")).body.data.instance.base.settings_local_only).toBe(true);
+  });
+
+  it("omits native settings for missing config and rejects non-instance admins", async () => {
+    const missing = setup({ ...manager, isInstanceAdmin: true });
+    expect((await request(missing.app).get(`${path()}/management`)).body.data.base).not.toHaveProperty("settings_url");
+    expect((await request(missing.app).get("/api/morbit/base/settings")).status).toBe(404);
+    for (const actor of [{ type: "none" }, member, manager]) {
+      const status = actor.type === "none" ? 401 : 403;
+      expect((await request(setup(actor).app).get("/api/morbit/base/settings")).status).toBe(status);
+    }
+  });
+
   it("instance owner without memberships can inspect global state without reading company data", async () => {
     const {app,deps} = setup({type:"board",source:"session",userId:"owner",isInstanceAdmin:true,companyIds:[],memberships:[]});
     const result=await request(app).get("/api/morbit/workspaces");
