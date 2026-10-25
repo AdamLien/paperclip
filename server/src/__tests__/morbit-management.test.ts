@@ -1,12 +1,15 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express from "express";
 import request from "supertest";
+import { WebSocket, WebSocketServer } from "ws";
 import { describe, expect, it, vi } from "vitest";
-import { morbitManagementRoutes, morbitManagementAssets, morbitWikiWriteGuard, type ManagementDependencies } from "../routes/morbit-management.js";
+import { morbitManagementRoutes, morbitManagementAssets, morbitWikiWriteGuard, type ManagementDependencies, type MorbitConsoleProxy } from "../routes/morbit-management.js";
 import { errorHandler } from "../middleware/error-handler.js";
-import { readMorbitNativeEntry } from "../services/morbit-native-entry.js";
+import { createMorbitConsoleProxy, isMorbitConsoleWebSocketOriginAllowed, isMorbitConsoleWebSocketPath, readMorbitNativeEntry, setupMorbitConsoleWebSocketServer } from "../services/morbit-native-entry.js";
 
 const company = "22222222-2222-4222-8222-222222222222";
 const other = "33333333-3333-4333-8333-333333333333";
@@ -14,7 +17,7 @@ const member = { type: "board", source: "session", userId: "employee", companyId
   memberships: [{ companyId: company, membershipRole: "member", status: "active" }] };
 const manager = { ...member, userId: "manager", memberships: [{ companyId: company, membershipRole: "admin", status: "active" }] };
 
-function setup(actor: Record<string, unknown> = manager, directory?: string) {
+function setup(actor: Record<string, unknown> = manager, directory?: string, consoleProxy?: MorbitConsoleProxy) {
   const deps: ManagementDependencies = {
     companies: vi.fn(async () => [{ id: company, name: "Demo", issuePrefix: "DEMO" }]),
     company: vi.fn(async () => ({ id: company, name: "Demo", issuePrefix: "DEMO" })),
@@ -25,6 +28,7 @@ function setup(actor: Record<string, unknown> = manager, directory?: string) {
     wikiCall: vi.fn(async (_key, params) => ({ companyId: params.companyId, pages: [] })),
     audit: vi.fn(async () => {}),
     nativeEntry: vi.fn(() => null),
+    consoleProxy,
   };
   const state = { actor };
   const app = express();
@@ -39,7 +43,274 @@ function setup(actor: Record<string, unknown> = manager, directory?: string) {
 }
 const path = (id = company) => `/api/companies/${id}/morbit`;
 
+async function listen(server: ReturnType<typeof createServer>): Promise<number> {
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  return (server.address() as AddressInfo).port;
+}
+
+async function closeServer(server: ReturnType<typeof createServer>): Promise<void> {
+  if (!server.listening) return;
+  await new Promise<void>(resolve => server.close(() => resolve()));
+}
+
 describe("mDeck management authority and truthful status", () => {
+  it("proxies the fixed native console only for an instance admin and never forwards a browser admin key", async () => {
+    const proxy: MorbitConsoleProxy = { forward: vi.fn(async req => {
+      expect(req.path).toBe("/");
+      expect(req.headers.get("x-opencodex-api-key")).toBe("ocx_session_native");
+      expect(req.headers.get("authorization")).toBeNull();
+      return new Response("<!doctype html><meta name=opencodex-session-token content=ocx_session_native>", {
+        status: 200,
+        headers: { "Content-Type": "text/html", "Content-Security-Policy": "default-src 'self'; frame-ancestors https://old.example", "X-OpenCodex-Admin-Key": "should-not-leak" },
+      });
+    }) };
+    const admin = setup({ ...manager, isInstanceAdmin: true }, undefined, proxy);
+    expect((await request(admin.app).get(`${path()}/management`)).body.data.base.settings_url).toBe("/api/morbit/base/console/");
+    const response = await request(admin.app).get("/api/morbit/base/console/")
+      .set("X-OpenCodex-API-Key", "ocx_session_native");
+    expect(response.status).toBe(200);
+    expect(response.text).toContain("opencodex-session-token");
+    expect(response.headers["x-opencodex-admin-key"]).toBeUndefined();
+    expect(response.headers["content-security-policy"]).toBe("default-src 'self'; frame-ancestors 'self'");
+  });
+
+  it("accepts the mDeck session cookie for static native assets but strips it upstream", async () => {
+    const proxy: MorbitConsoleProxy = { forward: vi.fn(async req => {
+      expect(req.path).toBe("/assets/app.js");
+      expect(req.headers.get("cookie")).toBe("paperclip_session=host-session");
+      return new Response("asset", { status: 200 });
+    }) };
+    const admin = setup({ ...manager, isInstanceAdmin: true }, undefined, proxy);
+    const response = await request(admin.app).get("/api/morbit/base/console/assets/app.js")
+      .set("Cookie", "paperclip_session=host-session");
+    expect(response.status).toBe(200);
+    expect(proxy.forward).toHaveBeenCalledTimes(1);
+  });
+
+  it("still requires a native session for console APIs", async () => {
+    const proxy: MorbitConsoleProxy = { forward: vi.fn() };
+    const admin = setup({ ...manager, isInstanceAdmin: true }, undefined, proxy);
+    const response = await request(admin.app).get("/api/morbit/base/console/api/models")
+      .set("Cookie", "paperclip_session=host-session");
+    expect(response.status).toBe(403);
+    expect(proxy.forward).not.toHaveBeenCalled();
+  });
+
+  it.each([[{ type: "none" }, 401], [member, 403], [manager, 403]] as const)(
+    "denies native console to non-instance actor %#",
+    async (actor, status) => {
+      const proxy: MorbitConsoleProxy = { forward: vi.fn() };
+      expect((await request(setup(actor, undefined, proxy).app).get("/api/morbit/base/console/")).status).toBe(status);
+      expect(proxy.forward).not.toHaveBeenCalled();
+    },
+  );
+
+  it("has no native console entry when the OCX proxy is not configured", async () => {
+    const admin = setup({ ...manager, isInstanceAdmin: true });
+    expect((await request(admin.app).get("/api/morbit/base/console/")).status).toBe(404);
+  });
+
+  it("rejects a browser-supplied raw OCX admin credential", async () => {
+    const proxy: MorbitConsoleProxy = { forward: vi.fn() };
+    const admin = setup({ ...manager, isInstanceAdmin: true }, undefined, proxy);
+    const response = await request(admin.app).get("/api/morbit/base/console/")
+      .set("X-OpenCodex-API-Key", "ocx_admin_browser_value");
+    expect(response.status).toBe(403);
+    expect(proxy.forward).not.toHaveBeenCalled();
+  });
+
+  it("requires exact browser origin for native mutations", async () => {
+    const proxy: MorbitConsoleProxy = { forward: vi.fn() };
+    const admin = setup({ ...manager, isInstanceAdmin: true }, undefined, proxy);
+    const response = await request(admin.app).post("/api/morbit/base/console/api/settings")
+      .set("X-OpenCodex-API-Key", "ocx_session_native")
+      .set("X-OpenCodex-CSRF-Token", "native-csrf")
+      .send({ showCodexCredits: true });
+    expect(response.status).toBe(403);
+    expect(proxy.forward).not.toHaveBeenCalled();
+  });
+
+  it("forwards native bootstrap through the server bridge without returning admin credentials", async () => {
+    const proxy: MorbitConsoleProxy = { forward: vi.fn(async req => {
+      expect(req.path).toBe("/opencodex-session");
+      expect(req.bridge).toBe(true);
+      expect(req.headers.get("x-opencodex-api-key")).toBeNull();
+      return new Response("bootstrap", { status: 200, headers: { "X-OpenCodex-Admin-Key": "no" } });
+    }) };
+    const admin = setup({ ...manager, isInstanceAdmin: true }, undefined, proxy);
+    const response = await request(admin.app).get("/api/morbit/base/console/opencodex-session");
+    expect(response.status).toBe(200);
+    expect(response.text).toBe("bootstrap");
+    expect(response.headers["x-opencodex-admin-key"]).toBeUndefined();
+  });
+
+  it("does not expose the console contract to a workspace manager", async () => {
+    const proxy: MorbitConsoleProxy = { forward: vi.fn() };
+    const response = await request(setup(manager, undefined, proxy).app).get(`${path()}/management`);
+    expect(response.status).toBe(200);
+    expect(response.body.data.base).not.toHaveProperty("settings_url");
+  });
+
+  it("uses the fixed upstream and keeps the admin secret server-side", async () => {
+    const fetcher = vi.fn(async (_url: URL, init?: RequestInit) => {
+      expect(String(_url)).toBe("http://ocx:10100/opencodex-session");
+      expect(new Headers(init?.headers).get("x-opencodex-api-key")).toBe("ocx_admin_" + "a".repeat(43));
+      expect(new Headers(init?.headers).get("x-opencodex-trusted-proxy")).toBe("mdeck");
+      expect(new Headers(init?.headers).get("host")).toBe("mdeck.example");
+      expect(new Headers(init?.headers).get("x-opencodex-gui-origin")).toBe("https://mdeck.example");
+      expect(new Headers(init?.headers).get("authorization")).toBeNull();
+      expect(new Headers(init?.headers).get("cookie")).toBeNull();
+      expect(new Headers(init?.headers).get("accept-encoding")).toBe("identity");
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return new Response("native bootstrap");
+    });
+    const proxy = createMorbitConsoleProxy({
+      upstream: "http://ocx:10100/v1",
+      bridgeOrigin: "https://mdeck.example/",
+      readAdminToken: async () => "ocx_admin_" + "a".repeat(43),
+      fetcher,
+    });
+    expect(proxy).not.toBeNull();
+    const response = await proxy!.forward({
+      method: "GET", path: "/opencodex-session", bridge: true,
+      headers: new Headers({ Authorization: "Bearer browser-value", Cookie: "paperclip=secret", Host: "evil.example" }),
+    });
+    expect(response.status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["/v1/live", true],
+    ["/v1/realtime?model=gpt-live", true],
+    ["/v1/audio/transcriptions/stream", true],
+    ["/v1/live/call_123", true],
+    ["/v1/models", false],
+    ["/v1/live/%2e%2e/admin", false],
+    ["//v1/live", false],
+  ])("allows only fixed native console websocket path %s", (path, allowed) => {
+    expect(isMorbitConsoleWebSocketPath(path.split("?")[0]!)).toBe(allowed);
+  });
+
+  it.each([
+    ["https://mdeck.example", true],
+    ["https://evil.example", false],
+    [undefined, false],
+  ])("requires the configured board origin for native console websocket upgrades: %s", (origin, allowed) => {
+    expect(isMorbitConsoleWebSocketOriginAllowed(origin, "https://mdeck.example/")).toBe(allowed);
+  });
+
+  it.each(["https://evil.example", undefined])("rejects cross-origin or missing-origin websocket upgrades before auth: %s", origin => {
+    const server = createServer();
+    const authorize = vi.fn(async () => true);
+    setupMorbitConsoleWebSocketServer({
+      server,
+      upstream: "http://ocx:10100",
+      bridgeOrigin: "https://mdeck.example",
+      readAdminToken: async () => "ocx_admin_" + "a".repeat(43),
+      authorize,
+    });
+    const socket = { destroy: vi.fn() };
+    server.emit("upgrade", { url: "/api/morbit/base/console/v1/live", headers: { origin } }, socket, Buffer.alloc(0));
+    expect(socket.destroy).toHaveBeenCalledTimes(1);
+    expect(authorize).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("waits for upstream open and delivers the first immediate frame through a real websocket", async () => {
+    const upstreamServer = createServer();
+    const upstreamWss = new WebSocketServer({ server: upstreamServer });
+    let upstreamConnections = 0;
+    let upstreamApiKey: string | undefined;
+    let upstreamProtocols: string | undefined;
+    upstreamWss.on("connection", (socket, request) => {
+      upstreamConnections += 1;
+      upstreamApiKey = request.headers["x-opencodex-api-key"] as string | undefined;
+      upstreamProtocols = request.headers["sec-websocket-protocol"] as string | undefined;
+      socket.send("first-immediate-frame");
+      socket.on("message", message => socket.send(message));
+    });
+    const proxyServer = createServer();
+    setupMorbitConsoleWebSocketServer({
+      server: proxyServer,
+      upstream: `http://127.0.0.1:${await listen(upstreamServer)}`,
+      bridgeOrigin: "https://mdeck.example",
+      authorize: async () => true,
+    });
+    const proxyPort = await listen(proxyServer);
+    const client = new WebSocket(`ws://127.0.0.1:${proxyPort}/api/morbit/base/console/v1/live`, ["opencodex-audio", "opencodex-key.data-key"], {
+      headers: { Origin: "https://mdeck.example" },
+    });
+    const messages: string[] = [];
+    try {
+      await new Promise<void>((resolve, reject) => {
+        client.on("message", value => {
+          messages.push(value.toString());
+          if (messages.includes("first-immediate-frame") && messages.includes("echo")) resolve();
+        });
+        client.once("open", () => {
+          client.send("echo");
+        });
+        client.once("error", reject);
+        setTimeout(() => reject(new Error("websocket echo timeout")), 2_000);
+      });
+      expect(messages.slice(0, 2)).toEqual(["first-immediate-frame", "echo"]);
+      expect(upstreamConnections).toBe(1);
+      expect(upstreamApiKey).toBeUndefined();
+      expect(upstreamProtocols).toContain("opencodex-key.data-key");
+    } finally {
+      client.close();
+      await new Promise(resolve => client.once("close", resolve));
+      upstreamWss.close();
+      await closeServer(proxyServer);
+      await closeServer(upstreamServer);
+    }
+  });
+
+  it("rejects a real websocket with an admin credential in the audio subprotocol", async () => {
+    const upstreamServer = createServer();
+    const upstreamWss = new WebSocketServer({ server: upstreamServer });
+    let upstreamConnections = 0;
+    upstreamWss.on("connection", () => { upstreamConnections += 1; });
+    const upstreamPort = await listen(upstreamServer);
+    const proxyServer = createServer();
+    setupMorbitConsoleWebSocketServer({ server: proxyServer, upstream: `http://127.0.0.1:${upstreamPort}`, bridgeOrigin: "https://mdeck.example", authorize: async () => true });
+    const proxyPort = await listen(proxyServer);
+    const client = new WebSocket(`ws://127.0.0.1:${proxyPort}/api/morbit/base/console/v1/live`, ["opencodex-audio", "opencodex-key.ocx_admin_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], {
+      headers: { Origin: "https://mdeck.example" },
+    });
+    try {
+      await new Promise<void>(resolve => { client.once("close", () => resolve()); client.once("error", () => resolve()); });
+      expect(upstreamConnections).toBe(0);
+    } finally {
+      client.close();
+      upstreamWss.close();
+      await closeServer(proxyServer);
+      await closeServer(upstreamServer);
+    }
+  });
+
+  it.each(["http://example.com", "https://user:pass@example.com", "http://ocx:10100?next=evil"])(
+    "rejects unsafe fixed console upstream %s",
+    upstream => {
+      expect(createMorbitConsoleProxy({ upstream, bridgeOrigin: "https://mdeck.example", readAdminToken: async () => "" })).toBeNull();
+    },
+  );
+
+  it("rejects an external HTTP bridge origin while allowing loopback HTTP", () => {
+    expect(createMorbitConsoleProxy({
+      upstream: "http://ocx:10100",
+      bridgeOrigin: "http://example.com",
+      readAdminToken: async () => "",
+    })).toBeNull();
+    expect(createMorbitConsoleProxy({
+      upstream: "http://ocx:10100",
+      bridgeOrigin: "http://127.0.0.1:3100",
+      readAdminToken: async () => "",
+    })).not.toBeNull();
+  });
   it.each([
     ["", null],
     ["http://example.com", null],
@@ -64,15 +335,15 @@ describe("mDeck management authority and truthful status", () => {
     const admin = setup({ ...manager, isInstanceAdmin: true });
     vi.mocked(admin.deps.nativeEntry!).mockReturnValue({ url: "https://ocx.example/#providers", localOnly: false });
     const management = await request(admin.app).get(`${path()}/management`);
-    expect(management.body.data.base).toMatchObject({ settings_url: "/api/morbit/base/settings" });
+    expect(management.body.data.base).not.toHaveProperty("settings_url");
     const workspaces = await request(admin.app).get("/api/morbit/workspaces");
-    expect(workspaces.body.data.instance.base).toMatchObject({ settings_url: "/api/morbit/base/settings" });
+    expect(workspaces.body.data.instance.base).not.toHaveProperty("settings_url");
     expect((await request(admin.app).get("/api/morbit/base/settings")).status).toBe(302);
     expect((await request(admin.app).get("/api/morbit/base/settings")).headers.location).toBe("https://ocx.example/#providers");
     expect((await request(admin.app).get("/api/morbit/base/settings?destination=https://evil.example")).status).toBe(400);
     vi.mocked(admin.deps.nativeEntry!).mockReturnValue({ url: "http://127.0.0.1:8080/", localOnly: true });
-    expect((await request(admin.app).get(`${path()}/management`)).body.data.base.settings_local_only).toBe(true);
-    expect((await request(admin.app).get("/api/morbit/workspaces")).body.data.instance.base.settings_local_only).toBe(true);
+    expect((await request(admin.app).get(`${path()}/management`)).body.data.base).not.toHaveProperty("settings_local_only");
+    expect((await request(admin.app).get("/api/morbit/workspaces")).body.data.instance.base).not.toHaveProperty("settings_local_only");
   });
 
   it("omits native settings for missing config and rejects non-instance admins", async () => {

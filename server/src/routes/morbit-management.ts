@@ -1,8 +1,9 @@
 import express, { Router, type Request } from "express";
 import { z } from "zod";
 import { assertAuthenticated, assertBoard, assertCompanyAccess, assertInstanceAdmin } from "./authz.js";
+import { trustedBoardMutationOrigin } from "../middleware/board-mutation-guard.js";
 import { badRequest, forbidden, notFound, HttpError } from "../errors.js";
-import type { MorbitNativeEntry } from "../services/morbit-native-entry.js";
+import type { MorbitConsoleProxy, MorbitConsoleProxyRequest, MorbitNativeEntry } from "../services/morbit-native-entry.js";
 
 export type ModelObservation = {
   state: "unconfigured" | "authorization_required" | "unverified" | "ready" | "degraded";
@@ -21,6 +22,7 @@ export interface ManagementDependencies {
   wikiCall(key: string, params: Record<string, unknown>, action: boolean, pluginId: string, req: Request): Promise<unknown>;
   audit(req: Request, companyId: string, action: string, details: Record<string, unknown>): Promise<void>;
   nativeEntry?: () => MorbitNativeEntry | null;
+  consoleProxy?: MorbitConsoleProxy | null;
 }
 
 const wikiReadKeys = ["overview", "pages", "sources", "page-content", "spaces", "space"];
@@ -30,10 +32,89 @@ const callSchema = z.object({
   params: z.record(z.string(), z.unknown()).default({}),
 }).strict();
 
+function nativeSettingsUrl(deps: ManagementDependencies): string | null {
+  return deps.consoleProxy ? "/api/morbit/base/console/" : null;
+}
+
+function requiresNativeConsoleSession(path: string): boolean {
+  return path.startsWith("/api/") || path.startsWith("/v1/");
+}
+
+function preserveCspWithSelfFrameAncestor(value: string): string {
+  const directives = value.split(";").map(directive => directive.trim()).filter(Boolean);
+  const index = directives.findIndex(directive => directive.toLowerCase().startsWith("frame-ancestors "));
+  if (index < 0) return value;
+  directives[index] = "frame-ancestors 'self'";
+  return directives.join("; ");
+}
+
 /** The adapter reuses host identity; it cannot accept browser-selected scopes or upstreams. */
 export function morbitManagementRoutes(deps: ManagementDependencies) {
   const router = Router();
   const root = "/companies/:companyId/morbit";
+
+  const consoleProxy = async (req: Request, res: express.Response) => {
+    assertAuthenticated(req);
+    assertBoard(req);
+    assertInstanceAdmin(req);
+    if (!deps.consoleProxy) throw notFound("Native OCX console is not configured");
+
+    const rawCredential = req.header("x-opencodex-api-key")?.trim();
+    if (req.header("authorization") || req.header("x-opencodex-admin-bridge")
+      || req.header("x-opencodex-bridge-origin") || req.header("x-opencodex-trusted-proxy")) {
+      throw forbidden("Browser upstream credentials are not accepted");
+    }
+    if (rawCredential?.startsWith("ocx_admin_")) throw forbidden("Browser admin credentials are not accepted");
+
+    const mountedPath = `${req.baseUrl}${req.path}`;
+    const prefix = "/api/morbit/base/console";
+    const path = mountedPath.slice(mountedPath.indexOf(prefix) + prefix.length) || "/";
+    const bridge = path === "/opencodex-session" || (path === "/" && !rawCredential);
+    if (!bridge && requiresNativeConsoleSession(path) && !rawCredential) throw forbidden("Native console session is required");
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase())) {
+      const origin = req.header("origin")?.trim().toLowerCase();
+      if (!origin || trustedBoardMutationOrigin(req) !== origin) {
+        throw forbidden("Native console mutation requires trusted browser origin");
+      }
+      if (!req.header("x-opencodex-csrf-token")) throw forbidden("Native console mutation requires CSRF token");
+    }
+
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(req.headers)) {
+      if (typeof value === "string") headers.set(name, value);
+      else if (Array.isArray(value)) headers.set(name, value.join(", "));
+    }
+    const body = req.body === undefined || req.body === null || req.body === ""
+      ? (["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase()) ? undefined : req as unknown as AsyncIterable<Uint8Array>)
+      : typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    const input: MorbitConsoleProxyRequest = { method: req.method, path: `${path}${new URL(req.originalUrl, "http://mdeck.invalid").search}`, headers, body, bridge };
+    const upstream = await deps.consoleProxy.forward(input);
+    const responseHeaders = new Headers();
+    for (const [name, value] of upstream.headers) {
+      if (["set-cookie", "content-length", "content-encoding", "connection", "transfer-encoding", "upgrade", "sec-websocket-accept", "sec-websocket-protocol", "authorization",
+        "www-authenticate", "x-opencodex-api-key", "x-opencodex-admin-key", "x-opencodex-admin-bridge",
+        "x-opencodex-bridge-origin", "x-opencodex-trusted-proxy"].includes(name.toLowerCase())) continue;
+      responseHeaders.set(name, value);
+    }
+    const csp = responseHeaders.get("content-security-policy");
+    if (csp?.toLowerCase().includes("frame-ancestors")) {
+      responseHeaders.set("Content-Security-Policy", preserveCspWithSelfFrameAncestor(csp));
+    }
+    responseHeaders.delete("x-frame-options");
+    res.status(upstream.status);
+    responseHeaders.forEach((value, name) => res.setHeader(name, value));
+    if (req.method === "HEAD" || upstream.status === 204) { res.end(); return; }
+    if (!upstream.body) { res.end(); return; }
+    const { Readable } = await import("node:stream");
+    const stream = Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream);
+    res.once("close", () => {
+      if (!res.writableFinished) void upstream.body?.cancel().catch(() => {});
+    });
+    stream.on("error", () => { if (!res.headersSent) res.status(502); res.end(); });
+    stream.pipe(res);
+  };
+
+  router.use("/morbit/base/console", consoleProxy);
 
   const scope = (req: Request, requireManager = false) => managementScope(deps, req, String(req.params.companyId), requireManager);
 
@@ -54,9 +135,10 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
     const instance = req.actor.isInstanceAdmin === true || req.actor.source === "local_implicit";
     const model = instance ? await deps.modelStatus() : undefined;
     const nativeEntry = instance ? deps.nativeEntry?.() : null;
+    const settingsUrl = instance ? nativeSettingsUrl(deps) : null;
     reply(res, { workspaces, ...(model ? {instance:{can_manage_instance:true,
       base:{state:model.state,...(model.version?{version:model.version}:{}),...(model.model?{model:model.model}:{}),
-        ...(nativeEntry ? { settings_url: "/api/morbit/base/settings", ...(nativeEntry.localOnly ? { settings_local_only: true } : {}) } : {})},
+        ...(settingsUrl ? { settings_url: settingsUrl, ...(nativeEntry?.localOnly ? { settings_local_only: true } : {}) } : {})},
       identity:{local:"configured",ldap:"unconfigured"}}} : {}) });
   });
 
@@ -73,6 +155,7 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
   router.get(`${root}/management`, async (req, res) => {
     const s = await scope(req, true);
     const nativeEntry = s.instance ? deps.nativeEntry?.() : null;
+    const settingsUrl = s.instance ? nativeSettingsUrl(deps) : null;
     const [wiki, base] = await Promise.all([
       deps.wiki(), s.instance ? deps.modelStatus() : Promise.resolve({ state: "restricted" }),
     ]);
@@ -93,7 +176,7 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
       base: { state: base.state, ...("model" in base ? { model: base.model } : {}),
         ...("version" in base ? { version: base.version } : {}),
         ...("checkedAt" in base ? { checked_at: base.checkedAt } : {}),
-        ...(nativeEntry ? { settings_url: "/api/morbit/base/settings", ...(nativeEntry.localOnly ? { settings_local_only: true } : {}) } : {}) },
+        ...(settingsUrl ? { settings_url: settingsUrl, ...(nativeEntry?.localOnly ? { settings_local_only: true } : {}) } : {}) },
       identity: { local: "configured", ldap: "unconfigured" },
     });
   });
