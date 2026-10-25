@@ -68,7 +68,7 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
         work: `${prefix}/dashboard`, agents: `${prefix}/agents/all`, skills: `${prefix}/skills`,
         connectors: `${prefix}/apps`, members: `${prefix}/company/settings/members`,
         settings: `${prefix}/company/settings`,
-        ...(wiki ? { wiki: `${prefix}/plugins/${encodeURIComponent(wiki.id)}/wiki` } : {}),
+        ...(wiki ? { wiki: `${prefix}/wiki` } : {}),
         ...(s.instance ? { instance: `${prefix}/company/settings/instance/access`,
           plugins: `${prefix}/company/settings/instance/plugins` } : {}),
       },

@@ -204,6 +204,13 @@ describe("mDeck management authority and truthful status", () => {
     expect((await request(setup(member).app).post("/api/plugins/unrelated/actions/write-page").send({})).status).toBe(200);
   });
 
+  it("links the bundled Wiki to its existing workspace route", async () => {
+    const {app,deps} = setup();
+    vi.mocked(deps.wiki).mockResolvedValue({id:"wiki-uuid",status:"ready",version:"1"});
+    const result=await request(app).get(path()+"/management");
+    expect(result.body.data.links.wiki).toBe("/DEMO/wiki");
+  });
+
   it("protects native Wiki folder configuration using the workspace in the URL", async () => {
     for (const actor of [member, manager]) {
       const {app, deps} = setup(actor);
