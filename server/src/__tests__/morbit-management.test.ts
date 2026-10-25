@@ -31,7 +31,7 @@ function setup(actor: Record<string, unknown> = manager, directory?: string) {
   app.use("/api", morbitManagementRoutes(deps));
   app.use("/management", morbitManagementAssets(deps, directory));
   app.use("/api", morbitWikiWriteGuard(deps));
-  app.post("/api/plugins/:pluginId/{*rest}", (_req,res) => res.json({forwarded:true}));
+  app.all("/api/plugins/:pluginId/{*rest}", (_req,res) => res.json({forwarded:true}));
   app.use(errorHandler);
   return { app, deps, state };
 }
@@ -202,6 +202,18 @@ describe("mDeck management authority and truthful status", () => {
     vi.mocked(deps.wiki).mockResolvedValue({id:"wiki-uuid",status:"ready",version:"1"});
     expect((await request(app).post("/api/plugins/wiki-uuid/actions/write-page").send({companyId:company})).status).toBe(200);
     expect((await request(setup(member).app).post("/api/plugins/unrelated/actions/write-page").send({})).status).toBe(200);
+  });
+
+  it("protects native Wiki folder configuration using the workspace in the URL", async () => {
+    for (const actor of [member, manager]) {
+      const {app, deps} = setup(actor);
+      vi.mocked(deps.wiki).mockResolvedValue({id:"wiki-uuid",status:"ready",version:"1"});
+      const folder = `/api/plugins/wiki-uuid/companies/${company}/local-folders/wikiRoot`;
+      expect((await request(app).put(folder).send({path:"/paperclip/wiki"})).status).toBe(actor === member ? 403 : 200);
+      expect((await request(app).post(folder + "/validate").send({path:"/paperclip/wiki"})).status).toBe(actor === member ? 403 : 200);
+      expect((await request(app).put(`/api/plugins/wiki-uuid/companies/${other}/local-folders/wikiRoot`)
+        .send({companyId:company,path:"/paperclip/wiki"})).status).toBe(403);
+    }
   });
 
   it("employee cannot use the board tool dispatcher to write Wiki content", async () => {
