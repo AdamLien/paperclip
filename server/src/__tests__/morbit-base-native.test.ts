@@ -36,6 +36,43 @@ describe("morbit base native BFF", () => {
     expect(setup.forward).toHaveBeenCalledWith(expect.objectContaining({ method: "GET", path: "/api/providers", bridge: true, headers: expect.not.objectContaining({ authorization: expect.anything() }) }));
   });
 
+  it("forwards provider presets as a safe GET-only native contract", async () => {
+    const fixture = Response.json({ providers: [{
+      id: "openai",
+      label: "OpenAI",
+      adapter: "openai-responses",
+      baseUrl: "https://api.openai.com/v1",
+      auth: "key",
+      defaultModel: "gpt-4.1",
+      provider: { apiKey: "fixture-secret" },
+    }] });
+    const setup = make(admin, fixture);
+
+    const response = await request(setup.app).get("/api/morbit/base/native/api/provider-presets");
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ providers: [{
+      id: "openai",
+      label: "OpenAI",
+      adapter: "openai-responses",
+      baseUrl: "https://api.openai.com/v1",
+      auth: "key",
+      defaultModel: "gpt-4.1",
+      provider: { apiKey: null },
+    }] });
+    expect(setup.forward).toHaveBeenCalledWith(expect.objectContaining({
+      method: "GET",
+      path: "/api/provider-presets",
+      bridge: true,
+    }));
+
+    expect((await request(setup.app).get("/api/morbit/base/native/api/provider-presets?name=openai")).status).toBe(400);
+    expect((await request(setup.app).post("/api/morbit/base/native/api/provider-presets")
+      .set("Origin", "http://127.0.0.1")
+      .set("Host", "127.0.0.1")
+      .set("Content-Type", "application/json")
+      .send({})).status).toBe(400);
+  });
+
   it("preserves native account and device-login wire fixtures", async () => {
     const setup = make(admin, Response.json({ provider: "chatgpt", activeAccountId: "chatgpt-1", accounts: [{ id: "chatgpt-1", email: "a@example.com", status: "ready" }] }));
     const accounts = await request(setup.app).get("/api/morbit/base/native/api/oauth/accounts?provider=chatgpt");

@@ -26,6 +26,7 @@ const routes: ReadonlyMap<string, NativeRoute> = new Map([
   ["/api/providers/keys/active", route(["PUT"])],
   ["/api/providers/keys/alias", route(["PUT"])],
   ["/api/oauth/providers", route(["GET"])],
+  ["/api/provider-presets", route(["GET"])],
   ["/api/oauth/status", route(["GET"], { GET: query("provider", "flowId") })],
   ["/api/oauth/login", route(["POST"])],
   ["/api/oauth/login/cancel", route(["POST"])],
