@@ -1,3 +1,4 @@
+import { morbitBaseNativeRoutes } from "./morbit-base-native.js";
 import express, { Router, type Request } from "express";
 import { z } from "zod";
 import { assertAuthenticated, assertBoard, assertCompanyAccess, assertInstanceAdmin } from "./authz.js";
@@ -114,6 +115,7 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
     stream.pipe(res);
   };
 
+  router.use(morbitBaseNativeRoutes(deps));
   router.use("/morbit/base/console", consoleProxy);
 
   const scope = (req: Request, requireManager = false) => managementScope(deps, req, String(req.params.companyId), requireManager);
