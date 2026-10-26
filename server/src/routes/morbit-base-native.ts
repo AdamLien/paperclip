@@ -8,6 +8,8 @@ import {
   nativeForwardRequest,
   nativePathFromRequest,
   nativeRouteFor,
+  projectNativeLogsPayload,
+  projectNativeUsagePayload,
   safeNativeErrorPayload,
   sanitizeProviderPayload,
 } from "../services/morbit-base-native.js";
@@ -22,7 +24,7 @@ function safeHeaders(upstream: Response): Headers {
   return headers;
 }
 
-async function writeUpstreamResponse(req: Request, res: express.Response, upstream: Response) {
+async function writeUpstreamResponse(req: Request, res: express.Response, upstream: Response, path: string) {
   if (!upstream.ok) {
     let payload: Record<string, string> = { error: "native_management_upstream_failed" };
     try {
@@ -39,7 +41,14 @@ async function writeUpstreamResponse(req: Request, res: express.Response, upstre
     if ((upstream.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) {
       try {
         const parsed = JSON.parse(new TextDecoder().decode(bytes));
-        body = new TextEncoder().encode(JSON.stringify(sanitizeProviderPayload(parsed)));
+        const projected = path === "/api/logs"
+          ? projectNativeLogsPayload(parsed)
+          : path === "/api/usage" ? projectNativeUsagePayload(parsed) : sanitizeProviderPayload(parsed);
+        if (projected === null) {
+          res.status(502).set("Cache-Control", "no-store").json({ error: "Invalid native management response" });
+          return;
+        }
+        body = new TextEncoder().encode(JSON.stringify(projected));
         headers.delete("content-length");
         headers.set("content-type", "application/json");
       } catch {
@@ -108,7 +117,7 @@ export function morbitBaseNativeRoutes(deps: ManagementDependencies) {
         return;
       }
     }
-    await writeUpstreamResponse(req, res, upstream);
+    await writeUpstreamResponse(req, res, upstream, native.path);
   });
   return router;
 }

@@ -73,6 +73,94 @@ describe("morbit base native BFF", () => {
       .send({})).status).toBe(400);
   });
 
+  it("projects usage and logs without forwarding raw nested fields", async () => {
+    const usageSetup = make(admin, Response.json({
+      range: "30d", surface: "all", generatedAt: 1700000000000,
+      usageIncomplete: true, usageIncompleteReason: "oversized_rows", historyTruncated: true,
+      entriesTruncated: true, entriesDropped: 3, truncatedPrefixBytes: 100,
+      snapshotWindowStart: 1699990000000, snapshotWindowEnd: 1700000000000,
+      summary: { requests: 2, totalTokens: 0, apiKey: "secret", futureNested: { token: "secret" } },
+      days: [{ date: "2026-10-26", requests: 2, apiKey: "secret", models: [{ model: "gpt-4.1", prompt: "secret" }] }],
+      models: [{ provider: "openai", model: "gpt-4.1", requests: 2 }],
+      providers: [{ provider: "openai", requests: 2 }],
+      accounts: [{ accountLogLabel: "private" }],
+    }));
+    const usage = await request(usageSetup.app).get("/api/morbit/base/native/api/usage?range=30d&surface=all");
+    expect(usage.status).toBe(200);
+    expect(usage.body).toEqual({
+      range: "30d", surface: "all", generatedAt: 1700000000000,
+      usageIncomplete: true, usageIncompleteReason: "oversized_rows", historyTruncated: true,
+      entriesTruncated: true, entriesDropped: 3, truncatedPrefixBytes: 100,
+      snapshotWindowStart: 1699990000000, snapshotWindowEnd: 1700000000000,
+      summary: { requests: 2, totalTokens: 0 },
+      days: [{ date: "2026-10-26", requests: 2, models: [{ model: "gpt-4.1" }] }],
+      models: [{ provider: "openai", model: "gpt-4.1", requests: 2 }],
+      providers: [{ provider: "openai", requests: 2 }],
+    });
+    expect(usageSetup.forward).toHaveBeenCalledWith(expect.objectContaining({
+      method: "GET", path: "/api/usage?range=30d&surface=all", bridge: true,
+    }));
+
+    const logsSetup = make(admin, Response.json({
+      timeZone: "Asia/Taipei", generatedAt: 1700000000000, total: 2,
+      nextCursor: "secret", logs: [{
+        timestamp: 1700000000000, requestId: "req-1", provider: "openai", model: "gpt-4.1",
+        status: 200, durationMs: 42, usageStatus: "measured",
+        usage: { inputTokens: 100, outputTokens: 23, totalTokens: 123, prompt: "secret" },
+        headers: { authorization: "secret" }, accountLogLabel: "private",
+      }, {
+        timestamp: 1700000001000, requestId: "req-2", provider: "xai", model: "grok-4",
+        status: 201, durationMs: 7, usageStatus: "unavailable", error: "private",
+      }],
+    }));
+    const firstPage = await request(logsSetup.app).get("/api/morbit/base/native/api/logs?limit=50&offset=0&status=2xx");
+    expect(firstPage.status).toBe(200);
+    expect(firstPage.body).toEqual({
+      timeZone: "Asia/Taipei", generatedAt: 1700000000000, total: 2,
+      logs: [
+        { timestamp: 1700000000000, requestId: "req-1", provider: "openai", model: "gpt-4.1", status: 200, durationMs: 42, usageStatus: "measured", totalTokens: 123 },
+        { timestamp: 1700000001000, requestId: "req-2", provider: "xai", model: "grok-4", status: 201, durationMs: 7, usageStatus: "unavailable" },
+      ],
+    });
+    expect(logsSetup.forward).toHaveBeenCalledWith(expect.objectContaining({
+      method: "GET", path: "/api/logs?limit=50&offset=0&status=2xx", bridge: true,
+    }));
+    const olderSetup = make(admin, Response.json({
+      timeZone: "Asia/Taipei", generatedAt: 1700000000000, total: 2,
+      logs: [{
+        timestamp: 1700000000000, requestId: "req-1", provider: "openai", model: "gpt-4.1",
+        status: 200, durationMs: 42, usageStatus: "measured", usage: { totalTokens: 123 },
+      }, {
+        timestamp: 1700000001000, requestId: "req-2", provider: "xai", model: "grok-4",
+        status: 201, durationMs: 7, usageStatus: "unavailable",
+      }],
+    }));
+    const olderPage = await request(olderSetup.app).get("/api/morbit/base/native/api/logs?limit=50&offset=50&status=2xx");
+    expect(olderPage.status).toBe(200);
+    expect(olderPage.body.logs).toEqual(firstPage.body.logs);
+    expect(olderSetup.forward).toHaveBeenLastCalledWith(expect.objectContaining({
+      method: "GET", path: "/api/logs?limit=50&offset=50&status=2xx", bridge: true,
+    }));
+  });
+
+  it("denies usage and logs to non-admins and maps upstream failures safely", async () => {
+    const denied = make(member);
+    expect((await request(denied.app).get("/api/morbit/base/native/api/usage")).status).toBe(403);
+    expect((await request(denied.app).get("/api/morbit/base/native/api/logs")).status).toBe(403);
+
+    const usageFailure = make(admin, Response.json({ error: "raw prompt token=secret" }, { status: 503 }));
+    const usage = await request(usageFailure.app).get("/api/morbit/base/native/api/usage");
+    expect(usage.status).toBe(502);
+    expect(usage.body).toEqual({ error: "native_management_upstream_failed" });
+    expect(JSON.stringify(usage.body)).not.toContain("secret");
+
+    const logsFailure = make(admin, Response.json({ error: "raw header secret" }, { status: 500 }));
+    const logs = await request(logsFailure.app).get("/api/morbit/base/native/api/logs");
+    expect(logs.status).toBe(502);
+    expect(logs.body).toEqual({ error: "native_management_upstream_failed" });
+    expect(JSON.stringify(logs.body)).not.toContain("secret");
+  });
+
   it("preserves native account and device-login wire fixtures", async () => {
     const setup = make(admin, Response.json({ provider: "chatgpt", activeAccountId: "chatgpt-1", accounts: [{ id: "chatgpt-1", email: "a@example.com", status: "ready" }] }));
     const accounts = await request(setup.app).get("/api/morbit/base/native/api/oauth/accounts?provider=chatgpt");
@@ -100,6 +188,15 @@ describe("morbit base native BFF", () => {
     expect((await request(setup.app).get("/api/morbit/base/native/api/%2e%2e/providers")).status).toBe(404);
     expect((await request(setup.app).get("/api/morbit/base/native/api/%2fproviders")).status).toBe(400);
     expect((await request(setup.app).get("/api/morbit/base/native/api/providers").set("Authorization", "Bearer browser-token")).status).toBe(403);
+    expect((await request(setup.app).get("/api/morbit/base/native/api/usage?range=bad")).status).toBe(400);
+    expect((await request(setup.app).get("/api/morbit/base/native/api/usage?since=10")).status).toBe(400);
+    expect((await request(setup.app).get("/api/morbit/base/native/api/usage?since=20&until=10")).status).toBe(400);
+    expect((await request(setup.app).get("/api/morbit/base/native/api/usage?provider=openai")).status).toBe(400);
+    expect((await request(setup.app).get("/api/morbit/base/native/api/logs?limit=51")).status).toBe(400);
+    expect((await request(setup.app).get("/api/morbit/base/native/api/logs?status=600")).status).toBe(400);
+    expect((await request(setup.app).get("/api/morbit/base/native/api/logs?provider=openai&provider=xai")).status).toBe(400);
+    expect((await request(setup.app).post("/api/morbit/base/native/api/usage")).status).toBe(400);
+    expect((await request(setup.app).get("/api/morbit/base/native/api/logs?debug=1")).status).toBe(400);
     expect((await request(setup.app).post("/api/morbit/base/native/api/oauth/login").set("Origin", "https://evil.example").set("Host", "127.0.0.1").set("Content-Type", "application/json").send({ provider: "xai" })).status).toBe(403);
     expect((await request(setup.app).post("/api/morbit/base/native/api/providers").set("Origin", "http://127.0.0.1").set("Host", "127.0.0.1").set("Content-Type", "text/plain").send("{}"))).toHaveProperty("status", 400);
   });
