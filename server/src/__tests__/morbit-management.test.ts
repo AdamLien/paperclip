@@ -9,6 +9,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { describe, expect, it, vi } from "vitest";
 import { morbitManagementRoutes, morbitManagementAssets, morbitWikiWriteGuard, type ManagementDependencies, type MorbitConsoleProxy } from "../routes/morbit-management.js";
 import { errorHandler } from "../middleware/error-handler.js";
+import { defaultMorbitCompanyConnection, MorbitCompanyConnectionRevisionConflict } from "../services/morbit-company-connection.js";
 import { createMorbitConsoleProxy, isMorbitConsoleWebSocketOriginAllowed, isMorbitConsoleWebSocketPath, readMorbitNativeEntry, setupMorbitConsoleWebSocketServer } from "../services/morbit-native-entry.js";
 
 const company = "22222222-2222-4222-8222-222222222222";
@@ -27,6 +28,14 @@ function setup(actor: Record<string, unknown> = manager, directory?: string, con
     modelTest: vi.fn(async () => ({ model: "test-model", text: "OK", checkedAt: "2026-10-25T00:00:00Z" })),
     wikiCall: vi.fn(async (_key, params) => ({ companyId: params.companyId, pages: [] })),
     audit: vi.fn(async () => {}),
+    companyConnection: {
+      get: vi.fn(async () => defaultMorbitCompanyConnection()),
+      update: vi.fn(async (input) => ({
+        ...defaultMorbitCompanyConnection(), ...input,
+        revision: input.expectedRevision + 1,
+        updatedAt: "2026-10-26T00:00:00.000Z",
+      })) as unknown as ManagementDependencies["companyConnection"]["update"],
+    },
     nativeEntry: vi.fn(() => null),
     consoleProxy,
   };
@@ -547,6 +556,64 @@ describe("mDeck management authority and truthful status", () => {
     expect((await request(app).post("/api/plugins/tools/execute").send(body)).status).toBe(403);
     expect((await request(app).post("/api/plugins/tools/execute").send({...body,tool:"paperclipai.plugin-llm-wiki:wiki_search"})).status).toBe(200);
     expect((await request(setup().app).post("/api/plugins/tools/execute").send(body)).status).toBe(200);
+  });
+
+  it("exposes company connection only to instance administrators", async () => {
+    const admin = setup({ ...manager, isInstanceAdmin: true });
+    vi.stubEnv("PAPERCLIP_PUBLIC_URL", "https://mdeck.example.test/some-path?ignored=1");
+    const response = await request(admin.app).get("/api/morbit/company-connection");
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ code: "SUCCESS", message: "", data: {
+      ...defaultMorbitCompanyConnection(), observedUrl: "https://mdeck.example.test",
+    }});
+    expect((await request(setup(manager).app).get("/api/morbit/company-connection")).status).toBe(403);
+    expect((await request(setup({ type: "none" }).app).get("/api/morbit/company-connection")).status).toBe(401);
+  });
+
+  it.each([
+    [{ expectedRevision: 0, companyUrl: "http://company.example", accessMethod: "direct", provider: "none", instructions: "" }, "bad URL"],
+    [{ expectedRevision: 0, companyUrl: "https://company.example", accessMethod: "direct", provider: "tailscale", instructions: "" }, "incompatible provider"],
+    [{ expectedRevision: 0, companyUrl: "https://company.example", accessMethod: "tunnel", provider: "wireguard", instructions: "" }, "incompatible tunnel provider"],
+    [{ expectedRevision: 0, companyUrl: "https://company.example", accessMethod: "direct", provider: "none", instructions: "", extra: true }, "unknown key"],
+  ] as const)("rejects invalid company connection update: %s", async (body) => {
+    const admin = setup({ ...manager, isInstanceAdmin: true });
+    expect((await request(admin.app).put("/api/morbit/company-connection").send(body)
+      .set("Origin", "http://localhost:3100")).status).toBe(400);
+    expect(admin.deps.companyConnection.update).not.toHaveBeenCalled();
+  });
+
+  it("requires a trusted origin and audits valid company connection writes", async () => {
+    const admin = setup({ ...manager, isInstanceAdmin: true });
+    const body = { expectedRevision: 0, companyUrl: "https://company.example", accessMethod: "vpn", provider: "tailscale", instructions: "Connect through the company VPN." };
+    expect((await request(admin.app).put("/api/morbit/company-connection").send(body).set("Origin", "https://evil.example")).status).toBe(403);
+    const response = await request(admin.app).put("/api/morbit/company-connection").send({
+      expected_revision: 0, company_url: body.companyUrl, access_method: body.accessMethod,
+      provider: body.provider, instructions: body.instructions,
+    }).set("Origin", "http://localhost:3100");
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ revision: 1, companyUrl: body.companyUrl, accessMethod: "vpn", provider: "tailscale" });
+    expect(admin.deps.audit).toHaveBeenCalledWith(expect.anything(), company, "morbit.company_connection_updated", expect.objectContaining({ revision: 1 }));
+    vi.mocked(admin.deps.companyConnection.update).mockRejectedValueOnce(new MorbitCompanyConnectionRevisionConflict(0, 1));
+    expect((await request(admin.app).put("/api/morbit/company-connection").send(body).set("Origin", "http://localhost:3100")).status).toBe(409);
+  });
+
+  it("persists primary actor audit without company scope and tolerates secondary audit failure", async () => {
+    const admin = setup({ ...manager, isInstanceAdmin: true, companyIds: [], memberships: [] });
+    const response = await request(admin.app).put("/api/morbit/company-connection").send({
+      expectedRevision: 0, companyUrl: "https://company.example", accessMethod: "direct", provider: "none", instructions: "Employee guidance",
+    }).set("Origin", "http://localhost:3100");
+    expect(response.status).toBe(200);
+    expect(admin.deps.companyConnection.update).toHaveBeenCalledWith(expect.anything(), {
+      actorType: "user", actorId: "manager", actorSource: "session",
+    });
+    expect(admin.deps.audit).not.toHaveBeenCalled();
+
+    const scoped = setup({ ...manager, isInstanceAdmin: true });
+    vi.mocked(scoped.deps.audit).mockRejectedValueOnce(new Error("activity database unavailable"));
+    expect((await request(scoped.app).put("/api/morbit/company-connection").send({
+      expectedRevision: 0, companyUrl: "https://company.example", accessMethod: "direct", provider: "none", instructions: "Employee guidance",
+    }).set("Origin", "http://localhost:3100")).status).toBe(200);
+    expect(scoped.deps.audit).toHaveBeenCalledTimes(1);
   });
 
 });

@@ -1,10 +1,19 @@
 import { morbitBaseNativeRoutes } from "./morbit-base-native.js";
 import express, { Router, type Request } from "express";
 import { z } from "zod";
-import { assertAuthenticated, assertBoard, assertCompanyAccess, assertInstanceAdmin } from "./authz.js";
+import { assertAuthenticated, assertBoard, assertCompanyAccess, assertInstanceAdmin, getActorInfo } from "./authz.js";
 import { trustedBoardMutationOrigin } from "../middleware/board-mutation-guard.js";
-import { badRequest, forbidden, notFound, HttpError } from "../errors.js";
+import { badRequest, conflict, forbidden, notFound, HttpError } from "../errors.js";
+import { logger } from "../middleware/logger.js";
 import type { MorbitConsoleProxy, MorbitConsoleProxyRequest, MorbitNativeEntry } from "../services/morbit-native-entry.js";
+import {
+  accessMethods,
+  createMorbitCompanyConnectionService,
+  MorbitCompanyConnectionRevisionConflict,
+  providers,
+  type MorbitAccessMethod,
+  type MorbitProvider,
+} from "../services/morbit-company-connection.js";
 
 export type ModelObservation = {
   state: "unconfigured" | "authorization_required" | "unverified" | "ready" | "degraded";
@@ -22,6 +31,7 @@ export interface ManagementDependencies {
   modelTest(): Promise<{ model: string; text: string; checkedAt: string }>;
   wikiCall(key: string, params: Record<string, unknown>, action: boolean, pluginId: string, req: Request): Promise<unknown>;
   audit(req: Request, companyId: string, action: string, details: Record<string, unknown>): Promise<void>;
+  companyConnection: ReturnType<typeof createMorbitCompanyConnectionService>;
   nativeEntry?: () => MorbitNativeEntry | null;
   consoleProxy?: MorbitConsoleProxy | null;
 }
@@ -47,6 +57,89 @@ function preserveCspWithSelfFrameAncestor(value: string): string {
   if (index < 0) return value;
   directives[index] = "frame-ancestors 'self'";
   return directives.join("; ");
+}
+
+function readCompanyUrl(value: unknown): string | null {
+  if (value === null || value === "") return null;
+  if (typeof value !== "string") throw badRequest("companyUrl must be a string or null");
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+      throw new Error("unsafe company URL");
+    }
+    return url.origin;
+  } catch {
+    throw badRequest("companyUrl must be an HTTPS origin without credentials, path, query, or fragment");
+  }
+}
+
+function readObservedUrl(): string | null {
+  const raw = process.env.PAPERCLIP_PUBLIC_URL?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (!["http:", "https:"].includes(url.protocol) || !url.host) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function companyConnectionResponse(connection: Awaited<ReturnType<ManagementDependencies["companyConnection"]["get"]>>) {
+  return { ...connection, observedUrl: readObservedUrl() };
+}
+
+function parseCompanyConnectionUpdate(body: unknown) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw badRequest("Invalid company connection payload");
+  const source = body as Record<string, unknown>;
+  const aliases: Record<string, string> = {
+    expected_revision: "expectedRevision",
+    company_url: "companyUrl",
+    access_method: "accessMethod",
+  };
+  const normalized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(source)) {
+    const canonical = aliases[key] ?? key;
+    if (normalized[canonical] !== undefined) throw badRequest("Duplicate company connection field");
+    normalized[canonical] = value;
+  }
+  const allowed = new Set(["expectedRevision", "companyUrl", "accessMethod", "provider", "instructions"]);
+  if (Object.keys(normalized).some(key => !allowed.has(key))) throw badRequest("Unknown company connection field");
+  if (!Number.isInteger(normalized.expectedRevision) || (normalized.expectedRevision as number) < 0) {
+    throw badRequest("expectedRevision must be a non-negative integer");
+  }
+  if (typeof normalized.accessMethod !== "string" || !accessMethods.includes(normalized.accessMethod as MorbitAccessMethod)) {
+    throw badRequest("Invalid accessMethod");
+  }
+  if (typeof normalized.provider !== "string" || !providers.includes(normalized.provider as MorbitProvider)) {
+    throw badRequest("Invalid provider");
+  }
+  if (typeof normalized.instructions !== "string" || normalized.instructions.length > 4000) {
+    throw badRequest("instructions must be at most 4000 characters");
+  }
+  const accessMethod = normalized.accessMethod as MorbitAccessMethod;
+  const provider = normalized.provider as MorbitProvider;
+  const compatible = accessMethod === "direct"
+    ? provider === "none"
+    : accessMethod === "vpn"
+      ? ["tailscale", "wireguard", "openvpn", "other"].includes(provider)
+      : ["cloudflare", "other"].includes(provider);
+  if (!compatible) throw badRequest("provider is incompatible with accessMethod");
+  return {
+    expectedRevision: normalized.expectedRevision as number,
+    companyUrl: readCompanyUrl(normalized.companyUrl),
+    accessMethod,
+    provider,
+    instructions: normalized.instructions,
+  };
+}
+
+function assertCompanyConnectionMutationOrigin(req: Request) {
+  if (req.actor.source === "local_implicit") return;
+  const origin = req.header("origin")?.trim().toLowerCase();
+  if (!origin || trustedBoardMutationOrigin(req) !== origin) {
+    throw forbidden("Company connection mutation requires trusted browser origin");
+  }
 }
 
 /** The adapter reuses host identity; it cannot accept browser-selected scopes or upstreams. */
@@ -117,6 +210,42 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
 
   router.use(morbitBaseNativeRoutes(deps));
   router.use("/morbit/base/console", consoleProxy);
+
+  router.get("/morbit/company-connection", async (req, res) => {
+    assertAuthenticated(req);
+    assertInstanceAdmin(req);
+    reply(res, companyConnectionResponse(await deps.companyConnection.get()));
+  });
+
+  router.put("/morbit/company-connection", async (req, res) => {
+    assertAuthenticated(req);
+    assertInstanceAdmin(req);
+    assertCompanyConnectionMutationOrigin(req);
+    try {
+      const actor = getActorInfo(req);
+      const updated = await deps.companyConnection.update(parseCompanyConnectionUpdate(req.body), {
+        actorType: actor.actorType, actorId: actor.actorId, actorSource: actor.actorSource,
+      });
+      const auditCompanyId = req.actor.companyIds?.[0] ?? req.actor.memberships?.[0]?.companyId;
+      if (auditCompanyId) {
+        try {
+          await deps.audit(req, auditCompanyId, "morbit.company_connection_updated", {
+            revision: updated.revision, accessMethod: updated.accessMethod, provider: updated.provider,
+          });
+        } catch (error) {
+          logger.warn({ err: error, revision: updated.revision }, "Morbit company connection secondary activity audit failed after durable save");
+        }
+      } else {
+        logger.warn({ actorId: actor.actorId, revision: updated.revision }, "Morbit company connection secondary activity audit skipped because the actor has no company scope");
+      }
+      reply(res, companyConnectionResponse(updated));
+    } catch (error) {
+      if (error instanceof MorbitCompanyConnectionRevisionConflict) {
+        throw conflict(error.message, { expectedRevision: error.expectedRevision, actualRevision: error.actualRevision });
+      }
+      throw error;
+    }
+  });
 
   const scope = (req: Request, requireManager = false) => managementScope(deps, req, String(req.params.companyId), requireManager);
 
