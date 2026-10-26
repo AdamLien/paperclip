@@ -597,4 +597,23 @@ describe("mDeck management authority and truthful status", () => {
     expect((await request(admin.app).put("/api/morbit/company-connection").send(body).set("Origin", "http://localhost:3100")).status).toBe(409);
   });
 
+  it("persists primary actor audit without company scope and tolerates secondary audit failure", async () => {
+    const admin = setup({ ...manager, isInstanceAdmin: true, companyIds: [], memberships: [] });
+    const response = await request(admin.app).put("/api/morbit/company-connection").send({
+      expectedRevision: 0, companyUrl: "https://company.example", accessMethod: "direct", provider: "none", instructions: "Employee guidance",
+    }).set("Origin", "http://localhost:3100");
+    expect(response.status).toBe(200);
+    expect(admin.deps.companyConnection.update).toHaveBeenCalledWith(expect.anything(), {
+      actorType: "user", actorId: "manager", actorSource: "session",
+    });
+    expect(admin.deps.audit).not.toHaveBeenCalled();
+
+    const scoped = setup({ ...manager, isInstanceAdmin: true });
+    vi.mocked(scoped.deps.audit).mockRejectedValueOnce(new Error("activity database unavailable"));
+    expect((await request(scoped.app).put("/api/morbit/company-connection").send({
+      expectedRevision: 0, companyUrl: "https://company.example", accessMethod: "direct", provider: "none", instructions: "Employee guidance",
+    }).set("Origin", "http://localhost:3100")).status).toBe(200);
+    expect(scoped.deps.audit).toHaveBeenCalledTimes(1);
+  });
+
 });

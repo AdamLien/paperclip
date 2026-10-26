@@ -1,9 +1,10 @@
 import { morbitBaseNativeRoutes } from "./morbit-base-native.js";
 import express, { Router, type Request } from "express";
 import { z } from "zod";
-import { assertAuthenticated, assertBoard, assertCompanyAccess, assertInstanceAdmin } from "./authz.js";
+import { assertAuthenticated, assertBoard, assertCompanyAccess, assertInstanceAdmin, getActorInfo } from "./authz.js";
 import { trustedBoardMutationOrigin } from "../middleware/board-mutation-guard.js";
 import { badRequest, conflict, forbidden, notFound, HttpError } from "../errors.js";
+import { logger } from "../middleware/logger.js";
 import type { MorbitConsoleProxy, MorbitConsoleProxyRequest, MorbitNativeEntry } from "../services/morbit-native-entry.js";
 import {
   accessMethods,
@@ -221,12 +222,22 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
     assertInstanceAdmin(req);
     assertCompanyConnectionMutationOrigin(req);
     try {
-      const updated = await deps.companyConnection.update(parseCompanyConnectionUpdate(req.body));
-      const auditCompanyId = req.actor.companyIds?.[0] ?? req.actor.memberships?.[0]?.companyId;
-      if (auditCompanyId) await deps.audit(req, auditCompanyId, "morbit.company_connection_updated", {
-        revision: updated.revision, companyUrl: updated.companyUrl,
-        accessMethod: updated.accessMethod, provider: updated.provider,
+      const actor = getActorInfo(req);
+      const updated = await deps.companyConnection.update(parseCompanyConnectionUpdate(req.body), {
+        actorType: actor.actorType, actorId: actor.actorId, actorSource: actor.actorSource,
       });
+      const auditCompanyId = req.actor.companyIds?.[0] ?? req.actor.memberships?.[0]?.companyId;
+      if (auditCompanyId) {
+        try {
+          await deps.audit(req, auditCompanyId, "morbit.company_connection_updated", {
+            revision: updated.revision, accessMethod: updated.accessMethod, provider: updated.provider,
+          });
+        } catch (error) {
+          logger.warn({ err: error, revision: updated.revision }, "Morbit company connection secondary activity audit failed after durable save");
+        }
+      } else {
+        logger.warn({ actorId: actor.actorId, revision: updated.revision }, "Morbit company connection secondary activity audit skipped because the actor has no company scope");
+      }
       reply(res, companyConnectionResponse(updated));
     } catch (error) {
       if (error instanceof MorbitCompanyConnectionRevisionConflict) {
