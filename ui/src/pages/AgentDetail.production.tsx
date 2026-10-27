@@ -55,6 +55,7 @@ import { AgentActionButtons } from "../components/AgentActionButtons";
 import { InlineBanner } from "../components/InlineBanner";
 import { BuiltInBundlePanel } from "../components/BuiltInBundlePanel";
 import { ConfigureBuiltInAgentModal } from "../components/ConfigureBuiltInAgentModal";
+import { CostsAccessGate } from "../components/CostsAccessGate";
 import { BudgetPolicyCard } from "../components/BudgetPolicyCard";
 import { TrustPresetSection } from "../components/TrustPresetSection";
 import { FileTree, buildFileTree } from "../components/FileTree";
@@ -1562,14 +1563,16 @@ export function AgentDetail() {
       ) : null}
 
       {activeView === "budget" && resolvedCompanyId ? (
-        <div className="max-w-3xl">
-          <BudgetPolicyCard
-            summary={agentBudgetSummary}
-            isSaving={budgetMutation.isPending}
-            onSave={(amount) => budgetMutation.mutate(amount)}
-            variant="plain"
-          />
-        </div>
+        <CostsAccessGate>
+          <div className="max-w-3xl">
+            <BudgetPolicyCard
+              summary={agentBudgetSummary}
+              isSaving={budgetMutation.isPending}
+              onSave={(amount) => budgetMutation.mutate(amount)}
+              variant="plain"
+            />
+          </div>
+        </CostsAccessGate>
       ) : null}
     </div>
   );
