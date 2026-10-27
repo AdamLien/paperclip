@@ -6,6 +6,7 @@ import { useTranslation } from "@/i18n";
 import { Layout } from "./components/Layout";
 import { Layout as ProductionLayout } from "./components/Layout.production";
 import { ConferenceRoomChatGate } from "./components/ConferenceRoomChatGate";
+import { CostsAccessGate } from "./components/CostsAccessGate";
 import { TaskChatLab } from "./pages/TaskChatLab";
 import { PipelinesExperimentalGate } from "./components/PipelinesExperimentalGate";
 import { CasesExperimentalGate } from "./components/CasesExperimentalGate";
@@ -424,7 +425,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
         </>
       ) : (
         <>
-          <Route path="costs" element={<ProductionSurface><ProductionCosts /></ProductionSurface>} />
+          <Route path="costs" element={<ProductionSurface><CostsAccessGate><ProductionCosts /></CostsAccessGate></ProductionSurface>} />
           <Route path="audit" element={<Navigate to="/activity?mode=agents" replace />} />
         </>
       )}

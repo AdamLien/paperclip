@@ -79,6 +79,8 @@ describe("human invite roles", () => {
       { permissionKey: "tools:manage_runtime", scope: null },
       { permissionKey: "tools:use", scope: null },
       { permissionKey: "tools:admin", scope: null },
+      { permissionKey: "costs:view", scope: null },
+      { permissionKey: "budgets:manage", scope: null },
     ]);
   });
 
@@ -95,6 +97,8 @@ describe("human invite roles", () => {
       { permissionKey: "tools:manage_runtime", scope: null },
       { permissionKey: "tools:use", scope: null },
       { permissionKey: "tools:admin", scope: null },
+      { permissionKey: "costs:view", scope: null },
+      { permissionKey: "budgets:manage", scope: null },
     ]);
   });
 

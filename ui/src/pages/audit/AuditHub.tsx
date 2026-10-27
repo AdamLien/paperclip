@@ -1,9 +1,11 @@
 import { useCallback, useEffect } from "react";
 import { History } from "lucide-react";
+import { CostsAccessGate } from "@/components/CostsAccessGate";
 import { EmptyState } from "@/components/EmptyState";
 import { PageTabBar } from "@/components/PageTabBar";
 import { Tabs } from "@/components/ui/tabs";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
+import { useCanViewCompanyCosts } from "@/hooks/useCompanyCostAccess";
 import { useCompany } from "@/context/CompanyContext";
 import { useNavigate, useSearchParams } from "@/lib/router";
 import { Costs } from "@/pages/Costs";
@@ -26,6 +28,10 @@ export function AuditHub({ section }: { section: AuditSection }) {
   const scope = auditScopeFromSearchParams(searchParams);
   const mode: AuditFeedMode = scope.mode === "agents" ? "agents" : "all";
   const routineId = scope.entityType === "routine" ? scope.entityId ?? undefined : undefined;
+  const canViewCosts = useCanViewCompanyCosts(selectedCompanyId);
+  const sectionTabs = canViewCosts
+    ? AUDIT_SECTIONS
+    : AUDIT_SECTIONS.filter((candidate) => candidate.value !== "costs" && candidate.value !== "budgets");
   const actionParam = searchParams.get("action");
   const actionDomain = [
     "issue.",
@@ -98,7 +104,7 @@ export function AuditHub({ section }: { section: AuditSection }) {
           navigate(auditSectionHref(next, scope));
         }}
       >
-        <PageTabBar items={AUDIT_SECTIONS} value={section} align="start" />
+        <PageTabBar items={sectionTabs} value={section} align="start" />
       </Tabs>
 
       {section === "activity" && routineId ? (
@@ -122,11 +128,11 @@ export function AuditHub({ section }: { section: AuditSection }) {
       ) : section === "runs" ? (
         <AuditRuns companyId={selectedCompanyId} routineId={routineId} />
       ) : section === "budgets" ? (
-        <Costs embedded initialTab="budgets" lockTab />
+        <CostsAccessGate><Costs embedded initialTab="budgets" lockTab /></CostsAccessGate>
       ) : section === "timeline" ? (
         <Timeline embedded />
       ) : (
-        <Costs embedded initialTab="overview" hideBudgetsTab />
+        <CostsAccessGate><Costs embedded initialTab="overview" hideBudgetsTab /></CostsAccessGate>
       )}
     </div>
   );

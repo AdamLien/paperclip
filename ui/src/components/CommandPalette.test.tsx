@@ -51,6 +51,10 @@ const mockAuthApi = vi.hoisted(() => ({
   getSession: vi.fn(),
 }));
 
+vi.mock("@/hooks/useCompanyCostAccess", () => ({
+  useCanViewCompanyCosts: () => true,
+}));
+
 vi.mock("../context/CompanyContext", () => ({
   useCompany: () => companyState,
 }));

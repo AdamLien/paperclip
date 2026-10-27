@@ -75,7 +75,7 @@ export function costRoutes(
   async function assertCompanyCostReadAllowed(req: Parameters<typeof assertCompanyAccess>[0], res: any, companyId: string) {
     const decision = await access.decide({
       actor: req.actor,
-      action: "company_scope:read",
+      action: "costs:read",
       resource: { type: "company", companyId },
     });
     if (decision.allowed) return true;
@@ -184,6 +184,7 @@ export function costRoutes(
     const issue = await getAccessibleResource(req, res, resolveIssueByRef(rawId), "Issue not found");
     if (!issue) return;
     if (!(await assertIssueCostReadAllowed(req, res, issue))) return;
+    if (!(await assertCompanyCostReadAllowed(req, res, issue.companyId))) return;
     const excludeRoot = req.query.excludeRoot === "true" || req.query.excludeRoot === "1";
     const summary = await costs.issueTreeSummary(issue.companyId, issue.id, { excludeRoot });
     res.json(summary);
@@ -274,6 +275,7 @@ export function costRoutes(
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
     assertBoard(req);
+    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
     // validate companyId resolves to a real company so the "__none__" sentinel
     // and any forged ids are rejected before we touch provider credentials
     const company = await companies.getById(companyId);

@@ -119,5 +119,6 @@
   "API Keys": "API 金鑰",
   "Agent session": "工作階段",
   "Agent adapter": "執行介接器",
-  "Identity": "身分"
+  "Identity": "身分",
+  "You don't have permission to view costs and budgets.": "你沒有檢視成本與預算的權限。"
 }

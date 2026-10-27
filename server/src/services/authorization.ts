@@ -77,6 +77,7 @@ export type AuthorizationAction =
   | "agent:read"
   | "agent:wake"
   | "company_scope:read"
+  | "costs:read"
   | "decision_queue:manage"
   | "decision_queue:read"
   | "decision_triage:manage"
@@ -159,6 +160,7 @@ function companyIdForResource(resource: AuthorizationResource) {
 }
 
 function permissionForAction(action: AuthorizationAction): PermissionKey | null {
+  if (action === "costs:read") return "costs:view";
   if (action === "agent_config:read" || action === "agent_config:update" || action === "agent_instructions:update" || action === "skill_config:update") {
     return null;
   }
@@ -702,7 +704,11 @@ export function authorizationService(db: Db | DbTransaction) {
     if (!grant) {
       if (
         input.principalType === "user"
-        && input.permissionKey.startsWith("tools:")
+        && (
+          input.permissionKey.startsWith("tools:")
+          || input.permissionKey === "costs:view"
+          || input.permissionKey === "budgets:manage"
+        )
         && (membership.membershipRole === "owner" || membership.membershipRole === "admin")
         && grantsForHumanRole(normalizeHumanRole(membership.membershipRole, "operator"))
           .some((defaultGrant) => defaultGrant.permissionKey === input.permissionKey)
@@ -2461,6 +2467,11 @@ export function authorizationService(db: Db | DbTransaction) {
     resource: AuthorizationResource;
     scope?: Record<string, unknown> | null;
   }): Promise<AuthorizationDecision> {
+    // Agent cost reads keep the company-scope rule until responsible-user
+    // cost checks land (AdamLien/paperclip#41).
+    if (input.action === "costs:read" && input.actor.type !== "board") {
+      return decide({ ...input, action: "company_scope:read" });
+    }
     const agentDecision = await decideBase(input);
     return applyResponsibleUserIntersection(input, agentDecision);
   }
