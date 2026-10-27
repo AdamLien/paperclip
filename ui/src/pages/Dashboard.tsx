@@ -35,7 +35,7 @@ import { PageSkeleton } from "../components/PageSkeleton";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InlineBanner } from "../components/InlineBanner";
-import type { Agent, Issue } from "@paperclipai/shared";
+import type { Agent, DashboardSummary, Issue } from "@paperclipai/shared";
 import { PluginSlotOutlet } from "@/plugins/slots";
 import { SmokeLabDashboardCard } from "../components/SmokeLabDashboardCard";
 
@@ -68,6 +68,26 @@ export function derivePausedAgentBanner(agents: Agent[] | undefined): PausedAgen
   }
   if (agents.every((agent) => agent.status === "paused")) return { kind: "all-paused" };
   return null;
+}
+
+/** Month spend card; renders nothing when the requester cannot view costs. */
+export function MonthSpendMetric({ costs }: { costs: DashboardSummary["costs"] }) {
+  if (!costs) return null;
+  return (
+    <MetricCard
+      icon={DollarSign}
+      value={formatCents(costs.monthSpendCents)}
+      label="Month Spend"
+      to="/costs"
+      description={
+        <span>
+          {costs.monthBudgetCents > 0
+            ? `${costs.monthUtilizationPercent}% of ${formatCents(costs.monthBudgetCents)} budget`
+            : "Unlimited budget"}
+        </span>
+      }
+    />
+  );
 }
 
 export function Dashboard() {
@@ -391,9 +411,11 @@ export function Dashboard() {
                   </p>
                 </div>
               </div>
-              <Link to="/costs" className="text-sm underline underline-offset-2 text-red-900 dark:text-red-100">
-                Open budgets
-              </Link>
+              {data.costs ? (
+                <Link to="/costs" className="text-sm underline underline-offset-2 text-red-900 dark:text-red-100">
+                  Open budgets
+                </Link>
+              ) : null}
             </div>
           ) : null}
 
@@ -423,19 +445,7 @@ export function Dashboard() {
                 </span>
               }
             />
-            <MetricCard
-              icon={DollarSign}
-              value={formatCents(data.costs.monthSpendCents)}
-              label="Month Spend"
-              to="/costs"
-              description={
-                <span>
-                  {data.costs.monthBudgetCents > 0
-                    ? `${data.costs.monthUtilizationPercent}% of ${formatCents(data.costs.monthBudgetCents)} budget`
-                    : "Unlimited budget"}
-                </span>
-              }
-            />
+            <MonthSpendMetric costs={data.costs} />
             <MetricCard
               icon={ShieldCheck}
               value={data.pendingApprovals + data.budgets.pendingApprovals}
