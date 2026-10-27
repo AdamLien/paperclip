@@ -6,12 +6,10 @@ import { queryKeys } from "@/lib/queryKeys";
  * Whether a board may view company costs and budgets for `companyId`,
  * judged from the current board access snapshot.
  *
- * Mirrors `canInviteCompanyMembers`: local implicit boards and instance admins
- * always pass; otherwise the active membership must be owner or admin, the
- * roles that carry the `costs:view` grant by default. The snapshot carries no
- * explicit grants, so a member granted `costs:view` individually is not
- * offered the entry points here even though the server allows the reads.
- * The server stays authoritative.
+ * Local implicit boards and instance admins always pass. Otherwise the active
+ * membership's server-reported `canViewCosts` decides, which includes explicit
+ * grants; snapshots without it fall back to the owner and admin roles that
+ * carry `costs:view` by default. The server stays authoritative.
  */
 export function canViewCompanyCosts(
   companyId: string | null | undefined,
@@ -23,6 +21,7 @@ export function canViewCompanyCosts(
   const membership = boardAccess.memberships?.find(
     (item) => item.companyId === companyId && item.status === "active",
   );
+  if (typeof membership?.canViewCosts === "boolean") return membership.canViewCosts;
   return membership?.membershipRole === "owner" || membership?.membershipRole === "admin";
 }
 

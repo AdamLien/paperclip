@@ -39,6 +39,17 @@ describe("canViewCompanyCosts", () => {
     expect(canViewCompanyCosts("company-1", access)).toBe(false);
   });
 
+  it("follows the server-reported cost permission over the role", () => {
+    const grantedOperator = snapshot({
+      memberships: [{ companyId: "company-1", membershipRole: "operator", status: "active", canViewCosts: true }],
+    });
+    expect(canViewCompanyCosts("company-1", grantedOperator)).toBe(true);
+    const restrictedAdmin = snapshot({
+      memberships: [{ companyId: "company-1", membershipRole: "admin", status: "active", canViewCosts: false }],
+    });
+    expect(canViewCompanyCosts("company-1", restrictedAdmin)).toBe(false);
+  });
+
   it("ignores inactive memberships and other companies", () => {
     const suspended = snapshot({
       memberships: [{ companyId: "company-1", membershipRole: "owner", status: "suspended" }],

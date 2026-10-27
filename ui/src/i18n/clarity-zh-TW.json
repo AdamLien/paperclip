@@ -120,5 +120,9 @@
   "Agent session": "工作階段",
   "Agent adapter": "執行介接器",
   "Identity": "身分",
-  "You don't have permission to view costs and budgets.": "你沒有檢視成本與預算的權限。"
+  "You don't have permission to view costs and budgets.": "你沒有檢視成本與預算的權限。",
+  "Cost permissions": "成本權限",
+  "View costs": "查看成本",
+  "Manage budgets": "管理預算",
+  "Included with this role": "此角色已包含"
 }
