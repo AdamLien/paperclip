@@ -57,7 +57,10 @@ describePostgres("company cost visibility", () => {
   beforeAll(async () => {
     tempDb = await startEmbeddedPostgresTestDatabase("paperclip-cost-visibility-");
     db = createDb(tempDb.connectionString);
-  }, 20_000);
+    // Load the route module once here so its cold import does not count
+    // against the first test's timeout when files run in parallel.
+    await import("../routes/costs.js");
+  }, 60_000);
 
   afterEach(async () => {
     await db.delete(principalPermissionGrants);
