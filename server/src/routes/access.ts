@@ -2878,12 +2878,19 @@ export function accessRoutes(
       throw unauthorized("Board authentication required");
     }
     const accessSnapshot = await boardAuth.resolveBoardAccess(req.actor.userId);
+    const userId = req.actor.userId;
+    // Cost entry points depend on explicit grants, not only the role.
+    const memberships = await Promise.all(accessSnapshot.memberships.map(async (membership) => ({
+      ...membership,
+      canViewCosts: await access.hasPermission(membership.companyId, "user", userId, "costs:view"),
+      canManageBudgets: await access.hasPermission(membership.companyId, "user", userId, "budgets:manage"),
+    })));
     res.json({
       user: accessSnapshot.user,
       userId: req.actor.userId,
       isInstanceAdmin: accessSnapshot.isInstanceAdmin,
       companyIds: accessSnapshot.companyIds,
-      memberships: accessSnapshot.memberships,
+      memberships,
       source: req.actor.source ?? "none",
       keyId: req.actor.source === "board_key" ? req.actor.keyId ?? null : null,
     });

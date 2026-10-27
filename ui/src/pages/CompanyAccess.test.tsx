@@ -9,6 +9,7 @@ import { CompanyAccess, CompanyAccessLegacyRoute } from "./CompanyAccess";
 const listMembersMock = vi.hoisted(() => vi.fn());
 const listJoinRequestsMock = vi.hoisted(() => vi.fn());
 const updateMemberMock = vi.hoisted(() => vi.fn());
+const updateMemberPermissionsMock = vi.hoisted(() => vi.fn());
 const archiveMemberMock = vi.hoisted(() => vi.fn());
 const listAgentsMock = vi.hoisted(() => vi.fn());
 const listIssuesMock = vi.hoisted(() => vi.fn());
@@ -28,7 +29,8 @@ vi.mock("@/api/access", () => ({
     listJoinRequests: (companyId: string, status: string) => listJoinRequestsMock(companyId, status),
     updateMember: (companyId: string, memberId: string, input: unknown) =>
       updateMemberMock(companyId, memberId, input),
-    updateMemberPermissions: vi.fn(),
+    updateMemberPermissions: (companyId: string, memberId: string, input: unknown) =>
+      updateMemberPermissionsMock(companyId, memberId, input),
     updateMemberAccess: vi.fn(),
     archiveMember: (companyId: string, memberId: string, input: unknown) =>
       archiveMemberMock(companyId, memberId, input),
@@ -192,6 +194,7 @@ describe("CompanyAccess", () => {
       },
     ]);
     updateMemberMock.mockResolvedValue({});
+    updateMemberPermissionsMock.mockResolvedValue({});
     archiveMemberMock.mockResolvedValue({ reassignedIssueCount: 1 });
     listAgentsMock.mockResolvedValue([
       {
@@ -316,10 +319,89 @@ describe("CompanyAccess", () => {
       membershipRole: "owner",
       status: "active",
     });
+    expect(updateMemberPermissionsMock).not.toHaveBeenCalled();
 
     await act(async () => {
       root.unmount();
     });
+  });
+
+  async function openEditDialog(index: number) {
+    const root = createRoot(container);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <CompanyAccess />
+        </QueryClientProvider>,
+      );
+    });
+    await flushReact();
+    await flushReact();
+    const editButtons = Array.from(container.querySelectorAll("button")).filter(
+      (button) => button.textContent === "Edit",
+    );
+    await act(async () => {
+      editButtons[index]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flushReact();
+    return root;
+  }
+
+  function costCheckbox(label: string) {
+    return Array.from(document.body.querySelectorAll<HTMLLabelElement>("label"))
+      .find((candidate) => candidate.textContent?.includes(label))
+      ?.querySelector<HTMLInputElement>('input[type="checkbox"]') ?? null;
+  }
+
+  it("shows cost permissions as included for an owner", async () => {
+    const root = await openEditDialog(0);
+    expect(costCheckbox("View costs")?.checked).toBe(true);
+    expect(costCheckbox("View costs")?.disabled).toBe(true);
+    expect(costCheckbox("Manage budgets")?.checked).toBe(true);
+    expect(costCheckbox("Manage budgets")?.disabled).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("grants costs:view to an operator while keeping their other grants", async () => {
+    const payload = structuredClone(await listMembersMock("company-1"));
+    payload.members[1].grants = [{
+      id: "grant-1",
+      companyId: "company-1",
+      principalType: "user",
+      principalId: "user-2",
+      permissionKey: "tasks:assign",
+      scope: null,
+      grantedByUserId: null,
+      createdAt: "2026-04-10T00:00:00.000Z",
+      updatedAt: "2026-04-10T00:00:00.000Z",
+    }];
+    listMembersMock.mockResolvedValue(payload);
+
+    const root = await openEditDialog(1);
+    const viewCosts = costCheckbox("View costs");
+    expect(viewCosts?.checked).toBe(false);
+    expect(viewCosts?.disabled).toBe(false);
+    await act(async () => {
+      viewCosts?.click();
+    });
+    const saveButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent === "Save member",
+    );
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flushReact();
+
+    expect(updateMemberPermissionsMock).toHaveBeenCalledWith("company-1", "member-2", {
+      grants: [
+        { permissionKey: "tasks:assign", scope: null },
+        { permissionKey: "costs:view", scope: null },
+      ],
+    });
+    await act(async () => root.unmount());
   });
 
   it("removes a member with an issue reassignment target", async () => {

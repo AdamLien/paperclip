@@ -241,6 +241,10 @@ export type CurrentBoardAccess = {
     companyId: string;
     membershipRole: HumanCompanyRole | "member" | null;
     status: "pending" | "active" | "suspended" | "archived";
+    /** Effective `costs:view`, including explicit grants. */
+    canViewCosts?: boolean;
+    /** Effective `budgets:manage`, including explicit grants. */
+    canManageBudgets?: boolean;
   }>;
   source: string;
   keyId: string | null;

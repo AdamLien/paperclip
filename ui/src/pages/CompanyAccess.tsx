@@ -4,6 +4,7 @@ import {
   HUMAN_COMPANY_MEMBERSHIP_ROLE_LABELS,
   hidesCompanyPage,
   type Agent,
+  type PermissionKey,
 } from "@paperclipai/shared";
 import { Shield, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { accessApi, type CompanyMember } from "@/api/access";
@@ -37,6 +38,39 @@ import { InvitesSection } from "@/components/access/InvitesSection";
 
 const reassignmentIssueStatuses = "backlog,todo,in_progress,in_review,blocked,failed,timed_out";
 type EditableMemberStatus = "pending" | "active" | "suspended";
+
+const COST_PERMISSIONS = [
+  { key: "costs:view", label: "View costs" },
+  { key: "budgets:manage", label: "Manage budgets" },
+] as const satisfies ReadonlyArray<{ key: PermissionKey; label: string }>;
+type CostPermissionKey = (typeof COST_PERMISSIONS)[number]["key"];
+
+/** Owners and admins hold the cost permissions through their role default. */
+function roleIncludesCostPermissions(role: CompanyMember["membershipRole"]) {
+  return role === "owner" || role === "admin";
+}
+
+function explicitCostPermissions(member: CompanyMember): CostPermissionKey[] {
+  return COST_PERMISSIONS
+    .map((permission) => permission.key)
+    .filter((key) => member.grants.some((grant) => grant.permissionKey === key));
+}
+
+/**
+ * The full grant list after changing only the cost permissions, or `null`
+ * when the explicit cost grants are unchanged.
+ */
+function grantsWithCostPermissions(member: CompanyMember, selected: CostPermissionKey[]) {
+  const current = explicitCostPermissions(member);
+  if (current.length === selected.length && current.every((key) => selected.includes(key))) return null;
+  const costKeys: PermissionKey[] = COST_PERMISSIONS.map((permission) => permission.key);
+  return [
+    ...member.grants
+      .filter((grant) => !costKeys.includes(grant.permissionKey))
+      .map((grant) => ({ permissionKey: grant.permissionKey, scope: grant.scope })),
+    ...selected.map((permissionKey) => ({ permissionKey, scope: null })),
+  ];
+}
 
 export function CompanyAccess() {
   const { selectedCompany, selectedCompanyId } = useCompany();
@@ -84,6 +118,7 @@ export function CompanyAccess() {
   const [reassignmentTarget, setReassignmentTarget] = useState<string>("__unassigned");
   const [draftRole, setDraftRole] = useState<CompanyMember["membershipRole"]>(null);
   const [draftStatus, setDraftStatus] = useState<EditableMemberStatus>("active");
+  const [draftCostPermissions, setDraftCostPermissions] = useState<CostPermissionKey[]>([]);
 
   useEffect(() => {
     setBreadcrumbs([
@@ -119,11 +154,20 @@ export function CompanyAccess() {
   };
 
   const updateMemberMutation = useMutation({
-    mutationFn: async (input: { memberId: string; membershipRole: CompanyMember["membershipRole"]; status: EditableMemberStatus }) => {
-      return accessApi.updateMember(selectedCompanyId!, input.memberId, {
+    mutationFn: async (input: {
+      memberId: string;
+      membershipRole: CompanyMember["membershipRole"];
+      status: EditableMemberStatus;
+      grants: ReturnType<typeof grantsWithCostPermissions>;
+    }) => {
+      const member = await accessApi.updateMember(selectedCompanyId!, input.memberId, {
         membershipRole: input.membershipRole,
         status: input.status,
       });
+      if (input.grants) {
+        return accessApi.updateMemberPermissions(selectedCompanyId!, input.memberId, { grants: input.grants });
+      }
+      return member;
     },
     onSuccess: async () => {
       setEditingMemberId(null);
@@ -238,6 +282,7 @@ export function CompanyAccess() {
     if (!editingMember) return;
     setDraftRole(editingMember.membershipRole);
     setDraftStatus(isEditableMemberStatus(editingMember.status) ? editingMember.status : "suspended");
+    setDraftCostPermissions(explicitCostPermissions(editingMember));
   }, [editingMember]);
 
   useEffect(() => {
@@ -476,6 +521,29 @@ export function CompanyAccess() {
                   </select>
                 </label>
               </div>
+              <fieldset className="space-y-2 text-sm">
+                <legend className="font-medium">Cost permissions</legend>
+                {COST_PERMISSIONS.map((permission) => {
+                  const implied = roleIncludesCostPermissions(draftRole);
+                  return (
+                    <label key={permission.key} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={implied || draftCostPermissions.includes(permission.key)}
+                        disabled={implied}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setDraftCostPermissions((current) =>
+                            checked ? [...current, permission.key] : current.filter((key) => key !== permission.key),
+                          );
+                        }}
+                      />
+                      <span>{permission.label}</span>
+                      {implied ? <span className="text-xs text-muted-foreground">Included with this role</span> : null}
+                    </label>
+                  );
+                })}
+              </fieldset>
             </div>
           )}
           <DialogFooter>
@@ -489,6 +557,9 @@ export function CompanyAccess() {
                   memberId: editingMember.id,
                   membershipRole: draftRole,
                   status: draftStatus,
+                  grants: roleIncludesCostPermissions(draftRole)
+                    ? null
+                    : grantsWithCostPermissions(editingMember, draftCostPermissions),
                 });
               }}
               disabled={updateMemberMutation.isPending}
