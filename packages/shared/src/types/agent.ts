@@ -96,8 +96,10 @@ export interface Agent {
   adapterConfig: Record<string, unknown>;
   runtimeConfig: AgentRuntimeConfig;
   defaultEnvironmentId?: string | null;
-  budgetMonthlyCents: number;
-  spentMonthlyCents: number;
+  /** `null` in API responses when the requester lacks `costs:view`. */
+  budgetMonthlyCents: number | null;
+  /** `null` in API responses when the requester lacks `costs:view`. */
+  spentMonthlyCents: number | null;
   pauseReason: PauseReason | null;
   pausedAt: Date | null;
   errorReason?: string | null;

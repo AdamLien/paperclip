@@ -2034,6 +2034,19 @@ export function agentRoutes(
     return agent;
   }
 
+  async function actorCanViewCompanyCosts(req: Request, companyId: string) {
+    const decision = await access.decide({
+      actor: req.actor,
+      action: "costs:read",
+      resource: { type: "company", companyId },
+    });
+    return decision.allowed;
+  }
+
+  function withholdAgentCosts<T extends object>(agent: T | null) {
+    return agent ? { ...agent, budgetMonthlyCents: null, spentMonthlyCents: null } : agent;
+  }
+
   async function actorCanReadConfigurationsForCompany(req: Request, companyId: string) {
     // Mirrors assertCanReadConfigurations but returns a boolean instead of
     // throwing. Board actors only need company access; agent actors must pass
@@ -4171,11 +4184,10 @@ export function agentRoutes(
     }
     const result = await filterAgentsForActor(req, await svc.list(companyId));
     const canReadConfigs = await actorCanReadConfigurationsForCompany(req, companyId);
-    if (canReadConfigs) {
-      res.json(result.map((agent) => redactAgentRowForResponse(agent)));
-      return;
-    }
-    res.json(result.map((agent) => redactForRestrictedAgentView(agent)));
+    const rows = canReadConfigs
+      ? result.map((agent) => redactAgentRowForResponse(agent))
+      : result.map((agent) => redactForRestrictedAgentView(agent));
+    res.json(await actorCanViewCompanyCosts(req, companyId) ? rows : rows.map((agent) => withholdAgentCosts(agent)));
   });
 
   router.get("/instance/scheduler-heartbeats", async (req, res) => {
@@ -4405,11 +4417,8 @@ export function agentRoutes(
     const canReadSensitiveDetail = isSelf
       ? true
       : await actorCanReadConfigurationsForCompany(req, agent.companyId);
-    if (!canReadSensitiveDetail) {
-      res.json(await buildAgentDetail(agent, { restricted: true }));
-      return;
-    }
-    res.json(await buildAgentDetail(agent));
+    const detail = await buildAgentDetail(agent, canReadSensitiveDetail ? undefined : { restricted: true });
+    res.json(await actorCanViewCompanyCosts(req, agent.companyId) ? detail : withholdAgentCosts(detail));
   });
 
   router.get("/agents/:id/configuration", async (req, res) => {
