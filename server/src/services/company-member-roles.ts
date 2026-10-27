@@ -39,6 +39,8 @@ export function grantsForHumanRole(
         { permissionKey: "tools:manage_runtime", scope: null },
         { permissionKey: "tools:use", scope: null },
         { permissionKey: "tools:admin", scope: null },
+        { permissionKey: "costs:view", scope: null },
+        { permissionKey: "budgets:manage", scope: null },
       ];
     case "admin":
       return [
@@ -53,6 +55,8 @@ export function grantsForHumanRole(
         { permissionKey: "tools:manage_runtime", scope: null },
         { permissionKey: "tools:use", scope: null },
         { permissionKey: "tools:admin", scope: null },
+        { permissionKey: "costs:view", scope: null },
+        { permissionKey: "budgets:manage", scope: null },
       ];
     case "operator":
       return [{ permissionKey: "tasks:assign", scope: null }];

@@ -20,6 +20,10 @@ const mockInstanceSettingsApi = vi.hoisted(() => ({
   getExperimental: vi.fn(),
 }));
 
+vi.mock("@/hooks/useCompanyCostAccess", () => ({
+  useCanViewCompanyCosts: () => true,
+}));
+
 vi.mock("@/lib/router", () => ({
   NavLink: ({ to, children, className, ...props }: {
     to: string;

@@ -9,6 +9,11 @@ const navigateMock = vi.hoisted(() => vi.fn());
 const setSearchParamsMock = vi.hoisted(() => vi.fn());
 const setBreadcrumbsMock = vi.hoisted(() => vi.fn());
 let currentSearch = "";
+let canViewCosts: boolean | undefined = true;
+
+vi.mock("@/hooks/useCompanyCostAccess", () => ({
+  useCanViewCompanyCosts: () => canViewCosts,
+}));
 
 vi.mock("@/context/CompanyContext", () => ({
   useCompany: () => ({ selectedCompanyId: "company-1" }),
@@ -152,6 +157,20 @@ describe("AuditHub", () => {
     costs = container.querySelector<HTMLElement>('[data-testid="audit-costs"]');
     expect(costs?.dataset.initialTab).toBe("overview");
     expect(costs?.dataset.hideBudgets).toBe("true");
+  });
+
+  it("hides Costs and Budgets from members without cost access", () => {
+    canViewCosts = false;
+    try {
+      render("costs");
+      const tabs = Array.from(container.querySelectorAll<HTMLElement>('[role="tab"]')).map((tab) => tab.textContent?.trim());
+      expect(tabs).not.toContain("Costs");
+      expect(tabs).not.toContain("Budgets");
+      expect(container.querySelector('[data-testid="audit-costs"]')).toBeNull();
+      expect(container.textContent).toContain("You don't have permission to view costs and budgets.");
+    } finally {
+      canViewCosts = true;
+    }
   });
 
   it("keeps the current entity scope when moving between Audit sections", () => {

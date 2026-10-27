@@ -1,5 +1,6 @@
 import { AgentIdentity } from "@/components/AgentIdentity";
 import { useCombinedInboxTasksEnabled } from "@/hooks/useCombinedInboxTasksEnabled";
+import { useCanViewCompanyCosts } from "@/hooks/useCompanyCostAccess";
 import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
@@ -105,6 +106,7 @@ export function CommandPalette() {
     retry: false,
   });
   const { enabled: combinedInboxTasksEnabled } = useCombinedInboxTasksEnabled();
+  const canViewCosts = useCanViewCompanyCosts(selectedCompanyId);
   const fileViewerEnabled = experimentalSettings?.enableExperimentalFileViewer === true;
 
   useEffect(() => {
@@ -380,10 +382,12 @@ export function CommandPalette() {
             <Bot className="mr-2 h-4 w-4" />
             Agents
           </CommandItem>
-          <CommandItem onSelect={() => go("/costs")}>
-            <DollarSign className="mr-2 h-4 w-4" />
-            Costs
-          </CommandItem>
+          {canViewCosts ? (
+            <CommandItem onSelect={() => go("/costs")}>
+              <DollarSign className="mr-2 h-4 w-4" />
+              Costs
+            </CommandItem>
+          ) : null}
           <CommandItem onSelect={() => go("/activity")}>
             <History className="mr-2 h-4 w-4" />
             Activity
