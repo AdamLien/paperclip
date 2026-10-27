@@ -132,7 +132,7 @@ export function Companies() {
           const agentCount = companyStats?.agentCount ?? 0;
           const issueCount = companyStats?.issueCount ?? 0;
           const budgetPct =
-            company.budgetMonthlyCents > 0
+            company.budgetMonthlyCents && company.spentMonthlyCents !== null
               ? Math.round(
                   (company.spentMonthlyCents / company.budgetMonthlyCents) * 100,
                 )
@@ -274,15 +274,17 @@ export function Companies() {
                     {issueCount} {issueCount === 1 ? "task" : "tasks"}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 tabular-nums">
-                  <DollarSign className="h-3.5 w-3.5" />
-                  <span>
-                    {formatCents(company.spentMonthlyCents)}
-                    {company.budgetMonthlyCents > 0
-                      ? <> / {formatCents(company.budgetMonthlyCents)} <span className="text-xs">({budgetPct}%)</span></>
-                      : <span className="text-xs ml-1">Unlimited budget</span>}
-                  </span>
-                </div>
+                {company.spentMonthlyCents !== null ? (
+                  <div className="flex items-center gap-1.5 tabular-nums">
+                    <DollarSign className="h-3.5 w-3.5" />
+                    <span>
+                      {formatCents(company.spentMonthlyCents)}
+                      {company.budgetMonthlyCents
+                        ? <> / {formatCents(company.budgetMonthlyCents)} <span className="text-xs">({budgetPct}%)</span></>
+                        : <span className="text-xs ml-1">Unlimited budget</span>}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-1.5 ml-auto">
                   <Calendar className="h-3.5 w-3.5" />
                   <span>Created {relativeTime(company.createdAt)}</span>

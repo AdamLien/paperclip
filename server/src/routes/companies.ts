@@ -374,6 +374,15 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     }
   }
 
+  async function withholdCompanyCostsUnlessAllowed<T extends { id: string }>(req: Request, company: T) {
+    const decision = await access.decide({
+      actor: req.actor,
+      action: "costs:read",
+      resource: { type: "company", companyId: company.id },
+    });
+    return decision.allowed ? company : { ...company, budgetMonthlyCents: null, spentMonthlyCents: null };
+  }
+
   router.get("/", async (req, res) => {
     assertBoard(req);
     const scope = req.query.scope;
@@ -384,8 +393,10 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     // Navigation needs the same membership scope as company detail routes.
     // Instance admins can inspect the directory without membership, but that
     // visibility alone does not let them open a company's inbox or tasks.
+    const respond = async (rows: typeof result) =>
+      res.json(await Promise.all(rows.map((company) => withholdCompanyCostsUnlessAllowed(req, company))));
     if (scope === "accessible") {
-      res.json(result.filter((company) => hasCompanyAccess(req, company.id)));
+      await respond(result.filter((company) => hasCompanyAccess(req, company.id)));
       return;
     }
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) {
@@ -393,7 +404,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
       return;
     }
     const allowed = new Set(req.actor.companyIds ?? []);
-    res.json(result.filter((company) => allowed.has(company.id)));
+    await respond(result.filter((company) => allowed.has(company.id)));
   });
 
   router.get("/stats", async (req, res) => {
@@ -492,7 +503,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
       res.status(404).json({ error: "Company not found" });
       return;
     }
-    res.json(company);
+    res.json(await withholdCompanyCostsUnlessAllowed(req, company));
   });
 
   router.get("/:companyId/feedback-traces", async (req, res) => {

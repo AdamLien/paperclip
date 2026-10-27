@@ -23,8 +23,10 @@ export interface Company {
   pausedAt: Date | null;
   issuePrefix: string;
   issueCounter: number;
-  budgetMonthlyCents: number;
-  spentMonthlyCents: number;
+  /** `null` in API responses when the requester lacks `costs:view`. */
+  budgetMonthlyCents: number | null;
+  /** `null` in API responses when the requester lacks `costs:view`. */
+  spentMonthlyCents: number | null;
   defaultResponsibleUserId: string | null;
   requireBoardApprovalForNewAgents: boolean;
   interactionResolverGovernance: InteractionResolverGovernance;

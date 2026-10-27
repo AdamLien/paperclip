@@ -20,7 +20,8 @@ export interface UserProfileWindowStats {
   assignedOpenIssues: number;
   commentCount: number;
   activityCount: number;
-  costCents: number;
+  /** `null` when the requester lacks `costs:view`. */
+  costCents: number | null;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -31,7 +32,8 @@ export interface UserProfileDailyPoint {
   date: string;
   activityCount: number;
   completedIssues: number;
-  costCents: number;
+  /** `null` when the requester lacks `costs:view`. */
+  costCents: number | null;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -61,7 +63,8 @@ export interface UserProfileActivitySummary {
 export interface UserProfileAgentUsage {
   agentId: string;
   agentName: string | null;
-  costCents: number;
+  /** `null` when the requester lacks `costs:view`. */
+  costCents: number | null;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -71,7 +74,8 @@ export interface UserProfileProviderUsage {
   provider: string;
   biller: string;
   model: string;
-  costCents: number;
+  /** `null` when the requester lacks `costs:view`. */
+  costCents: number | null;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;

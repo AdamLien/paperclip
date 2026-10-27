@@ -156,6 +156,36 @@ describe("UserProfile", () => {
     await act(async () => root.unmount());
   });
 
+  it("shows spend amounts when the viewer can see costs", async () => {
+    const root = await render(profileFor("user-2"));
+
+    expect(container.textContent).toContain("$12.00 spent");
+    expect(container.textContent).toContain("Spend");
+
+    await act(async () => root.unmount());
+  });
+
+  it("hides spend amounts, not shows zero, when costs are withheld", async () => {
+    const profile = profileFor("user-2");
+    profile.stats = profile.stats.map((entry) => ({ ...entry, costCents: null }));
+    profile.topAgents = [{
+      agentId: "agent-1",
+      agentName: "Finance Partner",
+      costCents: null,
+      inputTokens: 10,
+      cachedInputTokens: 0,
+      outputTokens: 5,
+    }];
+    const root = await render(profile);
+
+    expect(container.textContent).toContain("Finance Partner");
+    expect(container.textContent).not.toContain("spent");
+    expect(container.textContent).not.toContain("Spend");
+    expect(container.textContent).not.toContain("$0");
+
+    await act(async () => root.unmount());
+  });
+
   it("keeps other users' profiles read-only", async () => {
     const root = await render(profileFor("user-2"));
 
