@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Db } from "@paperclipai/db";
+import { accessService } from "../services/index.js";
 import { dashboardService } from "../services/dashboard.js";
 import {
   DEFAULT_RECOVERY_RATE_THRESHOLD_PERCENT,
@@ -22,13 +23,19 @@ function parsePositiveNumber(
 export function dashboardRoutes(db: Db) {
   const router = Router();
   const svc = dashboardService(db);
+  const access = accessService(db);
   const recoveryObservability = recoveryObservabilityService(db);
 
   router.get("/companies/:companyId/dashboard", async (req, res) => {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
     const summary = await svc.summary(companyId);
-    res.json(summary);
+    const costDecision = await access.decide({
+      actor: req.actor,
+      action: "costs:read",
+      resource: { type: "company", companyId },
+    });
+    res.json(costDecision.allowed ? summary : { ...summary, costs: null });
   });
 
   router.get("/companies/:companyId/recovery-observability", async (req, res) => {

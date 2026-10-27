@@ -38,11 +38,12 @@ export interface DashboardSummary {
     blocked: number;
     done: number;
   };
+  /** `null` when the requester lacks `costs:view`. */
   costs: {
     monthSpendCents: number;
     monthBudgetCents: number;
     monthUtilizationPercent: number;
-  };
+  } | null;
   pendingApprovals: number;
   budgets: {
     activeIncidents: number;
