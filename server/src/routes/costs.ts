@@ -20,7 +20,7 @@ import {
   accessService,
   logActivity,
 } from "../services/index.js";
-import { assertBoard, assertCompanyAccess, getAccessibleResource, getActorInfo } from "./authz.js";
+import { assertBoard, assertBoardCanManageBudgets, assertCompanyAccess, getAccessibleResource, getActorInfo } from "./authz.js";
 import { fetchAllQuotaWindows } from "../services/quota-windows.js";
 import { badRequest } from "../errors.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
@@ -302,6 +302,7 @@ export function costRoutes(
       assertBoard(req);
       const companyId = req.params.companyId as string;
       assertCompanyAccess(req, companyId);
+      await assertBoardCanManageBudgets(access, req, companyId);
       const summary = await budgets.upsertPolicy(companyId, req.body, req.actor.userId ?? "board");
       res.json(summary);
     },
@@ -315,6 +316,7 @@ export function costRoutes(
       const companyId = req.params.companyId as string;
       const incidentId = req.params.incidentId as string;
       assertCompanyAccess(req, companyId);
+      await assertBoardCanManageBudgets(access, req, companyId);
       const incident = await budgets.resolveIncident(companyId, incidentId, req.body, req.actor.userId ?? "board");
       res.json(incident);
     },
@@ -333,6 +335,7 @@ export function costRoutes(
     assertBoard(req);
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
+    await assertBoardCanManageBudgets(access, req, companyId);
     const company = await companies.update(companyId, { budgetMonthlyCents: req.body.budgetMonthlyCents });
     if (!company) {
       res.status(404).json({ error: "Company not found" });
@@ -369,6 +372,7 @@ export function costRoutes(
     if (!agent) return;
 
     assertBoard(req);
+    await assertBoardCanManageBudgets(access, req, agent.companyId);
 
     const updated = await agents.update(agentId, { budgetMonthlyCents: req.body.budgetMonthlyCents });
     if (!updated) {

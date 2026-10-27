@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import type { SecretBindingTargetType } from "@paperclipai/shared";
 import { forbidden, HttpError, unauthorized } from "../errors.js";
 import { logger } from "../middleware/logger.js";
-import { responsibleUserAuthzShadowMode } from "../services/authorization.js";
+import { responsibleUserAuthzShadowMode, type authorizationService } from "../services/authorization.js";
 
 function throwOrShadowResponsibleUserCompanyAccessDeny(
   req: Request,
@@ -33,6 +33,24 @@ export function assertBoard(req: Request) {
   if (req.actor.type !== "board") {
     throw forbidden("Board access required");
   }
+}
+
+/**
+ * Board members need `budgets:manage` to change company or agent budgets.
+ * Agent actors keep their existing budget write paths.
+ */
+export async function assertBoardCanManageBudgets(
+  access: Pick<ReturnType<typeof authorizationService>, "decide">,
+  req: Request,
+  companyId: string,
+) {
+  if (req.actor.type !== "board") return;
+  const decision = await access.decide({
+    actor: req.actor,
+    action: "budgets:manage",
+    resource: { type: "company", companyId },
+  });
+  if (!decision.allowed) throw forbidden("Missing permission: budgets:manage");
 }
 
 export function hasBoardOrgAccess(req: Request) {

@@ -20,6 +20,7 @@ import { InlineEditor } from "../components/InlineEditor";
 import { StatusBadge } from "../components/StatusBadge";
 import { ProjectTile } from "../components/ProjectTile";
 import { BudgetPolicyCard } from "../components/BudgetPolicyCard";
+import { CostsAccessGate } from "../components/CostsAccessGate";
 import { IssuesList } from "../components/IssuesList";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { PageTabBar } from "../components/PageTabBar";
@@ -899,14 +900,16 @@ export function ProjectDetail() {
       )}
 
       {activeTab === "budget" && resolvedCompanyId ? (
-        <div className="max-w-3xl">
-          <BudgetPolicyCard
-            summary={projectBudgetSummary}
-            variant="plain"
-            isSaving={budgetMutation.isPending}
-            onSave={(amount) => budgetMutation.mutate(amount)}
-          />
-        </div>
+        <CostsAccessGate>
+          <div className="max-w-3xl">
+            <BudgetPolicyCard
+              summary={projectBudgetSummary}
+              variant="plain"
+              isSaving={budgetMutation.isPending}
+              onSave={(amount) => budgetMutation.mutate(amount)}
+            />
+          </div>
+        </CostsAccessGate>
       ) : null}
 
       {activePluginTab && (
