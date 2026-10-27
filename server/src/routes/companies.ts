@@ -67,7 +67,7 @@ import {
 import { isCloudManagedInstance } from "../services/cloud-instance.js";
 import { getHiddenSettings } from "../services/settings-visibility.js";
 import type { StorageService } from "../storage/types.js";
-import { assertBoard, assertCompanyAccess, assertInstanceAdmin, getActorInfo, hasCompanyAccess } from "./authz.js";
+import { assertBoard, assertBoardCanManageBudgets, assertCompanyAccess, assertInstanceAdmin, getActorInfo, hasCompanyAccess } from "./authz.js";
 import { COMPANY_IMPORT_ROUTE_PATH } from "./company-import-paths.js";
 
 // A company import can arrive one of two ways on the import + preview routes:
@@ -1261,6 +1261,9 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
       body = updateCompanyBrandingSchema.parse(req.body);
     } else {
       body = updateCompanySchema.parse(req.body);
+    }
+    if ("budgetMonthlyCents" in body || "spentMonthlyCents" in body) {
+      await assertBoardCanManageBudgets(access, req, companyId);
     }
 
     const existingCompany = await svc.getById(companyId);
