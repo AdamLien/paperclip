@@ -22,6 +22,8 @@ const mockAgentService = vi.hoisted(() => ({
 }));
 
 const mockAccessService = vi.hoisted(() => ({
+  // Cost visibility is covered by profile-company-cost-visibility-routes.test.ts.
+  decide: vi.fn(async () => ({ allowed: true })),
   ensureMembership: vi.fn(),
   ensureRoleDefaultGrants: vi.fn(),
 }));

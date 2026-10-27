@@ -17,6 +17,7 @@ import type {
   UserProfileWindowStats,
 } from "@paperclipai/shared";
 import { notFound } from "../errors.js";
+import { accessService } from "../services/index.js";
 import { visibleIssueCondition } from "../services/issue-visibility.js";
 import { assertCompanyAccess } from "./authz.js";
 
@@ -299,6 +300,7 @@ async function loadDailyStats(db: Db, companyId: string, userId: string): Promis
 }
 
 export function userProfileRoutes(db: Db) {
+  const access = accessService(db);
   const router = Router();
 
   router.get("/companies/:companyId/users/:userSlug/profile", async (req, res) => {
@@ -430,7 +432,23 @@ export function userProfileRoutes(db: Db) {
       })),
     };
 
-    res.json(payload);
+    const costDecision = await access.decide({
+      actor: req.actor,
+      action: "costs:read",
+      resource: { type: "company", companyId },
+    });
+    if (costDecision.allowed) {
+      res.json(payload);
+      return;
+    }
+    const withholdCost = <T extends { costCents: number | null }>(entry: T): T => ({ ...entry, costCents: null });
+    res.json({
+      ...payload,
+      stats: payload.stats.map(withholdCost),
+      daily: payload.daily.map(withholdCost),
+      topAgents: payload.topAgents.map(withholdCost),
+      topProviders: payload.topProviders.map(withholdCost),
+    } satisfies UserProfileResponse);
   });
 
   return router;
