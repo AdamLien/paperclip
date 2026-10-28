@@ -10,6 +10,7 @@ import { sanitizeRecord } from "../redaction.js";
 import { badRequest, forbidden } from "../errors.js";
 import { agentActionAuditService } from "../services/agent-action-audit.js";
 import { logActivity } from "../services/activity-log.js";
+import { withholdActivityCostDetails } from "../services/activity-cost-details.js";
 
 /** Max rows a single CSV export will stream (guards against runaway exports). */
 const AUDIT_CSV_EXPORT_MAX_ROWS = 10_000;
@@ -232,7 +233,12 @@ export function activityRoutes(db: Db) {
       limit: normalizeActivityLimit(Number(req.query.limit)),
     };
     const result = await svc.list(filters);
-    res.json(result);
+    const costDecision = await access.decide({
+      actor: req.actor,
+      action: "costs:read",
+      resource: { type: "company", companyId },
+    });
+    res.json(costDecision.allowed ? result : result.map(withholdActivityCostDetails));
   });
 
   router.get("/companies/:companyId/audit/agent-actions", async (req, res) => {
