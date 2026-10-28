@@ -5,9 +5,12 @@ import type { Duplex } from "node:stream";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import { agentApiKeys, companyMemberships, instanceUserRoles } from "@paperclipai/db";
-import type { DeploymentMode } from "@paperclipai/shared";
+import { normalizeAgentApiKeyScope, type DeploymentMode, type LiveEvent } from "@paperclipai/shared";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
+import { loadResponsibleUserMemberships } from "../middleware/auth.js";
 import { logger } from "../middleware/logger.js";
+import { activityCarriesCostDetails, withholdActivityCostDetails } from "../services/activity-cost-details.js";
+import { authorizationService, type AuthorizationActor } from "../services/authorization.js";
 import { subscribeCompanyLiveEvents } from "../services/live-events.js";
 
 interface WsSocket {
@@ -44,6 +47,10 @@ interface UpgradeContext {
   companyId: string;
   actorType: "board" | "agent";
   actorId: string;
+  /** Who is subscribed, for per-event checks such as costs:read. */
+  actor: AuthorizationActor;
+  /** Agent key subscribers act for this user; reloaded on each check. */
+  responsibleUserId?: string | null;
 }
 
 /** Cloud-proxied browser identity resolved from trusted x-paperclip-cloud-* headers. */
@@ -143,6 +150,7 @@ async function authorizeUpgrade(
         companyId,
         actorType: "board",
         actorId: "board",
+        actor: { type: "board", userId: "local-board", isInstanceAdmin: true, source: "local_implicit" },
       };
     }
 
@@ -161,6 +169,13 @@ async function authorizeUpgrade(
           companyId,
           actorType: "board",
           actorId: cloudActor.userId,
+          actor: {
+            type: "board",
+            userId: cloudActor.userId,
+            companyIds: cloudActor.companyIds,
+            isInstanceAdmin: false,
+            source: "cloud_tenant",
+          },
         };
       }
     }
@@ -198,6 +213,13 @@ async function authorizeUpgrade(
       companyId,
       actorType: "board",
       actorId: userId,
+      actor: {
+        type: "board",
+        userId,
+        companyIds: memberships.map((row) => row.companyId),
+        isInstanceAdmin: Boolean(roleRow),
+        source: "session",
+      },
     };
   }
 
@@ -221,7 +243,45 @@ async function authorizeUpgrade(
     companyId,
     actorType: "agent",
     actorId: key.agentId,
+    actor: {
+      type: "agent",
+      agentId: key.agentId,
+      companyId: key.companyId,
+      keyId: key.id,
+      keyScope: normalizeAgentApiKeyScope(key.scopeConfig),
+      source: "agent_key",
+    },
+    responsibleUserId: key.responsibleUserId ?? null,
   };
+}
+
+async function canSubscriberReadCosts(db: Db, context: UpgradeContext) {
+  let actor = context.actor;
+  if (actor.type === "agent") {
+    // Agent keys always act for a responsible user; without one the HTTP API
+    // refuses the key outright, so withhold amounts here too.
+    if (!context.responsibleUserId) return false;
+    actor = {
+      ...actor,
+      onBehalfOfUserId: context.responsibleUserId,
+      onBehalfOfMemberships: await loadResponsibleUserMemberships(db, {
+        companyId: context.companyId,
+        userId: context.responsibleUserId,
+      }),
+    };
+  }
+  const decision = await authorizationService(db).decide({
+    actor,
+    action: "costs:read",
+    resource: { type: "company", companyId: context.companyId },
+  });
+  return decision.allowed;
+}
+
+async function eventForSubscriber(db: Db, context: UpgradeContext, event: LiveEvent): Promise<LiveEvent> {
+  if (event.type !== "activity.logged" || !activityCarriesCostDetails(event.payload.action)) return event;
+  if (await canSubscriberReadCosts(db, context)) return event;
+  return { ...event, payload: withholdActivityCostDetails(event.payload) };
 }
 
 export function setupLiveEventsWebSocketServer(
@@ -260,9 +320,19 @@ export function setupLiveEventsWebSocketServer(
       return;
     }
 
+    // Cost events need an async permission check; chain sends so events
+    // still reach the client in publish order.
+    let sendQueue = Promise.resolve();
     const unsubscribe = subscribeCompanyLiveEvents(context.companyId, (event) => {
-      if (socket.readyState !== WebSocket.OPEN) return;
-      socket.send(JSON.stringify(event));
+      sendQueue = sendQueue
+        .then(async () => {
+          const outgoing = await eventForSubscriber(db, context, event);
+          if (socket.readyState !== WebSocket.OPEN) return;
+          socket.send(JSON.stringify(outgoing));
+        })
+        .catch((err) => {
+          logger.warn({ err, companyId: context.companyId }, "live websocket event delivery failed");
+        });
     });
 
     cleanupByClient.set(socket, unsubscribe);
