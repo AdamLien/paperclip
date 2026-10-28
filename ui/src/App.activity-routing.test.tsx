@@ -107,6 +107,10 @@ vi.mock("./pages/Costs.production", () => ({
   },
 }));
 
+vi.mock("./hooks/useCompanyCostAccess", () => ({
+  useCanViewCompanyCosts: () => true,
+}));
+
 vi.mock("./pages/NotFound", () => ({
   NotFoundPage: ({ scope }: { scope: string }) => <div>{`NOT_FOUND:${scope}`}</div>,
 }));
