@@ -38,6 +38,8 @@ import { InlineBanner } from "../components/InlineBanner";
 import type { Agent, DashboardSummary, Issue } from "@paperclipai/shared";
 import { PluginSlotOutlet } from "@/plugins/slots";
 import { SmokeLabDashboardCard } from "../components/SmokeLabDashboardCard";
+import { EmployeeHome } from "../components/EmployeeHome";
+import { useIsCompanyManager } from "../hooks/useCompanyManagerAccess";
 
 const DASHBOARD_ACTIVITY_LIMIT = 10;
 
@@ -95,6 +97,7 @@ export function Dashboard() {
   const { openOnboarding } = useDialogActions();
   const location = useLocation();
   const { setBreadcrumbs } = useBreadcrumbs();
+  const isManager = useIsCompanyManager(selectedCompanyId);
   const [animatedActivityIds, setAnimatedActivityIds] = useState<Set<string>>(new Set());
   const seenActivityIdsRef = useRef<Set<string>>(new Set());
   const hydratedActivityRef = useRef(false);
@@ -328,7 +331,13 @@ export function Dashboard() {
     );
   }
 
-  if (isLoading) {
+  // Members who do not manage the workspace get a personal home; spend,
+  // paused agents and approvals belong to the managers' view.
+  if (isManager === false) {
+    return <EmployeeHome companyId={selectedCompanyId} />;
+  }
+
+  if (isLoading || isManager === undefined) {
     return <PageSkeleton variant="dashboard" />;
   }
 
