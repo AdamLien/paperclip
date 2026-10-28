@@ -1727,6 +1727,41 @@ describe("company portability", () => {
     expect(exported.warnings.filter((warning) => warning.includes("could not be exported portably"))).toHaveLength(1);
   });
 
+  it("exports agent monthly budgets only when the exporter may view costs", async () => {
+    const source = await agentSvc.list();
+    agentSvc.list.mockResolvedValue(source.map((agent: Record<string, unknown>) => ({ ...agent, budgetMonthlyCents: 50000 })));
+    const portability = companyPortabilityService({} as any);
+    const include = { company: true, agents: true, projects: false, issues: false, skills: false };
+
+    const full = await portability.exportBundle("company-1", { include });
+    expect(asTextFile(full.files[".paperclip.yaml"])).toContain("budgetMonthlyCents: 50000");
+    expect(full.manifest.agents.every((agent) => agent.budgetMonthlyCents === 50000)).toBe(true);
+
+    const withheld = await portability.exportBundle("company-1", { include }, { includeAgentBudgets: false });
+    expect(asTextFile(withheld.files[".paperclip.yaml"])).not.toContain("budgetMonthlyCents");
+    expect(withheld.manifest.agents.every((agent) => !agent.budgetMonthlyCents)).toBe(true);
+    expect(withheld.manifest.agents.map((agent) => agent.slug)).toEqual(full.manifest.agents.map((agent) => agent.slug));
+
+    const preview = await portability.previewExport("company-1", { include }, { includeAgentBudgets: false });
+    expect(asTextFile(preview.files[".paperclip.yaml"])).not.toContain("budgetMonthlyCents");
+    expect(preview.manifest.agents.every((agent) => !agent.budgetMonthlyCents)).toBe(true);
+  });
+
+  it("imports a bundle exported without agent budgets with budgets left unset", async () => {
+    const source = await agentSvc.list();
+    agentSvc.list.mockResolvedValue(source.map((agent: Record<string, unknown>) => ({ ...agent, budgetMonthlyCents: 50000 })));
+    const portability = companyPortabilityService({} as any);
+    const include = { company: true, agents: true, projects: false, issues: false, skills: false };
+    const exported = await portability.exportBundle("company-1", { include }, { includeAgentBudgets: false });
+
+    agentSvc.list.mockResolvedValue([]);
+    agentSvc.create.mockImplementation(async (_companyId: string, input: Record<string, unknown>) => ({ ...input, id: `imported-${input.name}` }));
+    await portability.importBundle({ source: { type: "inline", files: exported.files, rootPath: exported.rootPath }, include,
+      target: { mode: "new_company", newCompanyName: "Imported without budgets" }, collisionStrategy: "rename", agents: "all" }, "user-1");
+    expect(agentSvc.create).toHaveBeenCalled();
+    for (const [, input] of agentSvc.create.mock.calls) expect(input).toMatchObject({ budgetMonthlyCents: 0 });
+  });
+
   it("round-trips the saved visual persona through the portable bundle", async () => {
     const appearance = { schemaVersion: 1, characterVersion: "cap-v1", paletteId: "arctic-blue" };
     const source = await agentSvc.list();

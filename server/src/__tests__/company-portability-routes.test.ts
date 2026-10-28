@@ -19,6 +19,7 @@ const mockAgentService = vi.hoisted(() => ({
 
 const mockAccessService = vi.hoisted(() => ({
   ensureMembership: vi.fn(),
+  decide: vi.fn(async () => ({ allowed: true })),
 }));
 
 const mockBudgetService = vi.hoisted(() => ({
@@ -441,6 +442,41 @@ describe("company portability routes", () => {
     expect(res.body.rootPath).toBe("paperclip");
   });
 
+  it.sequential("leaves agent budgets out of exports and previews for members without costs:view", async () => {
+    mockCompanyPortabilityService.exportBundle.mockResolvedValue(createExportResult());
+    mockAccessService.decide.mockImplementation(async (input: { action: string }) => ({ allowed: input.action !== "costs:read" }));
+    const app = await createApp({
+      type: "board",
+      userId: "operator-user",
+      companyIds: [companyId],
+      memberships: [{ companyId, status: "active", membershipRole: "operator" }],
+      source: "session",
+      isInstanceAdmin: false,
+    });
+
+    for (const path of [`/api/companies/${companyId}/export`, `/api/companies/${companyId}/exports`]) {
+      const res = await request(app).post(path).send(exportRequest);
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+    }
+    const preview = await request(app).post(`/api/companies/${companyId}/exports/preview`).send(exportRequest);
+    expect(preview.status, JSON.stringify(preview.body)).toBe(200);
+
+    expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
+      action: "costs:read",
+      resource: { type: "company", companyId },
+    }));
+    for (const [, , options] of mockCompanyPortabilityService.exportBundle.mock.calls) {
+      expect(options).toMatchObject({ includeAgentBudgets: false });
+    }
+    expect(mockCompanyPortabilityService.exportBundle).toHaveBeenCalledTimes(2);
+    expect(mockCompanyPortabilityService.previewExport).toHaveBeenCalledWith(
+      companyId,
+      exportRequest,
+      expect.objectContaining({ includeAgentBudgets: false }),
+    );
+    mockAccessService.decide.mockImplementation(async () => ({ allowed: true }));
+  });
+
   it.sequential("allows CEO agents to export through legacy and CEO-safe bundle routes", async () => {
     mockCompanyPortabilityService.exportBundle.mockResolvedValue(createExportResult());
     const app = await createApp({
@@ -462,13 +498,13 @@ describe("company portability routes", () => {
       1,
       companyId,
       exportRequest,
-      { allowExternalInstructions: false },
+      { allowExternalInstructions: false, includeAgentBudgets: true },
     );
     expect(mockCompanyPortabilityService.exportBundle).toHaveBeenNthCalledWith(
       2,
       companyId,
       exportRequest,
-      { allowExternalInstructions: false },
+      { allowExternalInstructions: false, includeAgentBudgets: true },
     );
   });
 
@@ -559,7 +595,7 @@ describe("company portability routes", () => {
     expect(mockCompanyPortabilityService.exportBundle).toHaveBeenCalledWith(
       companyId,
       exportRequest,
-      { allowExternalInstructions: true },
+      { allowExternalInstructions: true, includeAgentBudgets: true },
     );
   });
 
@@ -608,7 +644,7 @@ describe("company portability routes", () => {
     expect(mockCompanyPortabilityService.exportBundle).toHaveBeenCalledWith(
       companyId,
       selectedAgentRequest,
-      { allowExternalInstructions: false },
+      { allowExternalInstructions: false, includeAgentBudgets: true },
     );
   });
 
@@ -647,7 +683,7 @@ describe("company portability routes", () => {
     expect(mockCompanyPortabilityService.exportBundle).toHaveBeenCalledWith(
       companyId,
       companyOnlyRequest,
-      { allowExternalInstructions: false },
+      { allowExternalInstructions: false, includeAgentBudgets: true },
     );
   });
 
