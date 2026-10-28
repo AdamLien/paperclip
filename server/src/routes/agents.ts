@@ -78,6 +78,7 @@ import { agentInstructionWorkingCopyService } from "../services/agent-instructio
 import { authorizeInstructionRead } from "../services/agent-instruction-authorization.js";
 import { instructionPath } from "../services/agent-instruction-files.js";
 import { agentInstructionsBundleMode, deriveBundleState } from "../services/agent-instructions.js";
+import { withholdRunCosts } from "../services/run-cost-visibility.js";
 import {
   agentService,
   agentInstructionsService,
@@ -7020,8 +7021,8 @@ export function agentRoutes(
     const limitParam = req.query.limit as string | undefined;
     const limit = limitParam ? Math.max(1, Math.min(1000, parseInt(limitParam, 10) || 200)) : undefined;
     const summary = req.query.summary === "true" || req.query.summary === "1";
-    const runs = await heartbeat.list(companyId, agentId, limit, { summary });
-    res.json(await runRedactions.redactForRuns(companyId, runs));
+    const runs = await runRedactions.redactForRuns(companyId, await heartbeat.list(companyId, agentId, limit, { summary }));
+    res.json(await actorCanViewCompanyCosts(req, companyId) ? runs : runs.map((run) => withholdRunCosts(run)));
   });
 
   router.get("/companies/:companyId/provider-traces", async (req, res) => {
@@ -7172,14 +7173,15 @@ export function agentRoutes(
     if (!(await assertRunTelemetryReadAllowed(req, res, run.companyId))) return;
     const retryExhaustedReason = await heartbeat.getRetryExhaustedReason(runId);
     const decoratedRun = heartbeat.decorateActiveRunStatus(run);
-    res.json(await runRedactions.redactForRun(
+    const redactedRun = await runRedactions.redactForRun(
       run.companyId,
       run.id,
       redactCurrentUserValue(
         { ...decoratedRun, execution: await executionProjectionForRun(db, run.companyId, run.id), identityHistory: await listRunIdentityContexts(db, run.companyId, run.id), retryExhaustedReason, outputSilence: await heartbeat.buildRunOutputSilence(run) },
         await getCurrentUserRedactionOptions(),
       ),
-    ));
+    );
+    res.json(await actorCanViewCompanyCosts(req, run.companyId) ? redactedRun : withholdRunCosts(redactedRun));
   });
 
   router.post("/heartbeat-runs/:runId/cancel", async (req, res) => {

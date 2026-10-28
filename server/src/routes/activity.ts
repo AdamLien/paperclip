@@ -11,6 +11,7 @@ import { badRequest, forbidden } from "../errors.js";
 import { agentActionAuditService } from "../services/agent-action-audit.js";
 import { logActivity } from "../services/activity-log.js";
 import { withholdActivityCostDetails } from "../services/activity-cost-details.js";
+import { withholdRunCosts } from "../services/run-cost-visibility.js";
 
 /** Max rows a single CSV export will stream (guards against runaway exports). */
 const AUDIT_CSV_EXPORT_MAX_ROWS = 10_000;
@@ -359,7 +360,12 @@ export function activityRoutes(db: Db) {
     if (!issue) return;
     if (!(await assertIssueReadAllowed(req, res, issue))) return;
     const result = await svc.runsForIssue(issue.companyId, issue.id);
-    res.json(result);
+    const costDecision = await access.decide({
+      actor: req.actor,
+      action: "costs:read",
+      resource: { type: "company", companyId: issue.companyId },
+    });
+    res.json(costDecision.allowed ? result : result.map((run) => withholdRunCosts(run)));
   });
 
   router.get("/heartbeat-runs/:runId/issues", async (req, res) => {
