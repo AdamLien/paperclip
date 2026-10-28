@@ -2467,10 +2467,11 @@ export function authorizationService(db: Db | DbTransaction) {
     resource: AuthorizationResource;
     scope?: Record<string, unknown> | null;
   }): Promise<AuthorizationDecision> {
-    // Agent cost reads keep the company-scope rule until responsible-user
-    // cost checks land (AdamLien/paperclip#41).
+    // An agent's own cost reads follow the company-scope rule; when it works
+    // for a responsible user, that user must also hold costs:view.
     if (input.action === "costs:read" && input.actor.type !== "board") {
-      return decide({ ...input, action: "company_scope:read" });
+      const agentDecision = await decideBase({ ...input, action: "company_scope:read" });
+      return applyResponsibleUserIntersection(input, agentDecision);
     }
     const agentDecision = await decideBase(input);
     return applyResponsibleUserIntersection(input, agentDecision);

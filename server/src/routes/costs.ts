@@ -79,7 +79,11 @@ export function costRoutes(
       resource: { type: "company", companyId },
     });
     if (decision.allowed) return true;
-    res.status(403).json({ error: "Costs are outside this actor's authorization boundary" });
+    res.status(403).json({
+      error: decision.code === "RESPONSIBLE_USER_UNAUTHORIZED"
+        ? "The person this agent is working for does not have permission to view company costs."
+        : "Costs are outside this actor's authorization boundary",
+    });
     return false;
   }
 
