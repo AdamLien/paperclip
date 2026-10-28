@@ -124,5 +124,19 @@
   "Cost permissions": "成本權限",
   "View costs": "查看成本",
   "Manage budgets": "管理預算",
-  "Included with this role": "此角色已包含"
+  "Included with this role": "此角色已包含",
+  "What can your AI partner help with?": "今天要請 AI 夥伴幫什麼忙？",
+  "Ask your AI partner": "向 AI 夥伴提問",
+  "Ask a question or describe the work you need": "輸入問題，或描述需要完成的工作",
+  "No AI partners yet. Ask a workspace admin to add one.": "還沒有 AI 夥伴，請工作區管理員新增。",
+  "AI partner": "AI 夥伴",
+  "Sending…": "送出中…",
+  "Send": "送出",
+  "My AI partners": "我的 AI 夥伴",
+  "No AI partners yet.": "還沒有 AI 夥伴。",
+  "My tasks": "我的任務",
+  "No open tasks.": "沒有進行中的任務。",
+  "My results": "我的成果",
+  "All results": "全部成果",
+  "No finished tasks yet.": "還沒有完成的任務。"
 }
