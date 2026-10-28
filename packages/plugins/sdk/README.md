@@ -130,6 +130,16 @@ Subscribe in `setup` with `ctx.events.on(name, handler)` or `ctx.events.on(name,
 | `cost_event.created` | cost |
 | `activity.logged` | activity |
 
+**Cost and budget amounts:** Core events reach every plugin with `events.subscribe` unfiltered. Unlike the activity API and live events, which null these amounts for members without `costs:view`, plugins receive:
+
+| Event | Amount fields in the payload |
+|-------|------------------------------|
+| `budget.incident.opened` (soft or hard threshold crossed) | `amountObserved`, `amountLimit` |
+| `budget.incident.resolved` | `amount` |
+| `company.updated` (when the update changed them) | `budgetMonthlyCents`, `spentMonthlyCents` |
+
+Cost reports, budget changes, and budget policy changes are not forwarded to plugins today, and `cost_event.created` is declared but not emitted yet. Installing a plugin is an instance-wide admin decision, so treat it as giving that plugin access to these amounts, and to anywhere it sends them.
+
 **Plugin-to-plugin:** Subscribe to `plugin.<pluginId>.<eventName>` (e.g. `plugin.acme.linear.sync-done`). Emit with `ctx.events.emit("sync-done", companyId, payload)`; the host namespaces it automatically.
 
 **Filter (optional):** Pass a second argument to `on()`: `{ projectId?, companyId?, agentId? }` so the host only delivers matching events.
