@@ -45,10 +45,14 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-    const onChange = (e: MediaQueryListEvent) => {
-      setIsMobile(e.matches);
-      setSidebarOpen(!e.matches);
+    const sync = (narrow: boolean) => {
+      setIsMobile(narrow);
+      setSidebarOpen(!narrow);
     };
+    // The viewport can change between the first render and this effect (the
+    // desktop app sizes its workbench view after loading), so sync once now.
+    sync(mql.matches);
+    const onChange = (e: MediaQueryListEvent) => sync(e.matches);
     mql.addEventListener("change", onChange);
     return () => mql.removeEventListener("change", onChange);
   }, []);
