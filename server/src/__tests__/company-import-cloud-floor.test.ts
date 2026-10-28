@@ -22,7 +22,7 @@ const mockTransferRunService = vi.hoisted(() => ({
 const mockLogActivity = vi.hoisted(() => vi.fn());
 
 vi.mock("../services/index.js", () => ({
-  accessService: () => ({}),
+  accessService: () => ({ decide: async () => ({ allowed: true }) }),
   agentService: () => ({ list: vi.fn().mockResolvedValue([]) }),
   budgetService: () => ({}),
   companyArtifactsService: () => ({}),

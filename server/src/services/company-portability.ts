@@ -3840,7 +3840,9 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
   async function exportBundle(
     companyId: string,
     input: CompanyPortabilityExport,
-    options: { preview?: boolean; allowExternalInstructions?: boolean } = {},
+    // includeAgentBudgets: false leaves agent monthly budgets out for exporters
+    // without costs:view; the import side already treats a missing budget as unset.
+    options: { preview?: boolean; allowExternalInstructions?: boolean; includeAgentBudgets?: boolean } = {},
   ): Promise<CompanyPortabilityExportResult> {
     const include = normalizeInclude({
       ...input.include,
@@ -4266,7 +4268,8 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
           runtime: portableRuntimeConfig,
           permissions: portablePermissions,
           permissionGrants: portablePermissionGrants.length > 0 ? portablePermissionGrants : undefined,
-          budgetMonthlyCents: (agent.budgetMonthlyCents ?? 0) > 0 ? agent.budgetMonthlyCents : undefined,
+          budgetMonthlyCents:
+            options.includeAgentBudgets !== false && (agent.budgetMonthlyCents ?? 0) > 0 ? agent.budgetMonthlyCents : undefined,
           metadata: (agent.metadata as Record<string, unknown> | null) ?? null,
         });
         if (isPlainRecord(extension) && agentEnvInputs.length > 0) {
@@ -4779,7 +4782,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
   async function previewExport(
     companyId: string,
     input: CompanyPortabilityExport,
-    options: { allowExternalInstructions?: boolean } = {},
+    options: { allowExternalInstructions?: boolean; includeAgentBudgets?: boolean } = {},
   ): Promise<CompanyPortabilityExportPreviewResult> {
     const previewInput: CompanyPortabilityExport = {
       ...input,
@@ -4797,6 +4800,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
     const exported = await exportBundle(companyId, previewInput, {
       preview: true,
       allowExternalInstructions: options.allowExternalInstructions,
+      includeAgentBudgets: options.includeAgentBudgets,
     });
     return {
       ...exported,

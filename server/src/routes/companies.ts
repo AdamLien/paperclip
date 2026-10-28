@@ -374,6 +374,15 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     }
   }
 
+  async function canExportAgentBudgets(req: Request, companyId: string) {
+    const decision = await access.decide({
+      actor: req.actor,
+      action: "costs:read",
+      resource: { type: "company", companyId },
+    });
+    return decision.allowed;
+  }
+
   async function withholdCompanyCostsUnlessAllowed<T extends { id: string }>(req: Request, company: T) {
     const decision = await access.decide({
       actor: req.actor,
@@ -539,7 +548,8 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     await assertSameCompanyCeoAgentOrBoard(req, companyId, "company exports");
     const body = companyPortabilityExportSchema.parse(req.body);
     const allowExternalInstructions = await assertExternalInstructionExportAllowed(req, companyId, body);
-    const result = await portability.exportBundle(companyId, body, { allowExternalInstructions });
+    const includeAgentBudgets = await canExportAgentBudgets(req, companyId);
+    const result = await portability.exportBundle(companyId, body, { allowExternalInstructions, includeAgentBudgets });
     res.json(result);
   });
 
@@ -1134,7 +1144,8 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     await assertSameCompanyCeoAgentOrBoard(req, companyId, "company exports");
     const body = companyPortabilityExportSchema.parse(req.body);
     const allowExternalInstructions = await assertExternalInstructionExportAllowed(req, companyId, body);
-    const preview = await portability.previewExport(companyId, body, { allowExternalInstructions });
+    const includeAgentBudgets = await canExportAgentBudgets(req, companyId);
+    const preview = await portability.previewExport(companyId, body, { allowExternalInstructions, includeAgentBudgets });
     res.json(preview);
   });
 
@@ -1143,7 +1154,8 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     await assertSameCompanyCeoAgentOrBoard(req, companyId, "company exports");
     const body = companyPortabilityExportSchema.parse(req.body);
     const allowExternalInstructions = await assertExternalInstructionExportAllowed(req, companyId, body);
-    const result = await portability.exportBundle(companyId, body, { allowExternalInstructions });
+    const includeAgentBudgets = await canExportAgentBudgets(req, companyId);
+    const result = await portability.exportBundle(companyId, body, { allowExternalInstructions, includeAgentBudgets });
     res.json(result);
   });
 
