@@ -100,6 +100,44 @@ describe("SidebarContext", () => {
     expect(capturedValue?.collapsed).toBe(false);
   });
 
+  function setViewport(innerWidth: number, narrow: boolean) {
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: innerWidth });
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: narrow,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }) as unknown as MediaQueryList);
+  }
+
+  async function settle() {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  // The desktop app's workbench view can render before it has its real
+  // size, then widen before the change listener is attached (morbit#73).
+  it("uses the desktop layout when the viewport widened before the listener attached", async () => {
+    setViewport(0, false);
+    active = renderProvider();
+    await settle();
+
+    expect(capturedValue?.isMobile).toBe(false);
+    expect(capturedValue?.sidebarOpen).toBe(true);
+  });
+
+  it("uses the mobile drawer when the viewport narrowed before the listener attached", async () => {
+    setViewport(1280, true);
+    active = renderProvider();
+    await settle();
+
+    expect(capturedValue?.isMobile).toBe(true);
+    expect(capturedValue?.sidebarOpen).toBe(false);
+  });
+
   it("retains sidebarOpen and toggleSidebar for the mobile drawer", () => {
     active = renderProvider();
     const initial = capturedValue?.sidebarOpen;
