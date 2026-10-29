@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { staticUiLocalization } from "./vite-static-i18n";
@@ -50,5 +52,18 @@ describe("staticUiLocalization", () => {
     expect(code).toContain('__paperclipTranslateUiLiteral("Type it directly")');
     expect(code).toContain('__paperclipTranslateUiLiteral("Codex is ready")');
     expect(code).toContain('__paperclipTranslateUiLiteral("Choose an adapter")');
+  });
+
+  it("translates every empty-state message on the employee home", async () => {
+    const file = path.join(__dirname, "src/components/EmployeeHome.tsx");
+    const transform = staticUiLocalization().transform;
+    if (!transform) throw new Error("transform hook missing");
+    const handler = typeof transform === "function" ? transform : transform.handler;
+    const result = await handler.call({} as never, readFileSync(file, "utf8"), file, {} as never);
+    const code = typeof result === "string" ? result : result?.code;
+
+    for (const message of ["No open tasks.", "No finished tasks yet.", "No AI partners yet."]) {
+      expect(code).toContain(`__paperclipTranslateUiLiteral("${message}")`);
+    }
   });
 });

@@ -21,11 +21,11 @@ function questionTitle(question: string): string {
   return firstLine.length > TITLE_LIMIT ? `${firstLine.slice(0, TITLE_LIMIT - 1)}…` : firstLine;
 }
 
-function IssueList({ issues, empty, testId }: { issues: Issue[]; empty: string; testId: string }) {
+function IssueList({ issues, emptyText, testId }: { issues: Issue[]; emptyText: string; testId: string }) {
   return (
     <Card data-testid={testId} className="@container block py-0 divide-y divide-border overflow-hidden">
       {issues.length === 0 ? (
-        <p className="p-4 text-sm text-muted-foreground">{empty}</p>
+        <p className="p-4 text-sm text-muted-foreground">{emptyText}</p>
       ) : (
         issues.slice(0, LIST_LIMIT).map((issue) => (
           <Link
@@ -143,7 +143,7 @@ export function EmployeeHome({ companyId }: { companyId: string }) {
 
         <section className="min-w-0">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">My tasks</h3>
-          <IssueList issues={openTasks} empty="No open tasks." testId="employee-home-tasks" />
+          <IssueList issues={openTasks} emptyText="No open tasks." testId="employee-home-tasks" />
         </section>
 
         <section className="min-w-0">
@@ -151,7 +151,7 @@ export function EmployeeHome({ companyId }: { companyId: string }) {
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">My results</h3>
             <Link to="/artifacts" className="text-xs underline underline-offset-2 text-muted-foreground">All results</Link>
           </div>
-          <IssueList issues={results} empty="No finished tasks yet." testId="employee-home-results" />
+          <IssueList issues={results} emptyText="No finished tasks yet." testId="employee-home-results" />
         </section>
       </div>
     </div>
