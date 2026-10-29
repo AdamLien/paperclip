@@ -61,9 +61,11 @@ describe("EmployeeHome", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     mockAgentsApi.list.mockResolvedValue([
+      agent("agent-0", "Napping", "paused"),
       agent("agent-1", "Writer"),
-      agent("agent-2", "Analyst", "paused"),
+      agent("agent-2", "Analyst", "idle"),
       agent("agent-3", "Retired", "terminated"),
+      agent("agent-4", "Newcomer", "pending_approval"),
     ]);
     mockIssuesApi.list.mockResolvedValue([
       issue("met-1", "Draft the newsletter", "in_progress"),
@@ -97,7 +99,9 @@ describe("EmployeeHome", () => {
     expect(text).toContain("My AI partners");
     expect(text).toContain("Writer");
     expect(text).toContain("Analyst");
-    expect(text).not.toContain("Retired");
+    for (const unavailable of ["Napping", "Retired", "Newcomer"]) {
+      expect(text).not.toContain(unavailable);
+    }
 
     expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", expect.objectContaining({ touchedByUserId: "me" }));
     const tasks = container.querySelector("[data-testid='employee-home-tasks']")!.textContent;
@@ -127,6 +131,7 @@ describe("EmployeeHome", () => {
     const send = container.querySelector<HTMLButtonElement>("button[type='submit']")!;
 
     expect(send.disabled).toBe(true);
+    expect(partner.value).toBe("agent-1");
     flushSync(() => setInput(partner, "agent-2"));
     flushSync(() => setInput(box, "Where is the Q3 report?\nPlease link the final version."));
     expect(send.disabled).toBe(false);
@@ -143,8 +148,8 @@ describe("EmployeeHome", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/issues/MET-9");
   });
 
-  it("cannot send without an AI partner", async () => {
-    mockAgentsApi.list.mockResolvedValue([agent("agent-3", "Retired", "terminated")]);
+  it("cannot send without an available AI partner", async () => {
+    mockAgentsApi.list.mockResolvedValue([agent("agent-0", "Napping", "paused"), agent("agent-3", "Retired", "terminated")]);
     await render();
     const box = container.querySelector<HTMLTextAreaElement>("textarea[aria-label='Ask your AI partner']")!;
     flushSync(() => setInput(box, "Anyone there?"));

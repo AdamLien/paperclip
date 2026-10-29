@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Issue } from "@paperclipai/shared";
+import { isAgentStatusInvokable, type Issue } from "@paperclipai/shared";
 import { Link, useNavigate } from "@/lib/router";
 import { agentsApi } from "../api/agents";
 import { issuesApi } from "../api/issues";
@@ -63,7 +63,8 @@ export function EmployeeHome({ companyId }: { companyId: string }) {
     queryFn: () => issuesApi.list(companyId, { touchedByUserId: "me", limit: 50 }),
   });
 
-  const partners = (agents ?? []).filter((agent) => agent.status !== "terminated");
+  // Only partners that can take a question now: paused or unapproved ones would leave it blocked.
+  const partners = (agents ?? []).filter((agent) => isAgentStatusInvokable(agent.status));
   const partnerId = chosenAgentId || partners[0]?.id || "";
   const openTasks = (myIssues ?? []).filter((issue) => issue.status !== "done" && issue.status !== "cancelled");
   const results = (myIssues ?? []).filter((issue) => issue.status === "done");
