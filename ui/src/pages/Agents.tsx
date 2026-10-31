@@ -13,7 +13,9 @@ import { useDialogActions } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useStreamlinedUiEnabled } from "../hooks/useStreamlinedUiEnabled";
+import { useIsCompanyManager } from "../hooks/useCompanyManagerAccess";
 import { queryKeys } from "../lib/queryKeys";
+import { translateUiLiteral } from "@/i18n/LegacyLiteralLocalizer";
 import { isPlatformManagedEnvironment } from "../lib/managed-sandbox-environment";
 import { AgentStatusBadge, AgentStatusCapsule } from "../components/StatusBadge";
 import { MembershipAction } from "../components/MembershipAction";
@@ -28,7 +30,7 @@ import { PageTabBar } from "../components/PageTabBar";
 import { Tabs } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Bot, Plus, List, Network } from "lucide-react";
-import { AGENT_ROLE_LABELS, type Agent, type Environment, type EnvironmentCapabilities } from "@paperclipai/shared";
+import { AGENT_ROLE_LABELS, isAgentStatusInvokable, type Agent, type Environment, type EnvironmentCapabilities } from "@paperclipai/shared";
 import {
   isStarred,
   resourceMembershipState,
@@ -202,10 +204,12 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   const location = useLocation();
   const { isMobile } = useSidebar();
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
+  const isManager = useIsCompanyManager(selectedCompanyId);
   const pathSegment = location.pathname.split("/").pop() ?? "all";
   const requestedTab: FilterTab = isFilterTab(pathSegment) ? pathSegment : "all";
   const [view, setView] = useState<AgentsView>(() => streamlinedUiEnabled ? initialView : "org");
-  const forceListView = !streamlinedUiEnabled && isMobile;
+  // Members who do not manage the workspace get a plain list of partners they can use.
+  const forceListView = (!streamlinedUiEnabled && isMobile) || isManager === false;
   const effectiveView: AgentsView = forceListView ? "list" : view;
 
   useEffect(() => {
@@ -336,11 +340,14 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
     return <EmptyState icon={Bot} message="Select an organization to view agents." />;
   }
 
-  if (isLoading) {
+  if (isLoading || isManager === undefined) {
     return <PageSkeleton variant="list" />;
   }
 
-  const filtered = filterAgents(agents ?? [], tab, builtInAgentIds);
+  // Same rule as the employee home: paused or unapproved agents would leave a question blocked.
+  const visibleAgents = isManager ? agents ?? [] : (agents ?? []).filter((agent) => isAgentStatusInvokable(agent.status));
+  const hasAvailablePartner = visibleAgents.some((agent) => isAgentStatusInvokable(agent.status));
+  const filtered = filterAgents(visibleAgents, isManager ? tab : "all", builtInAgentIds);
   const filteredOrg = filterOrgTree(orgTree ?? [], tab, builtInAgentIds);
   const environmentDataLoading = environmentsEnabled && environments === undefined;
   const showEnvironmentColumn = environmentsEnabled && (environments === undefined || environments.length > 1);
@@ -360,6 +367,10 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
     const agentJoinLeavePending = agentPending && membershipMutation.variables?.starred === undefined;
     const agentStarred = isStarred(membershipsQuery.data, "agent", agent.id);
     const builtInState = builtInByAgentId.get(agent.id);
+    const purpose = agent.capabilities?.trim();
+    const roleLine = `${roleLabels[agent.role] ?? agent.role}${agent.title ? ` - ${agent.title}` : ""}`;
+    // Managers are the ones who can fill in a missing purpose.
+    const missingPurpose = isManager && !purpose;
     const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
     // Keep lifecycle controls with the metadata only when the content area
     // has enough room; the sidebar can leave less space than the viewport suggests.
@@ -391,7 +402,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
         titleClassName="flex-1 @5xl:flex-none @5xl:w-56"
         titleTextClassName="truncate"
         subtitleClassName="truncate"
-        subtitle={`${roleLabels[agent.role] ?? agent.role}${agent.title ? ` - ${agent.title}` : ""}`}
+        subtitle={purpose || roleLine}
         to={agentUrl(agent)}
         className={cn(
           "group py-3",
@@ -403,10 +414,17 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
         ) : (
           <AgentAvatar agent={agent} size={32} />
         )}
-        secondaryRow={builtInCluster && (
-          <div className="@5xl:hidden flex flex-wrap items-center gap-1.5">
-            {builtInCluster}
-          </div>
+        secondaryRow={(builtInCluster || missingPurpose) && (
+          <>
+            {builtInCluster && (
+              <div className="@5xl:hidden flex flex-wrap items-center gap-1.5">
+                {builtInCluster}
+              </div>
+            )}
+            {missingPurpose && (
+              <p className="pl-11 text-xs text-muted-foreground">No purpose yet. Describe what this partner can do in its settings.</p>
+            )}
+          </>
         )}
         meta={
           <div className="flex items-center gap-3">
@@ -483,7 +501,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
         ? "flex h-full min-h-0 flex-col gap-4"
         : "space-y-4",
     )}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {isManager && <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={tab} onValueChange={(v) => navigate(`/agents/${v}`)}>
           <PageTabBar
             items={visibleTabItems}
@@ -523,7 +541,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
             New Agent
           </Button>
         </div>
-      </div>
+      </div>}
 
       {filtered.length > 0 && (
         <p className="text-xs text-muted-foreground">{filtered.length} agent{filtered.length !== 1 ? "s" : ""}</p>
@@ -531,12 +549,27 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
 
       {error && <p className="text-sm text-destructive">{error.message}</p>}
 
-      {agents && agents.length === 0 && (
+      {isManager && agents && agents.length === 0 && (
         <EmptyState
           icon={Bot}
-          message="Create your first agent to get started."
-          action="New Agent"
+          title="Create your first AI partner"
+          message="AI partners take questions and tasks from everyone in this workspace. Give each one a clear purpose so people know who to ask."
+          // EmptyState renders `action` as a value, which the build-time translation does not reach.
+          action={translateUiLiteral("Create AI partner")}
           onAction={openNewAgent}
+        />
+      )}
+
+      {isManager && agents && agents.length > 0 && !hasAvailablePartner && (
+        <p className="text-sm text-muted-foreground" data-testid="agents-no-available-partner">
+          No partner can take work right now. Resume or approve one so people can ask it questions.
+        </p>
+      )}
+
+      {isManager === false && agents && visibleAgents.length === 0 && (
+        <EmptyState
+          icon={Bot}
+          message="No AI partners are available yet. Ask a workspace admin to add one."
         />
       )}
 
@@ -547,7 +580,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
         </div>
       )}
 
-      {effectiveView === "list" && agents && agents.length > 0 && filtered.length === 0 && (
+      {effectiveView === "list" && isManager && agents && agents.length > 0 && filtered.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">
           No agents match the selected status.
         </p>
