@@ -66,4 +66,27 @@ describe("staticUiLocalization", () => {
       expect(code).toContain(`__paperclipTranslateUiLiteral("${message}")`);
     }
   });
+
+  it("translates the AI partner team guidance and has zh-TW text for it", async () => {
+    const file = path.join(__dirname, "src/pages/Agents.tsx");
+    const transform = staticUiLocalization().transform;
+    if (!transform) throw new Error("transform hook missing");
+    const handler = typeof transform === "function" ? transform : transform.handler;
+    const result = await handler.call({} as never, readFileSync(file, "utf8"), file, {} as never);
+    // Multi-line JSX text keeps a trailing space; the runtime lookup normalizes it away.
+    const code = (typeof result === "string" ? result : result?.code ?? "").replace(/ "\)/g, '")');
+    const zhTW = JSON.parse(readFileSync(path.join(__dirname, "src/i18n/clarity-zh-TW.json"), "utf8")) as Record<string, string>;
+
+    for (const message of [
+      "No purpose yet. Describe what this partner can do in its settings.",
+      "Create your first AI partner",
+      "AI partners take questions and tasks from everyone in this workspace. Give each one a clear purpose so people know who to ask.",
+      "No partner can take work right now. Resume or approve one so people can ask it questions.",
+      "No AI partners are available yet. Ask a workspace admin to add one.",
+    ]) {
+      expect(code).toContain(`__paperclipTranslateUiLiteral(${JSON.stringify(message)})`);
+      expect(zhTW[message]).toBeTruthy();
+    }
+    expect(zhTW["Create AI partner"]).toBeTruthy();
+  });
 });
