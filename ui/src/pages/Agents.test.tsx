@@ -49,6 +49,7 @@ const mockResourceMembershipsApi = vi.hoisted(() => ({
 const mockOpenNewAgent = vi.hoisted(() => vi.fn());
 const mockSetBreadcrumbs = vi.hoisted(() => vi.fn());
 const mockSidebarState = vi.hoisted(() => ({ isMobile: false }));
+const mockManagerAccess = vi.hoisted(() => ({ isManager: true as boolean | undefined }));
 
 vi.mock("@/lib/router", () => ({
   Link: ({ children, to, ...props }: { children: ReactNode; to: string }) => (
@@ -72,6 +73,10 @@ vi.mock("../context/BreadcrumbContext", () => ({
 
 vi.mock("../context/SidebarContext", () => ({
   useSidebar: () => ({ isMobile: mockSidebarState.isMobile }),
+}));
+
+vi.mock("../hooks/useCompanyManagerAccess", () => ({
+  useIsCompanyManager: () => mockManagerAccess.isManager,
 }));
 
 vi.mock("../api/agents", () => ({
@@ -343,6 +348,7 @@ describe("Agents", () => {
       updatedAt: new Date("2026-01-02T00:00:00Z"),
     });
     mockSidebarState.isMobile = false;
+    mockManagerAccess.isManager = true;
   });
 
   afterEach(async () => {
@@ -390,6 +396,87 @@ describe("Agents", () => {
       const buttons = Array.from(row?.querySelectorAll("button") ?? []).map((button) => button.textContent);
       expect(buttons).not.toEqual(expect.arrayContaining([expect.stringMatching(/Assign Task|Run Heartbeat|Run with provider trace|Pause|Resume/)]));
     }
+  });
+
+  async function renderAgents() {
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(
+        <QueryClientProvider client={queryClient}>
+          <ToastProvider>
+            <Agents />
+          </ToastProvider>
+        </QueryClientProvider>,
+      );
+    });
+    await flushReact();
+    await flushReact();
+  }
+
+  it("describes what each partner can do, and flags a missing purpose to managers", async () => {
+    mockAgentsApi.list.mockResolvedValue([
+      makeAgent({ name: "Alpha", capabilities: "Drafts weekly sales reports." }),
+      makeAgent({ id: "agent-2", name: "Beta", capabilities: "  " }),
+    ]);
+    await renderAgents();
+
+    expect(findAgentRow(container, "Alpha")?.textContent).toContain("Drafts weekly sales reports.");
+    expect(findAgentRow(container, "Beta")?.textContent).toContain("No purpose yet.");
+  });
+
+  it("guides a manager to create the first AI partner in an empty workspace", async () => {
+    mockAgentsApi.list.mockResolvedValue([]);
+    await renderAgents();
+
+    expect(container.textContent).toContain("Create your first AI partner");
+    const create = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Create AI partner"));
+    await act(async () => { create?.click(); });
+    expect(mockOpenNewAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells a manager when no partner can take work", async () => {
+    mockAgentsApi.list.mockResolvedValue([
+      makeAgent({ name: "Napping", status: "paused", pausedAt: new Date("2026-01-02T00:00:00Z") }),
+    ]);
+    await renderAgents();
+
+    expect(container.querySelector("[data-testid='agents-no-available-partner']")).not.toBeNull();
+    expect(findAgentRow(container, "Napping")).not.toBeNull();
+  });
+
+  it("shows employees only partners they can use, without management controls", async () => {
+    mockManagerAccess.isManager = false;
+    mockRouterState.pathname = "/agents/paused";
+    mockAgentsApi.list.mockResolvedValue([
+      makeAgent({ name: "Alpha", status: "idle" }),
+      makeAgent({ id: "agent-2", name: "Napping", status: "paused" }),
+      makeAgent({ id: "agent-3", name: "Retired", status: "terminated" }),
+      makeAgent({ id: "agent-4", name: "Newcomer", status: "pending_approval" }),
+    ]);
+    await renderAgents();
+
+    expect(findAgentRow(container, "Alpha")).not.toBeNull();
+    for (const hidden of ["Napping", "Retired", "Newcomer"]) {
+      expect(findAgentRow(container, hidden)).toBeNull();
+    }
+    // Without a purpose, employees see the role rather than a prompt to edit settings.
+    expect(findAgentRow(container, "Alpha")?.textContent).not.toContain("No purpose yet.");
+    const buttons = Array.from(container.querySelectorAll("button")).map((button) => button.textContent ?? "");
+    expect(buttons.some((text) => /New Agent|Create AI partner/.test(text))).toBe(false);
+    expect(container.querySelector('button[aria-label="Org chart view"]')).toBeNull();
+    expect(mockAgentsApi.org).not.toHaveBeenCalled();
+  });
+
+  it("tells an employee to ask an admin when no partner is available", async () => {
+    mockManagerAccess.isManager = false;
+    mockAgentsApi.list.mockResolvedValue([
+      makeAgent({ name: "Napping", status: "paused" }),
+    ]);
+    await renderAgents();
+
+    expect(container.textContent).toContain("No AI partners are available yet.");
+    expect(container.textContent).not.toContain("No agents match the selected status.");
+    expect(findAgentRow(container, "Napping")).toBeNull();
   });
 
   it("shows the configured model beside the adapter on the all agents page", async () => {

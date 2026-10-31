@@ -138,5 +138,11 @@
   "No open tasks.": "沒有進行中的任務。",
   "My results": "我的成果",
   "All results": "全部成果",
-  "No finished tasks yet.": "還沒有完成的任務。"
+  "No finished tasks yet.": "還沒有完成的任務。",
+  "No purpose yet. Describe what this partner can do in its settings.": "尚未填寫用途，請到設定說明這位夥伴能做什麼。",
+  "Create your first AI partner": "建立第一位 AI 夥伴",
+  "AI partners take questions and tasks from everyone in this workspace. Give each one a clear purpose so people know who to ask.": "AI 夥伴會接手工作區裡每個人的提問和任務。替每一位寫清楚用途，大家才知道該找誰。",
+  "Create AI partner": "建立 AI 夥伴",
+  "No partner can take work right now. Resume or approve one so people can ask it questions.": "目前沒有可以接工作的夥伴。恢復或核准一位，大家才能向它提問。",
+  "No AI partners are available yet. Ask a workspace admin to add one.": "還沒有可用的 AI 夥伴，請聯絡工作區管理員新增。"
 }
