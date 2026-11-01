@@ -101,6 +101,7 @@ import { Input } from "@/components/ui/input";
 import { RunTranscriptView, type TranscriptMode } from "../components/transcript/RunTranscriptView";
 import { AgentToolsTab } from "./AgentToolsTab";
 import { AgentPartnerAccess } from "../components/AgentPartnerAccess";
+import { AgentNotFound, isNotFoundError, retryUnlessNotFound } from "../components/AgentNotFound";
 import { useIsCompanyManager } from "../hooks/useCompanyManagerAccess";
 import { AgentChannelsPanel } from "../components/chat/AgentChannelsPanel";
 import {
@@ -819,6 +820,7 @@ export function AgentDetail() {
     queryKey: [...queryKeys.agents.detail(routeAgentRef), lookupCompanyId ?? null],
     queryFn: () => agentsApi.get(routeAgentRef, lookupCompanyId),
     enabled: canFetchAgent,
+    retry: retryUnlessNotFound,
   });
   const resolvedCompanyId = agent?.companyId ?? selectedCompanyId;
   const canonicalAgentRef = agent ? agentRouteRef(agent) : routeAgentRef;
@@ -1157,6 +1159,7 @@ export function AgentDetail() {
   }, [configDirty, prepareAgentNavigation]);
 
   if (isLoading) return <PageSkeleton variant="detail" />;
+  if (isNotFoundError(error)) return <AgentNotFound />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!agent) return null;
   if (!urlRunId && legacyAuditSection) {

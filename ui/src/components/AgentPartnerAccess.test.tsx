@@ -10,11 +10,9 @@ const mockAgentsApi = vi.hoisted(() => ({
   visibility: vi.fn(),
   updateVisibility: vi.fn(),
 }));
-const mockAccessApi = vi.hoisted(() => ({ listMembers: vi.fn() }));
 const pushToast = vi.hoisted(() => vi.fn());
 
 vi.mock("../api/agents", () => ({ agentsApi: mockAgentsApi }));
-vi.mock("../api/access", () => ({ accessApi: mockAccessApi }));
 vi.mock("../context/ToastContext", () => ({ useToastActions: () => ({ pushToast }) }));
 
 import { AgentPartnerAccess } from "./AgentPartnerAccess";
@@ -28,14 +26,11 @@ async function settle() {
   }
 }
 
-function member(principalId: string, membershipRole: string, name: string) {
-  return {
-    principalId,
-    membershipRole,
-    status: "active",
-    user: { id: principalId, name, email: `${principalId}@example.com`, image: null },
-  };
-}
+// The server offers only members who are not owners or admins.
+const candidates = [
+  { userId: "staff", name: "Staff", email: "staff@example.com" },
+  { userId: "cashier", name: "Cashier", email: "cashier@example.com" },
+];
 
 describe("AgentPartnerAccess", () => {
   let container: HTMLDivElement;
@@ -45,9 +40,6 @@ describe("AgentPartnerAccess", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    mockAccessApi.listMembers.mockResolvedValue({
-      members: [member("boss", "owner", "Boss"), member("staff", "operator", "Staff"), member("cashier", "operator", "Cashier")],
-    });
     mockAgentsApi.updateVisibility.mockImplementation(async (_id, data) => data);
   });
 
@@ -68,7 +60,7 @@ describe("AgentPartnerAccess", () => {
   }
 
   it("restricts a partner to the members the manager selects", async () => {
-    mockAgentsApi.visibility.mockResolvedValue({ mode: "discoverable", allowedUserIds: [] });
+    mockAgentsApi.visibility.mockResolvedValue({ mode: "discoverable", allowedUserIds: [], candidates });
     await render();
 
     expect(container.textContent).toContain("Everyone in this workspace");
@@ -76,8 +68,6 @@ describe("AgentPartnerAccess", () => {
     flushSync(() => onlySelected!.click());
     await settle();
 
-    // Owners and admins always see the partner, so only other members are offered.
-    expect(container.textContent).not.toContain("Boss");
     const boxes = Array.from(container.querySelectorAll<HTMLButtonElement>("[data-slot=checkbox]"));
     expect(boxes).toHaveLength(2);
     flushSync(() => boxes[1]!.click());
@@ -95,7 +85,7 @@ describe("AgentPartnerAccess", () => {
   });
 
   it("opens a private partner back up to everyone", async () => {
-    mockAgentsApi.visibility.mockResolvedValue({ mode: "private", allowedUserIds: ["staff"] });
+    mockAgentsApi.visibility.mockResolvedValue({ mode: "private", allowedUserIds: ["staff"], candidates });
     await render();
 
     const [everyone] = Array.from(container.querySelectorAll<HTMLInputElement>("input[type=radio]"));
@@ -110,5 +100,13 @@ describe("AgentPartnerAccess", () => {
       { mode: "discoverable", allowedUserIds: [] },
       "company-1",
     );
+  });
+
+  it("says when the access settings cannot be loaded instead of showing no members", async () => {
+    mockAgentsApi.visibility.mockRejectedValue(new Error("Permission denied"));
+    await render();
+
+    expect(container.textContent).toContain("Could not load who can use this partner.");
+    expect(container.textContent).not.toContain("No other members");
   });
 });

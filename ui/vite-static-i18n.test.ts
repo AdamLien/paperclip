@@ -106,11 +106,30 @@ describe("staticUiLocalization", () => {
       "Owners and admins can always see this partner. Other members cannot find it, open it, or give it work.",
       "No other members in this workspace yet.",
       "Save access",
+      "Could not load who can use this partner. Refresh the page to try again.",
     ]) {
       expect(code).toContain(`__paperclipTranslateUiLiteral(${JSON.stringify(message)})`);
       expect(zhTW[message]).toBeTruthy();
     }
     expect(zhTW["Partner access saved"]).toBeTruthy();
     expect(zhTW["Could not save partner access"]).toBeTruthy();
+  });
+
+  it("translates the unavailable partner page and has zh-TW text for it", async () => {
+    const file = path.join(__dirname, "src/components/AgentNotFound.tsx");
+    const transform = staticUiLocalization().transform;
+    if (!transform) throw new Error("transform hook missing");
+    const handler = typeof transform === "function" ? transform : transform.handler;
+    const result = await handler.call({} as never, readFileSync(file, "utf8"), file, {} as never);
+    const code = typeof result === "string" ? result : result?.code ?? "";
+    const zhTW = JSON.parse(readFileSync(path.join(__dirname, "src/i18n/clarity-zh-TW.json"), "utf8")) as Record<string, string>;
+
+    for (const message of [
+      "This AI partner is not available",
+      "It may have been removed, or it has not been shared with you.",
+    ]) {
+      expect(code).toContain(`__paperclipTranslateUiLiteral(${JSON.stringify(message)})`);
+      expect(zhTW[message]).toBeTruthy();
+    }
   });
 });

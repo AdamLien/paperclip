@@ -152,5 +152,8 @@
   "No other members in this workspace yet.": "這個工作區還沒有其他成員。",
   "Save access": "儲存使用權限",
   "Partner access saved": "已儲存夥伴使用權限",
-  "Could not save partner access": "無法儲存夥伴使用權限"
+  "Could not save partner access": "無法儲存夥伴使用權限",
+  "Could not load who can use this partner. Refresh the page to try again.": "無法載入這位夥伴的使用權限，請重新整理頁面再試一次。",
+  "This AI partner is not available": "無法使用這位 AI 夥伴",
+  "It may have been removed, or it has not been shared with you.": "它可能已經被移除，或沒有分享給你。"
 }

@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { accessApi } from "../api/access";
 import { agentsApi, type AgentVisibility } from "../api/agents";
 import { ApiError } from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
@@ -20,30 +19,17 @@ export function AgentPartnerAccess({ agentId, companyId }: { agentId: string; co
     queryKey: queryKeys.agents.visibility(agentId),
     queryFn: () => agentsApi.visibility(agentId, companyId),
   });
-  const membersQuery = useQuery({
-    queryKey: queryKeys.access.companyMembers(companyId),
-    queryFn: () => accessApi.listMembers(companyId),
-  });
   const [draft, setDraft] = useState<AgentVisibility | null>(null);
   useEffect(() => {
-    if (visibilityQuery.data) setDraft(visibilityQuery.data);
+    if (visibilityQuery.data) {
+      setDraft({ mode: visibilityQuery.data.mode, allowedUserIds: visibilityQuery.data.allowedUserIds });
+    }
   }, [visibilityQuery.data]);
-
-  const members = useMemo(
-    () =>
-      (membersQuery.data?.members ?? []).filter(
-        (member) =>
-          member.status === "active" &&
-          member.membershipRole !== "owner" &&
-          member.membershipRole !== "admin",
-      ),
-    [membersQuery.data],
-  );
 
   const save = useMutation({
     mutationFn: (next: AgentVisibility) => agentsApi.updateVisibility(agentId, next, companyId),
-    onSuccess: (saved) => {
-      queryClient.setQueryData(queryKeys.agents.visibility(agentId), saved);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.visibility(agentId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
       pushToast({ title: translateUiLiteral("Partner access saved"), tone: "success" });
     },
@@ -56,7 +42,11 @@ export function AgentPartnerAccess({ agentId, companyId }: { agentId: string; co
     },
   });
 
+  if (visibilityQuery.isError) {
+    return <p className="text-sm text-destructive">Could not load who can use this partner. Refresh the page to try again.</p>;
+  }
   if (!draft) return null;
+  const candidates = visibilityQuery.data?.candidates ?? [];
   const isPrivate = draft.mode === "private";
   const dirty =
     draft.mode !== visibilityQuery.data?.mode ||
@@ -98,20 +88,20 @@ export function AgentPartnerAccess({ agentId, companyId }: { agentId: string; co
         {isPrivate ? (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">Owners and admins can always see this partner. Other members cannot find it, open it, or give it work.</p>
-            {members.length === 0 ? (
+            {candidates.length === 0 ? (
               <p className="text-xs text-muted-foreground">No other members in this workspace yet.</p>
             ) : (
               <ul className="space-y-2">
-                {members.map((member) => (
-                  <li key={member.principalId}>
+                {candidates.map((member) => (
+                  <li key={member.userId}>
                     <label className="flex items-center gap-2">
                       <Checkbox
-                        checked={draft.allowedUserIds.includes(member.principalId)}
-                        onCheckedChange={(checked) => toggleMember(member.principalId, checked === true)}
+                        checked={draft.allowedUserIds.includes(member.userId)}
+                        onCheckedChange={(checked) => toggleMember(member.userId, checked === true)}
                       />
-                      <span>{member.user?.name ?? member.user?.email ?? member.principalId}</span>
-                      {member.user?.name && member.user.email ? (
-                        <span className="text-xs text-muted-foreground">{member.user.email}</span>
+                      <span>{member.name ?? member.email ?? member.userId}</span>
+                      {member.name && member.email ? (
+                        <span className="text-xs text-muted-foreground">{member.email}</span>
                       ) : null}
                     </label>
                   </li>
