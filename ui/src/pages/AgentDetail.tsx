@@ -1049,7 +1049,8 @@ export function AgentDetail() {
     const crumbs: { label: string; href?: string }[] = [
       { label: translateUiLiteral("Agents"), href: "/agents" },
     ];
-    const agentName = agent?.name ?? routeAgentRef ?? "Agent";
+    // An unshared partner's route ref is its id, so do not echo it back.
+    const agentName = agent?.name ?? (isNotFoundError(error) ? translateUiLiteral("Agent") : routeAgentRef ?? "Agent");
     if (activeView === "overview" && !urlRunId) {
       crumbs.push({ label: agentName });
     } else {
@@ -1065,7 +1066,7 @@ export function AgentDetail() {
       }
     }
     setBreadcrumbs(crumbs);
-  }, [setBreadcrumbs, agent, routeAgentRef, canonicalAgentRef, activeView, urlRunId, i18n.language]);
+  }, [setBreadcrumbs, agent, error, routeAgentRef, canonicalAgentRef, activeView, urlRunId, i18n.language]);
 
   useEffect(() => {
     closePanel();

@@ -422,7 +422,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
               </div>
             )}
             {missingPurpose && (
-              <p className="pl-11 text-xs text-muted-foreground">No purpose yet. Describe what this partner can do in its settings.</p>
+              <p className="pl-6 text-xs text-muted-foreground">No purpose yet. Describe what this partner can do in its settings.</p>
             )}
           </>
         )}
