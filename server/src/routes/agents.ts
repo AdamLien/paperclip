@@ -25,8 +25,8 @@ import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import type { Db } from "@paperclipai/db";
 import type { ChatChannelService } from "../services/chat-channels.js";
-import { activityLog, agents as agentsTable, chatConversations, companies, companyMemberships, heartbeatRuns, issues as issuesTable, projects as projectsTable } from "@paperclipai/db";
-import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
+import { activityLog, agents as agentsTable, authUsers, chatConversations, companies, companyMemberships, heartbeatRuns, issues as issuesTable, projects as projectsTable } from "@paperclipai/db";
+import { and, desc, eq, inArray, isNull, not, or, sql } from "drizzle-orm";
 import { sha256Digest } from "../services/feedback-redaction.js";
 import {
   agentSkillSyncSchema,
@@ -5195,7 +5195,20 @@ export function agentRoutes(
     if (!agent) return;
     await assertBoardCanManageAgentsForCompany(req, agent.companyId);
     const allowedUserIds = readPrivateAgentAudience(agent.permissions);
-    res.json({ mode: allowedUserIds ? "private" : "discoverable", allowedUserIds: allowedUserIds ?? [] });
+    // The people a manager can share with. Owners and admins always see
+    // private partners, so they are not offered.
+    const candidates = await db
+      .select({ userId: companyMemberships.principalId, name: authUsers.name, email: authUsers.email })
+      .from(companyMemberships)
+      .leftJoin(authUsers, eq(authUsers.id, companyMemberships.principalId))
+      .where(and(
+        eq(companyMemberships.companyId, agent.companyId),
+        eq(companyMemberships.principalType, "user"),
+        eq(companyMemberships.status, "active"),
+        or(isNull(companyMemberships.membershipRole), not(inArray(companyMemberships.membershipRole, ["owner", "admin"]))),
+      ))
+      .orderBy(authUsers.name, companyMemberships.principalId);
+    res.json({ mode: allowedUserIds ? "private" : "discoverable", allowedUserIds: allowedUserIds ?? [], candidates });
   });
 
   router.put("/agents/:id/visibility", validate(updateAgentVisibilitySchema), async (req, res) => {

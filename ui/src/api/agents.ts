@@ -113,6 +113,10 @@ export type AgentVisibility = {
   allowedUserIds: string[];
 };
 
+export type AgentVisibilityState = AgentVisibility & {
+  candidates: Array<{ userId: string; name: string | null; email: string | null }>;
+};
+
 export const agentsApi = {
   adoptAiConnection: (agentId: string, interactionId: string, connectionId: string, companyId: string) =>
     api.post<ConnectionIntentInteraction>(withCompanyScope(`/agents/${agentId}/connection-intents/${interactionId}/adopt`, companyId), { connectionId }),
@@ -164,7 +168,7 @@ export const agentsApi = {
   updatePermissions: (id: string, data: AgentPermissionUpdate, companyId?: string) =>
     api.patch<AgentDetail>(agentPath(id, companyId, "/permissions"), data),
   visibility: (id: string, companyId?: string) =>
-    api.get<AgentVisibility>(agentPath(id, companyId, "/visibility")),
+    api.get<AgentVisibilityState>(agentPath(id, companyId, "/visibility")),
   updateVisibility: (id: string, data: AgentVisibility, companyId?: string) =>
     api.put<AgentVisibility>(agentPath(id, companyId, "/visibility"), data),
   instructionsBundle: (id: string, companyId?: string) =>

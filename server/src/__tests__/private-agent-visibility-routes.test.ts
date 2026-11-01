@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   activityLog,
   agents,
+  authUsers,
   companies,
   companyMemberships,
   createDb,
@@ -59,6 +60,7 @@ describePostgres("private AI partner visibility", () => {
     await db.delete(companyMemberships);
     await db.delete(agents);
     await db.delete(companies);
+    await db.delete(authUsers);
   });
 
   afterAll(async () => {
@@ -208,13 +210,30 @@ describePostgres("private AI partner visibility", () => {
     expect(await listedNames("staff", company.id)).toContain("Cashier");
   }, 30_000);
 
+  it("offers an admin the members a partner can be shared with", async () => {
+    const { company, finance } = await seed(["staff"]);
+    await addMember(company.id, "deputy", "admin");
+    await db.insert(principalPermissionGrants).values({
+      companyId: company.id, principalType: "user", principalId: "deputy", permissionKey: "agents:create", scope: null, grantedByUserId: null,
+    });
+    await db.insert(authUsers).values({
+      id: "staff", name: "Staff Member", email: "staff@example.com", emailVerified: true, image: null, createdAt: new Date(), updatedAt: new Date(),
+    });
+
+    const admin = await createApp(db, boardActor("deputy", company.id));
+    const res = await request(admin).get(`/api/agents/${finance.id}/visibility`);
+    expect(res.status).toBe(200);
+    // Owners and admins always see private partners, so only other members are offered.
+    expect(res.body.candidates).toEqual([{ userId: "staff", name: "Staff Member", email: "staff@example.com" }]);
+  }, 30_000);
+
   it("reports the access list only to people who can manage it", async () => {
     const { company, finance } = await seed(["staff"]);
 
     const owner = await createApp(db, boardActor("boss", company.id));
     const managed = await request(owner).get(`/api/agents/${finance.id}/visibility`);
     expect(managed.status).toBe(200);
-    expect(managed.body).toEqual({ mode: "private", allowedUserIds: ["staff"] });
+    expect(managed.body).toMatchObject({ mode: "private", allowedUserIds: ["staff"] });
 
     const employee = await createApp(db, boardActor("staff", company.id));
     const denied = await request(employee).get(`/api/agents/${finance.id}/visibility`);
