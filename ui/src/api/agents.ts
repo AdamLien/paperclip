@@ -117,6 +117,18 @@ export type AgentVisibilityState = AgentVisibility & {
   candidates: Array<{ userId: string; name: string | null; email: string | null }>;
 };
 
+export type AgentModelSource =
+  | { source: "default"; model?: null }
+  | { source: "mbase"; model: string };
+
+export type AgentModelSourceState = {
+  source: "default" | "mbase";
+  model: string | null;
+  /** Whether this partner type can run on mBase models. */
+  supported: boolean;
+  mbase: { configured: boolean; models: string[]; unavailableReason: string | null };
+};
+
 export const agentsApi = {
   adoptAiConnection: (agentId: string, interactionId: string, connectionId: string, companyId: string) =>
     api.post<ConnectionIntentInteraction>(withCompanyScope(`/agents/${agentId}/connection-intents/${interactionId}/adopt`, companyId), { connectionId }),
@@ -171,6 +183,10 @@ export const agentsApi = {
     api.get<AgentVisibilityState>(agentPath(id, companyId, "/visibility")),
   updateVisibility: (id: string, data: AgentVisibility, companyId?: string) =>
     api.put<AgentVisibility>(agentPath(id, companyId, "/visibility"), data),
+  modelSource: (id: string, companyId?: string) =>
+    api.get<AgentModelSourceState>(agentPath(id, companyId, "/model-source")),
+  updateModelSource: (id: string, data: AgentModelSource, companyId?: string) =>
+    api.put<AgentModelSource>(agentPath(id, companyId, "/model-source"), data),
   instructionsBundle: (id: string, companyId?: string) =>
     api.get<AgentInstructionsBundle>(agentPath(id, companyId, "/instructions-bundle")),
   updateInstructionsBundle: (

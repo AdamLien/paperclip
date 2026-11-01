@@ -30,7 +30,7 @@ import {
   createAgentHireSchema,
   updateAgentSchema,
   updateAgentPermissionsSchema,
-updateAgentVisibilitySchema,
+updateAgentVisibilitySchema, updateAgentModelSourceSchema,
   updateAgentInstructionsPathSchema,
   updateAgentInstructionsBundleSchema,
   upsertAgentInstructionsFileSchema,
@@ -3512,6 +3512,27 @@ registry.registerPath({
     body: jsonBody(updateAgentVisibilitySchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/agents/{id}/model-source",
+  tags: ["agents"],
+  summary: "Read whether an agent runs on an mBase model",
+  request: { params: z.object({ id: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/api/agents/{id}/model-source",
+  tags: ["agents"],
+  summary: "Run an agent on an mBase model or its own login",
+  request: {
+    params: z.object({ id: z.string() }),
+    body: jsonBody(updateAgentModelSourceSchema),
+  },
+  responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 422: r.unprocessable },
 });
 
 registry.registerPath({

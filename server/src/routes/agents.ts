@@ -10,6 +10,7 @@ import { ADAPTER_AUTH_MISSING_CHECK_CODE, AI_CONNECTION_CAPABILITIES, aiConnecti
 import { toolConnections } from "@paperclipai/db";
 import { aiConnectionService } from "../services/ai-connections.js";
 import { defaultAiConnectionForHire } from "../services/agent-ai-connection-default.js";
+import { createMbasePartnerModelService, isMbasePartnerAdapter, mbaseUnavailableHttpError, MbaseModelUnavailable } from "../services/mbase-partner-model.js";
 import { assertAiConnectionCreateAccess, canInstallSharedAiConnectionForNewAgent, responsibleUserForAiRequest, validateAiApiKey } from "./ai-connections.js";
 import { isAiConnectionCompatible } from "@paperclipai/shared";
 import { applyConnectorSkills, resolveConnectorAssignments, annotateConnectorSkills, isConnectorSkill } from "../services/connector-runtime.js";
@@ -51,6 +52,7 @@ import {
   updateAgentInstructionsBundleSchema,
   updateAgentPermissionsSchema,
   updateAgentVisibilitySchema,
+  updateAgentModelSourceSchema,
   updateAgentInstructionsPathSchema,
   wakeAgentSchema,
   updateAgentSchema,
@@ -461,6 +463,8 @@ export function agentRoutes(
   options: {
     chatRunRetries?: Pick<ChatChannelService, "prepareFailedChatRunRetry" | "processFailedChatRunRetry">;
     pluginWorkerManager?: PluginWorkerManager;
+    /** mBase model access for AI partners. Defaults to the instance's OCX settings. */
+    mbasePartnerModels?: ReturnType<typeof createMbasePartnerModelService>;
     /** The active deployment mode. The confidential transport guard reads it. */
     deploymentMode?: DeploymentMode;
     /**
@@ -544,6 +548,7 @@ export function agentRoutes(
 
   const router = Router();
   const svc = agentService(db);
+  const mbasePartnerModels = options.mbasePartnerModels ?? createMbasePartnerModelService();
   const access = accessService(db);
   const approvalsSvc = approvalService(db);
   const budgets = budgetService(db);
@@ -4636,6 +4641,9 @@ export function agentRoutes(
 
   router.post("/companies/:companyId/agent-hires", validate(createAgentHireSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
+    if (asRecord(asRecord(req.body)?.runtimeConfig)?.mbase) {
+      throw unprocessable("Create the partner first, then use /api/agents/:id/model-source to switch it to mBase");
+    }
     await assertCanCreateAgentsForCompany(req, companyId);
     const sourceIssueIds = parseSourceIssueIds(req.body);
     const {
@@ -4959,6 +4967,9 @@ export function agentRoutes(
 
   router.post("/companies/:companyId/agents", validate(createAgentSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
+    if (asRecord(asRecord(req.body)?.runtimeConfig)?.mbase) {
+      throw unprocessable("Create the partner first, then use /api/agents/:id/model-source to switch it to mBase");
+    }
     await assertCanCreateAgentsForCompany(req, companyId);
 
     const company = await db
@@ -5254,6 +5265,69 @@ export function agentRoutes(
     });
 
     res.json({ mode: req.body.mode, allowedUserIds: req.body.mode === "private" ? allowedUserIds : [] });
+  });
+
+  router.get("/agents/:id/model-source", async (req, res) => {
+    const id = req.params.id as string;
+    const agent = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");
+    if (!agent) return;
+    await assertBoardCanManageAgentsForCompany(req, agent.companyId);
+    const mbase = asRecord(asRecord(agent.runtimeConfig)?.mbase);
+    let models: string[] = [];
+    let unavailableReason: string | null = null;
+    try {
+      models = await mbasePartnerModels.listModels();
+    } catch (error) {
+      if (!(error instanceof MbaseModelUnavailable)) throw error;
+      unavailableReason = error.message;
+    }
+    res.json({
+      source: mbase ? "mbase" : "default",
+      model: typeof mbase?.model === "string" ? mbase.model : null,
+      supported: isMbasePartnerAdapter(agent.adapterType),
+      mbase: { configured: mbasePartnerModels.configured, models, unavailableReason },
+    });
+  });
+
+  router.put("/agents/:id/model-source", validate(updateAgentModelSourceSchema), async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");
+    if (!existing) return;
+    await assertBoardCanManageAgentsForCompany(req, existing.companyId);
+
+    const body = req.body as { source: "default" } | { source: "mbase"; model: string };
+    if (body.source === "mbase") {
+      if (!isMbasePartnerAdapter(existing.adapterType)) throw unprocessable("This partner type cannot use mBase models yet.");
+      if (existing.runtimeConfig.aiConnection) throw unprocessable("Remove this partner's AI connection before switching it to mBase.");
+      if (existing.permissions?.trustPreset === "low_trust_review") throw unprocessable("Low-trust partners cannot use mBase models.");
+      try {
+        if (!(await mbasePartnerModels.listModels()).includes(body.model)) throw unprocessable("mBase does not offer this model.");
+      } catch (error) {
+        throw mbaseUnavailableHttpError(error);
+      }
+    }
+
+    const agent = await svc.updateModelSource(id, body.source === "mbase" ? { model: body.model } : null);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      agentApiKeyId: actor.agentApiKeyId,
+      action: "agent.model_source_updated",
+      entityType: "agent",
+      entityId: agent.id,
+      details: { source: body.source, model: body.source === "mbase" ? body.model : null },
+    });
+
+    res.json({ source: body.source, model: body.source === "mbase" ? body.model : null });
   });
 
   router.patch("/agents/:id/instructions-path", validate(updateAgentInstructionsPathSchema), async (req, res) => {
@@ -5806,6 +5880,16 @@ export function agentRoutes(
       });
     }
     if (existing.runtimeConfig.aiConnection && requestedRuntimeConfig && !requestedRuntimeConfig.aiConnection) requestedRuntimeConfig.aiConnection = existing.runtimeConfig.aiConnection;
+    if (requestedRuntimeConfig) {
+      // mBase access is granted only through the audited model-source route.
+      if (hasOwn(requestedRuntimeConfig, "mbase") && JSON.stringify(requestedRuntimeConfig.mbase ?? null) !== JSON.stringify(existing.runtimeConfig.mbase ?? null)) {
+        throw unprocessable("Use /api/agents/:id/model-source to change a partner's mBase model");
+      }
+      if (existing.runtimeConfig.mbase) requestedRuntimeConfig.mbase = existing.runtimeConfig.mbase;
+      if (requestedRuntimeConfig.aiConnection && requestedRuntimeConfig.mbase) {
+        throw unprocessable("Switch this partner off mBase before adding an AI connection");
+      }
+    }
     const nextAiBinding = aiRuntimeConnectionBindingSchema.safeParse(requestedRuntimeConfig?.aiConnection ?? existing.runtimeConfig.aiConnection).data;
     if (nextAiBinding) {
       await assertCanUpdateAgent(req, existing);

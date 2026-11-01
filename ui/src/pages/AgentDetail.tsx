@@ -101,6 +101,7 @@ import { Input } from "@/components/ui/input";
 import { RunTranscriptView, type TranscriptMode } from "../components/transcript/RunTranscriptView";
 import { AgentToolsTab } from "./AgentToolsTab";
 import { AgentPartnerAccess } from "../components/AgentPartnerAccess";
+import { AgentModelSource } from "../components/AgentModelSource";
 import { AgentNotFound, isNotFoundError, retryUnlessNotFound } from "../components/AgentNotFound";
 import { useIsCompanyManager } from "../hooks/useCompanyManagerAccess";
 import { AgentChannelsPanel } from "../components/chat/AgentChannelsPanel";
@@ -2070,6 +2071,9 @@ export function ConfigurationTab({
 
   return (
     <div className="agent-settings-form space-y-6">
+      {content === "runtime" && companyId && isCompanyManager ? (
+        <AgentModelSource agentId={agent.id} companyId={companyId} />
+      ) : null}
       {content !== "permissions" ? <AgentConfigForm
         mode="edit"
         agent={agent}

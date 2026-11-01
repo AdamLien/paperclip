@@ -1246,6 +1246,22 @@ export function agentService(db: Db) {
       return updated ? getById(updated.id) : null;
     },
 
+    updateModelSource: async (id: string, mbase: { model: string } | null) => {
+      const existing = await getById(id);
+      if (!existing) return null;
+      const { mbase: _previous, ...runtimeConfig } = isPlainRecord(existing.runtimeConfig) ? existing.runtimeConfig : {};
+      const updated = await db
+        .update(agents)
+        .set({
+          runtimeConfig: mbase ? { ...runtimeConfig, mbase } : runtimeConfig,
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.id, id))
+        .returning()
+        .then((rows) => rows[0] ?? null);
+      return updated ? getById(updated.id) : null;
+    },
+
     listConfigRevisions: async (id: string) =>
       db
         .select()
