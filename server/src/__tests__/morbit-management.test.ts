@@ -25,7 +25,8 @@ function setup(actor: Record<string, unknown> = manager, directory?: string, con
     canManage: vi.fn(async () => false),
     wiki: vi.fn(async () => null),
     modelStatus: vi.fn(async () => ({ state: "unconfigured" as const })),
-    modelTest: vi.fn(async () => ({ model: "test-model", text: "OK", checkedAt: "2026-10-25T00:00:00Z" })),
+    modelTest: vi.fn(async () => ({ model: "test-model", text: "OK", checkedAt: "2026-10-25T00:00:00Z",
+      results: [{ model: "test-model", ok: true }] })),
     wikiCall: vi.fn(async (_key, params) => ({ companyId: params.companyId, pages: [] })),
     audit: vi.fn(async () => {}),
     companyConnection: {
@@ -444,15 +445,18 @@ describe("mDeck management authority and truthful status", () => {
     expect((await request(app).post(`${path()}/base/test`).send({})).status).toBe(403);
     expect(deps.modelTest).not.toHaveBeenCalled();
     const admin = setup({ ...manager, isInstanceAdmin: true });
-    expect((await request(admin.app).post(`${path()}/base/test`).send({ url: "http://other" })).status).toBe(400);
+    for (const body of [{ url: "http://other" }, { model: "anthropic/claude-any" }, { provider: "anthropic" }]) {
+      expect((await request(admin.app).post(`${path()}/base/test`).send(body)).status).toBe(400);
+    }
     expect(admin.deps.modelTest).not.toHaveBeenCalled();
   });
   it("model test records only a bounded result in audit", async () => {
     const { app, deps } = setup({ ...manager, isInstanceAdmin: true });
     const res = await request(app).post(`${path()}/base/test`).send({});
     expect(res.status).toBe(200);
-    expect(res.body.data.text).toBe("OK");
-    expect(deps.audit).toHaveBeenCalledWith(expect.anything(), company, "morbit.model_tested", { model: "test-model" });
+    expect(res.body.data).toMatchObject({ text: "OK", results: [{ model: "test-model", ok: true }] });
+    expect(deps.audit).toHaveBeenCalledWith(expect.anything(), company, "morbit.model_tested",
+      { model: "test-model", results: [{ model: "test-model", ok: true }] });
   });
   it("employee wiki read is scoped; manager actions cannot inject another company", async () => {
     const { app, deps } = setup(member);
