@@ -38,6 +38,7 @@ const mockSidebarState = vi.hoisted(() => ({
   collapsed: false,
   peeking: false,
 }));
+const mockContextualAgent = vi.hoisted(() => ({ unavailable: false }));
 let currentPathname = "/PAP/dashboard";
 
 vi.mock("@/lib/router", () => ({
@@ -83,6 +84,7 @@ vi.mock("./AgentContextualSidebar", () => ({
   AgentContextualSidebar: ({ agentRef }: { agentRef: string }) => (
     <div>Agent sidebar {agentRef}</div>
   ),
+  useContextualAgent: () => mockContextualAgent,
 }));
 
 vi.mock("./RoutineContextualSidebar", () => ({
@@ -973,6 +975,41 @@ describe("Layout", () => {
               Node.DOCUMENT_POSITION_FOLLOWING
           : 0,
       ).not.toBe(0);
+      await act(async () => {
+        root.unmount();
+      });
+      container.innerHTML = "";
+    }
+  });
+
+  it("drops the agent menu when the viewer cannot open the partner", async () => {
+    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
+      enableApps: true,
+      enableStreamlinedUi: true,
+    });
+    mockContextualAgent.unavailable = true;
+    currentPathname = "/PAP/agents/5f1c2f9c/overview";
+    const root = createRoot(container);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    try {
+      await act(async () => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <Layout />
+          </QueryClientProvider>,
+        );
+      });
+      await flushReact();
+      await flushReact();
+
+      expect(container.textContent).toContain("Main company nav");
+      expect(container.textContent).not.toContain("Agent sidebar");
+      expect(container.querySelector("[data-secondary-sidebar]")).toBeNull();
+    } finally {
+      mockContextualAgent.unavailable = false;
       await act(async () => {
         root.unmount();
       });

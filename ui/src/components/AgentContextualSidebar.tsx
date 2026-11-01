@@ -21,6 +21,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { ContextualSidebarFrame } from "./ContextualSidebarFrame";
 import { SidebarNavItem } from "./SidebarNavItem";
 import { contextualSidebarStyles } from "./contextual-sidebar-styles";
+import { isNotFoundError, retryUnlessNotFound } from "./AgentNotFound";
 import {
   AGENT_DETAIL_NAVIGATION,
   agentDetailHref,
@@ -48,6 +49,18 @@ const auditItems = [
   { section: "budgets", label: "Budgets", icon: BadgeDollarSign },
 ] as const;
 
+/** Shared with Layout, which drops this menu when the viewer cannot open the partner. */
+export function useContextualAgent(agentRef: string | undefined, enabled = true) {
+  const { selectedCompanyId } = useCompany();
+  const query = useQuery({
+    queryKey: [...queryKeys.agents.detail(agentRef ?? ""), selectedCompanyId ?? null, "contextual-sidebar"],
+    queryFn: () => agentsApi.get(agentRef!, selectedCompanyId ?? undefined),
+    enabled: enabled && Boolean(agentRef && selectedCompanyId),
+    retry: retryUnlessNotFound,
+  });
+  return { agent: query.data, unavailable: isNotFoundError(query.error) };
+}
+
 export function AgentContextualSidebar({
   agentRef,
   agentId,
@@ -60,13 +73,7 @@ export function AgentContextualSidebar({
   labels?: Partial<Record<AgentLocalDetailView, string>>;
 }) {
   useUiLiteralLocale();
-  const { selectedCompanyId } = useCompany();
-  const shouldResolveAgent = !agentId || !agentName;
-  const { data: resolvedAgent } = useQuery({
-    queryKey: [...queryKeys.agents.detail(agentRef), selectedCompanyId ?? null, "contextual-sidebar"],
-    queryFn: () => agentsApi.get(agentRef, selectedCompanyId ?? undefined),
-    enabled: shouldResolveAgent && Boolean(agentRef && selectedCompanyId),
-  });
+  const { agent: resolvedAgent } = useContextualAgent(agentRef, !agentId || !agentName);
   const resolvedId = agentId ?? resolvedAgent?.id;
   const resolvedName = agentName ?? resolvedAgent?.name ?? "Agent";
 

@@ -8,7 +8,7 @@ import { CompanySettingsSidebar } from "./CompanySettingsSidebar";
 import { CompanySettingsNav } from "./access/CompanySettingsNav";
 import { AppsSidebar } from "./AppsSidebar";
 import { AppDetailSidebar } from "./AppConnectionSidebar";
-import { AgentContextualSidebar } from "./AgentContextualSidebar";
+import { AgentContextualSidebar, useContextualAgent } from "./AgentContextualSidebar";
 import { RoutineContextualSidebar } from "./RoutineContextualSidebar";
 import { SkillsContextualSidebar } from "./SkillsContextualSidebar";
 import { BreadcrumbBar } from "./BreadcrumbBar";
@@ -209,8 +209,10 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
       />
     )
   ) : null;
-  const secondarySidebar = isAgentChatRoute ? <AgentConversationsSidebar /> : shellRoute.builtInContextualSurface === "agent" && agentId ? (
-    <AgentContextualSidebar agentRef={agentId} />
+  const isAgentSurface = shellRoute.builtInContextualSurface === "agent" && Boolean(agentId);
+  const { unavailable: contextualAgentUnavailable } = useContextualAgent(agentId, isAgentSurface && !isAgentChatRoute);
+  const secondarySidebar = isAgentChatRoute ? <AgentConversationsSidebar /> : isAgentSurface && !contextualAgentUnavailable ? (
+    <AgentContextualSidebar agentRef={agentId!} />
   ) : streamlinedUiEnabled && shellRoute.builtInContextualSurface === "routine" && routineId ? (
     <SetupWizardSidebarOutlet><RoutineContextualSidebar routineId={routineId} /></SetupWizardSidebarOutlet>
   ) : streamlinedUiEnabled && shellRoute.builtInContextualSurface === "skills" ? (
