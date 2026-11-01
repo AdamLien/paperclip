@@ -22,13 +22,21 @@ export type ModelObservation = {
   checkedAt?: string;
 };
 
+/** `model` lists the models that responded; `results` has one entry per tested service. */
+export type ModelTestResult = {
+  model: string;
+  text: string;
+  checkedAt: string;
+  results: Array<{ model: string; ok: boolean }>;
+};
+
 export interface ManagementDependencies {
   companies(): Promise<Array<{ id: string; name: string; issuePrefix: string }>>;
   company(id: string): Promise<{ id: string; name: string; issuePrefix: string } | null>;
   canManage(companyId: string, userId: string): Promise<boolean>;
   wiki(): Promise<{ id: string; status: string; version: string } | null>;
   modelStatus(): Promise<ModelObservation>;
-  modelTest(): Promise<{ model: string; text: string; checkedAt: string }>;
+  modelTest(): Promise<ModelTestResult>;
   wikiCall(key: string, params: Record<string, unknown>, action: boolean, pluginId: string, req: Request): Promise<unknown>;
   audit(req: Request, companyId: string, action: string, details: Record<string, unknown>): Promise<void>;
   companyConnection: ReturnType<typeof createMorbitCompanyConnectionService>;
@@ -317,8 +325,8 @@ export function morbitManagementRoutes(deps: ManagementDependencies) {
     assertInstanceAdmin(req);
     if (!z.object({}).strict().safeParse(req.body).success) throw badRequest("This test accepts no upstream URL or credentials");
     const result = await deps.modelTest();
-    await deps.audit(req, s.company.id, "morbit.model_tested", { model: result.model });
-    reply(res, { model: result.model, text: result.text, checked_at: result.checkedAt });
+    await deps.audit(req, s.company.id, "morbit.model_tested", { model: result.model, results: result.results });
+    reply(res, { model: result.model, text: result.text, checked_at: result.checkedAt, results: result.results });
   });
 
   for (const action of [false, true]) {

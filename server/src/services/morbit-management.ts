@@ -9,6 +9,7 @@ import { getActorInfo } from "../routes/authz.js";
 import { HttpError } from "../errors.js";
 import type { ManagementDependencies } from "../routes/morbit-management.js";
 import { createMorbitModelAdapter } from "./morbit-base.js";
+import { createMbasePartnerModelService } from "./mbase-partner-model.js";
 import { createMorbitConsoleProxy, readMorbitNativeEntry } from "./morbit-native-entry.js";
 import { createMorbitCompanyConnectionService } from "./morbit-company-connection.js";
 
@@ -17,9 +18,11 @@ export function managementDependencies(db: Db, workers: PluginWorkerManager): Ma
   const companies = companyService(db);
   const access = accessService(db);
   const registry = pluginRegistryService(db);
+  const partnerModels = createMbasePartnerModelService();
   const model = createMorbitModelAdapter({
     endpoint: process.env.MORBIT_UAT_OCX_URL,
     model: process.env.MORBIT_UAT_OCX_MODEL,
+    listAnthropicModels: partnerModels.configured ? () => partnerModels.listModels() : undefined,
     readToken: process.env.MORBIT_UAT_OCX_TOKEN_FILE
       ? () => readFile(process.env.MORBIT_UAT_OCX_TOKEN_FILE!, "utf8") : undefined,
     readAdminToken: process.env.MORBIT_UAT_OCX_ADMIN_TOKEN_FILE
