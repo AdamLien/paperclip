@@ -100,6 +100,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { RunTranscriptView, type TranscriptMode } from "../components/transcript/RunTranscriptView";
 import { AgentToolsTab } from "./AgentToolsTab";
+import { AgentPartnerAccess } from "../components/AgentPartnerAccess";
+import { useIsCompanyManager } from "../hooks/useCompanyManagerAccess";
 import { AgentChannelsPanel } from "../components/chat/AgentChannelsPanel";
 import {
   appendCapped,
@@ -1985,6 +1987,7 @@ export function ConfigurationTab({
   });
 
   const lowTrustSelected = getTrustPreset(agent.permissions) === "low_trust_review";
+  const isCompanyManager = useIsCompanyManager(companyId);
 
   const { data: boundaryProjects, isLoading: boundaryProjectsLoading } = useQuery({
     queryKey: companyId ? queryKeys.projects.list(companyId) : ["projects", "__low-trust-disabled"],
@@ -2084,6 +2087,10 @@ export function ConfigurationTab({
         canConfigureProviderTrace={canConfigureProviderTrace}
       /> : null}
 
+
+      {content === "permissions" && companyId && isCompanyManager ? (
+        <AgentPartnerAccess agentId={agent.id} companyId={companyId} />
+      ) : null}
 
       {content === "permissions" ? <TrustPresetSection
         permissions={agent.permissions}

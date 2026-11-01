@@ -1904,6 +1904,7 @@ export {
   testAdapterEnvironmentSchema,
   agentPermissionsSchema,
   updateAgentPermissionsSchema,
+  updateAgentVisibilitySchema,
   type CreateAgent,
   type BuiltInAgentProvision,
   type BuiltInAgentReset,

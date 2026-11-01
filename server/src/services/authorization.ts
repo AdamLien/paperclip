@@ -363,6 +363,17 @@ function evaluateAuthorizationPolicyForAssignment(
   return { kind: "none" };
 }
 
+/**
+ * Members a private AI partner is shared with, or null when the partner is not
+ * private. Workspace owners and admins can always see private partners.
+ */
+export function readPrivateAgentAudience(permissions: unknown): string[] | null {
+  const visibility = readPolicyObject(readPolicyObject(permissions, "authorizationPolicy"), "agentVisibility");
+  if (readString(visibility?.mode) !== "private") return null;
+  const allowed = Array.isArray(visibility?.allowedUserIds) ? visibility.allowedUserIds : [];
+  return allowed.filter((id): id is string => typeof id === "string");
+}
+
 function agentIsInSubtree(
   agentsById: Map<string, AgentHierarchyRow>,
   rootAgentId: string,
@@ -1681,6 +1692,31 @@ export function authorizationService(db: Db | DbTransaction) {
       });
     }
 
+    // The broad tasks:assign grant every operator holds must not reveal or reach
+    // a private partner, so this runs before any membership or grant default.
+    async function denyPrivateAgentForMember(userId: string | null | undefined) {
+      if (input.action !== "agent:read" && input.action !== "agent:wake" && input.action !== "tasks:assign") {
+        return null;
+      }
+      const agentId =
+        input.resource.type === "agent"
+          ? input.resource.agentId ?? null
+          : input.resource.type === "issue" && input.action === "tasks:assign"
+            ? input.resource.assigneeAgentId ?? null
+            : null;
+      if (!agentId || !userId) return null;
+      const agent = await loadAgent(agentId);
+      const audience = agent && agent.companyId === companyId ? readPrivateAgentAudience(agent.permissions) : null;
+      if (!audience || audience.includes(userId)) return null;
+      const membership = await getActiveMembership(companyId, "user", userId);
+      if (membership?.membershipRole === "owner" || membership?.membershipRole === "admin") return null;
+      return deny({
+        action: input.action,
+        reason: "deny_policy_restricted",
+        explanation: "This AI partner is private and has not been shared with this member.",
+      });
+    }
+
     if (input.actor.type === "none") {
       return deny({
         action: input.action,
@@ -1717,6 +1753,8 @@ export function authorizationService(db: Db | DbTransaction) {
           explanation: "Allowed because the actor is an instance admin.",
         });
       }
+      const privateAgentDenial = await denyPrivateAgentForMember(input.actor.userId);
+      if (privateAgentDenial) return privateAgentDenial;
       // What instance-admin elevation used to give cloud tenant users is
       // replaced by company-scoped visibility: an active membership in the
       // resource company grants the same read surface a same-company agent

@@ -108,6 +108,11 @@ function agentPath(id: string, companyId?: string, suffix = "") {
   return withCompanyScope(`/agents/${encodeURIComponent(id)}${suffix}`, companyId);
 }
 
+export type AgentVisibility = {
+  mode: "discoverable" | "private";
+  allowedUserIds: string[];
+};
+
 export const agentsApi = {
   adoptAiConnection: (agentId: string, interactionId: string, connectionId: string, companyId: string) =>
     api.post<ConnectionIntentInteraction>(withCompanyScope(`/agents/${agentId}/connection-intents/${interactionId}/adopt`, companyId), { connectionId }),
@@ -158,6 +163,10 @@ export const agentsApi = {
     api.patch<Agent>(agentPath(id, companyId), data),
   updatePermissions: (id: string, data: AgentPermissionUpdate, companyId?: string) =>
     api.patch<AgentDetail>(agentPath(id, companyId, "/permissions"), data),
+  visibility: (id: string, companyId?: string) =>
+    api.get<AgentVisibility>(agentPath(id, companyId, "/visibility")),
+  updateVisibility: (id: string, data: AgentVisibility, companyId?: string) =>
+    api.put<AgentVisibility>(agentPath(id, companyId, "/visibility"), data),
   instructionsBundle: (id: string, companyId?: string) =>
     api.get<AgentInstructionsBundle>(agentPath(id, companyId, "/instructions-bundle")),
   updateInstructionsBundle: (

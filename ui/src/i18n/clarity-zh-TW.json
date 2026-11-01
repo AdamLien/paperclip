@@ -144,5 +144,13 @@
   "AI partners take questions and tasks from everyone in this workspace. Give each one a clear purpose so people know who to ask.": "AI 夥伴會接手工作區裡每個人的提問和任務。替每一位寫清楚用途，大家才知道該找誰。",
   "Create AI partner": "建立 AI 夥伴",
   "No partner can take work right now. Resume or approve one so people can ask it questions.": "目前沒有可以接工作的夥伴。恢復或核准一位，大家才能向它提問。",
-  "No AI partners are available yet. Ask a workspace admin to add one.": "還沒有可用的 AI 夥伴，請聯絡工作區管理員新增。"
+  "No AI partners are available yet. Ask a workspace admin to add one.": "還沒有可用的 AI 夥伴，請聯絡工作區管理員新增。",
+  "Who can use this partner": "誰可以使用這位夥伴",
+  "Everyone in this workspace": "這個工作區的所有成員",
+  "Only selected members": "只給指定成員",
+  "Owners and admins can always see this partner. Other members cannot find it, open it, or give it work.": "擁有者和管理員一律看得到這位夥伴。其他成員找不到它、打不開，也不能交工作給它。",
+  "No other members in this workspace yet.": "這個工作區還沒有其他成員。",
+  "Save access": "儲存使用權限",
+  "Partner access saved": "已儲存夥伴使用權限",
+  "Could not save partner access": "無法儲存夥伴使用權限"
 }
