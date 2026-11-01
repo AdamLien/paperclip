@@ -155,5 +155,15 @@
   "Could not save partner access": "無法儲存夥伴使用權限",
   "Could not load who can use this partner. Refresh the page to try again.": "無法載入這位夥伴的使用權限，請重新整理頁面再試一次。",
   "This AI partner is not available": "無法使用這位 AI 夥伴",
-  "It may have been removed, or it has not been shared with you.": "它可能已經被移除，或沒有分享給你。"
+  "It may have been removed, or it has not been shared with you.": "它可能已經被移除，或沒有分享給你。",
+  "Model source": "模型來源",
+  "This partner's own login or AI connection": "這位夥伴自己的登入或 AI 連線",
+  "mBase (your company AI service)": "mBase（公司 AI 服務）",
+  "mBase is not available on this instance yet. Connect an Anthropic account in Management → mBase first.": "這個實例還不能使用 mBase。請先到「管理 → mBase」連接 Anthropic 帳號。",
+  "Model": "模型",
+  "Each run gets mBase access only while it works. Usage appears in mBase usage and logs.": "每次執行只在工作期間取得 mBase 權限，用量會出現在 mBase 的「用量與日誌」。",
+  "Save model source": "儲存模型來源",
+  "Model source saved": "已儲存模型來源",
+  "Could not save the model source": "無法儲存模型來源",
+  "Could not load this partner's model source. Refresh the page to try again.": "無法載入這位夥伴的模型來源，請重新整理頁面再試一次。"
 }

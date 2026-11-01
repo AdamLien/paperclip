@@ -26,6 +26,8 @@ export interface AgentPermissions extends Record<string, unknown> {
 
 export type AgentRuntimeConfig = Record<string, unknown> & {
   aiConnection?: import("../ai-connection-router.js").AiRuntimeConnectionBinding;
+  /** The partner runs on this mBase model; set only through the model-source route. */
+  mbase?: { model: string };
 };
 
 export type AgentInstructionsBundleMode = "managed" | "external";

@@ -230,6 +230,7 @@ export const queryKeys = {
       ["agents", "instructions-bundle", id, "file", relativePath] as const,
     keys: (agentId: string) => ["agents", "keys", agentId] as const,
     visibility: (agentId: string) => ["agents", "visibility", agentId] as const,
+    modelSource: (agentId: string) => ["agents", "model-source", agentId] as const,
     configRevisions: (agentId: string) =>
       ["agents", "config-revisions", agentId] as const,
     adapterModels: (

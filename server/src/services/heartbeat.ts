@@ -1,3 +1,4 @@
+import { createMbasePartnerModelService, MbaseModelUnavailable } from "./mbase-partner-model.js";
 import { retryIdempotentDatabaseOperation } from "../database-retry.js";
 import { prepareConnectionInstructionDelivery } from "./connection-instructions.js";
 import { resolveAssignedConnectionInstructionsForRun } from "./native-runtime/assigned-mcp-tools.js";
@@ -9409,6 +9410,8 @@ export type HeartbeatEnvironmentRuntime = ReturnType<
 >;
 
 export interface HeartbeatServiceOptions {
+  /** mBase model access for AI partners. Defaults to the instance's OCX settings. */
+  mbasePartnerModels?: ReturnType<typeof createMbasePartnerModelService>;
   /** Test seam before the atomic native runtime handoff. */
   beforeNativeRuntimeSelection?: (runId: string) => Promise<void>;
   /** Test seam immediately before the durable chat-control admission check. */
@@ -9568,6 +9571,7 @@ export function heartbeatService(
     enabled: (await instanceSettings.getGeneral()).censorUsernameInLogs,
   });
   const runtimeEnv = options.runtimeEnv ?? process.env;
+  const mbasePartnerModels = options.mbasePartnerModels ?? createMbasePartnerModelService();
   const inWorktreeRuntime = isTruthyRuntimeEnvValue(
     runtimeEnv.PAPERCLIP_IN_WORKTREE,
   );
@@ -21750,8 +21754,27 @@ export function heartbeatService(
           selectedEnvironmentForConfig?.driver ?? "local",
         );
 
+      const mbaseModel = readNonEmptyString(parseObject(parseObject(agent.runtimeConfig).mbase).model);
+      let mbaseProjection: Awaited<ReturnType<typeof mbasePartnerModels.runtimeProjection>> | null = null;
+      if (mbaseModel) {
+        const mbaseUnavailable = (message: string) => new ConfigurationIncompleteFailure(message, {
+          configurationIncomplete: { reason: "mbase_model_unavailable", companyId: agent.companyId, agentId: agent.id, responsibleUserId,
+            actionUrl: `/agents/${agent.id}/runtime`, fingerprint: `mbase:${agent.id}:${mbaseModel}` },
+        });
+        if (aiBinding) throw mbaseUnavailable("This partner has both an AI connection and an mBase model; keep only one");
+        // Low-trust runs never receive projected credentials, so fail here instead of falling back to host login.
+        if (trustPreset.kind === "low_trust_review") throw mbaseUnavailable("Low-trust partners cannot use mBase models");
+        try {
+          mbaseProjection = await mbasePartnerModels.runtimeProjection({ adapterType: agent.adapterType, model: mbaseModel });
+        } catch (error) {
+          if (error instanceof MbaseModelUnavailable) throw mbaseUnavailable(error.message);
+          throw error;
+        }
+      }
+
       const { resolvedConfig, secretKeys, secretManifest } =
         await resolveExecutionRunAdapterConfig({
+          ...(mbaseProjection ? { trustedEnvProjection: mbaseProjection.env, trustedEnvSecretKeys: mbaseProjection.secretKeys } : {}),
           managedAiCredentials: Boolean(aiBinding),
           managedGitHubCredentials: !useHostGitHub,
           companyId: agent.companyId,
@@ -21772,6 +21795,10 @@ export function heartbeatService(
           trustPreset,
         });
       readFailureReportSecrets = () => collectRunFailureSecretValues(resolvedConfig.env, secretKeys);
+      if (mbaseProjection) {
+        resolvedConfig.model = mbaseProjection.model;
+        await appendRunEvent(run, { eventType: "lifecycle", stream: "system", level: "info", message: "Using mBase model", payload: { modelSource: "mbase", model: mbaseProjection.model } });
+      }
       if (aiBinding) {
         try {
           managedAiRuntime = await prepareManagedAiRuntime(db, { companyId: agent.companyId, agentId: agent.id, responsibleUserId, adapterType: agent.adapterType, binding: aiBinding, config: resolvedConfig });

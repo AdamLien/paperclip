@@ -69,8 +69,14 @@ export const createAgentInstructionsBundleSchema = z.object({
   }),
 });
 
+/** The partner runs on this mBase (OCX) model; the credential is projected per run, never stored. */
+export const agentMbaseModelSourceSchema = z.object({
+  model: z.string().trim().min(1).max(200),
+}).strict();
+
 export const agentRuntimeConfigSchema = z.object({
   aiConnection: aiConnectionBindingSchema.optional(),
+  mbase: agentMbaseModelSourceSchema.optional(),
   debug: z.object({
     providerTrace: z.literal("raw").optional(),
   }).strict().optional(),
@@ -82,7 +88,21 @@ export const agentRuntimeConfigSchema = z.object({
       message: "runtimeConfig.modelProfiles is no longer supported",
     });
   }
+  if (value.aiConnection && value.mbase) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["mbase"],
+      message: "A partner uses either an AI connection or an mBase model, not both",
+    });
+  }
 });
+
+export const updateAgentModelSourceSchema = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("default") }).strict(),
+  z.object({ source: z.literal("mbase"), model: z.string().trim().min(1).max(200) }).strict(),
+]);
+
+export type UpdateAgentModelSource = z.infer<typeof updateAgentModelSourceSchema>;
 
 export const createAgentSchema = z.object({
   name: z.string().min(1),
