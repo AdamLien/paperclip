@@ -298,6 +298,13 @@ export const updateAgentPermissionsSchema = z.object({
 
 export type UpdateAgentPermissions = z.infer<typeof updateAgentPermissionsSchema>;
 
+export const updateAgentVisibilitySchema = z.object({
+  mode: z.enum(["discoverable", "private"]),
+  allowedUserIds: z.array(z.string().trim().min(1)).max(500),
+}).strict();
+
+export type UpdateAgentVisibility = z.infer<typeof updateAgentVisibilitySchema>;
+
 export const resolveAgentInstructionCandidateSchema = z.object({
   baseRevisionId: z.string().uuid().nullable(),
   content: z.string().max(1024 * 1024),

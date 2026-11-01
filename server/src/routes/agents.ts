@@ -25,7 +25,7 @@ import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import type { Db } from "@paperclipai/db";
 import type { ChatChannelService } from "../services/chat-channels.js";
-import { activityLog, agents as agentsTable, chatConversations, companies, heartbeatRuns, issues as issuesTable, projects as projectsTable } from "@paperclipai/db";
+import { activityLog, agents as agentsTable, chatConversations, companies, companyMemberships, heartbeatRuns, issues as issuesTable, projects as projectsTable } from "@paperclipai/db";
 import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
 import { sha256Digest } from "../services/feedback-redaction.js";
 import {
@@ -50,6 +50,7 @@ import {
   resolveAgentInstructionCandidateSchema,
   updateAgentInstructionsBundleSchema,
   updateAgentPermissionsSchema,
+  updateAgentVisibilitySchema,
   updateAgentInstructionsPathSchema,
   wakeAgentSchema,
   updateAgentSchema,
@@ -121,7 +122,7 @@ import type { AdapterAuthSignal, AdapterAuthSignalResponse, CodexAccountBindingC
 import { getDisabledAdapterTypes } from "../services/adapter-plugin-store.js";
 import { skillVersionSelectionMap } from "../services/runtime-skill-selections.js";
 import { isFixedClaudeOAuthBinding, secretService } from "../services/secrets.js";
-import { authorizationDeniedDetails } from "../services/authorization.js";
+import { authorizationDeniedDetails, readPrivateAgentAudience } from "../services/authorization.js";
 import { providerTraceStore } from "../services/provider-trace-store.js";
 import {
   persistReprojectedWorkspaceDiffs,
@@ -1153,6 +1154,11 @@ export function agentRoutes(
   async function assertAgentReadAllowed(req: Request, res: Response, agent: { id: string; companyId: string }) {
     const decision = await decideAgentRead(req, agent);
     if (decision.allowed) return true;
+    // A private partner must not reveal that it exists to people it is not shared with.
+    if (req.actor.type === "board" && decision.reason === "deny_policy_restricted") {
+      res.status(404).json({ error: "Agent not found" });
+      return false;
+    }
     res.status(403).json({ error: "Agent is outside this actor's authorization boundary" });
     return false;
   }
@@ -2033,6 +2039,20 @@ export function agentRoutes(
       await assertBoardCanManageAgentsForCompany(req, agent.companyId);
     }
     return agent;
+  }
+
+  async function actorCanManageAgents(req: Request, companyId: string) {
+    if (req.actor.type !== "board") return false;
+    const decision = await access.decide({
+      actor: req.actor,
+      action: "agents:create",
+      resource: { type: "company", companyId },
+    });
+    return decision.allowed;
+  }
+
+  function withholdVisibilityAudience<T extends { permissions?: unknown } | null>(agent: T): T {
+    return agent ? { ...agent, permissions: withoutVisibilityAudience(agent.permissions) } : agent;
   }
 
   async function actorCanViewCompanyCosts(req: Request, companyId: string) {
@@ -3207,6 +3227,16 @@ export function agentRoutes(
     };
   }
 
+  // Who a private partner is shared with is visible only to people who manage it.
+  function withoutVisibilityAudience<T>(permissions: T): T {
+    const record = asRecord(permissions);
+    const policy = asRecord(record?.authorizationPolicy);
+    const visibility = asRecord(policy?.agentVisibility);
+    if (!record || !policy || !visibility || !("allowedUserIds" in visibility)) return permissions;
+    const { allowedUserIds: _omitted, ...rest } = visibility;
+    return { ...record, authorizationPolicy: { ...policy, agentVisibility: rest } } as T;
+  }
+
   // Single presenter for every response that emits a raw agent row. Restricted
   // views blank the config wholesale for authorization reasons; this runs for
   // config-reading (board) callers too, so plaintext `adapterConfig.env` values
@@ -4188,7 +4218,8 @@ export function agentRoutes(
     const rows = canReadConfigs
       ? result.map((agent) => redactAgentRowForResponse(agent))
       : result.map((agent) => redactForRestrictedAgentView(agent));
-    res.json(await actorCanViewCompanyCosts(req, companyId) ? rows : rows.map((agent) => withholdAgentCosts(agent)));
+    const visibleRows = await actorCanManageAgents(req, companyId) ? rows : rows.map((agent) => withholdVisibilityAudience(agent));
+    res.json(await actorCanViewCompanyCosts(req, companyId) ? visibleRows : visibleRows.map((agent) => withholdAgentCosts(agent)));
   });
 
   router.get("/instance/scheduler-heartbeats", async (req, res) => {
@@ -4418,7 +4449,8 @@ export function agentRoutes(
     const canReadSensitiveDetail = isSelf
       ? true
       : await actorCanReadConfigurationsForCompany(req, agent.companyId);
-    const detail = await buildAgentDetail(agent, canReadSensitiveDetail ? undefined : { restricted: true });
+    const built = await buildAgentDetail(agent, canReadSensitiveDetail ? undefined : { restricted: true });
+    const detail = await actorCanManageAgents(req, agent.companyId) ? built : withholdVisibilityAudience(built);
     res.json(await actorCanViewCompanyCosts(req, agent.companyId) ? detail : withholdAgentCosts(detail));
   });
 
@@ -5155,6 +5187,60 @@ export function agentRoutes(
     });
 
     res.json(await buildAgentDetail(agent));
+  });
+
+  router.get("/agents/:id/visibility", async (req, res) => {
+    const id = req.params.id as string;
+    const agent = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");
+    if (!agent) return;
+    await assertBoardCanManageAgentsForCompany(req, agent.companyId);
+    const allowedUserIds = readPrivateAgentAudience(agent.permissions);
+    res.json({ mode: allowedUserIds ? "private" : "discoverable", allowedUserIds: allowedUserIds ?? [] });
+  });
+
+  router.put("/agents/:id/visibility", validate(updateAgentVisibilitySchema), async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");
+    if (!existing) return;
+    await assertBoardCanManageAgentsForCompany(req, existing.companyId);
+
+    const allowedUserIds = [...new Set(req.body.allowedUserIds as string[])];
+    if (allowedUserIds.length > 0) {
+      const members = await db
+        .select({ principalId: companyMemberships.principalId })
+        .from(companyMemberships)
+        .where(and(
+          eq(companyMemberships.companyId, existing.companyId),
+          eq(companyMemberships.principalType, "user"),
+          eq(companyMemberships.status, "active"),
+          inArray(companyMemberships.principalId, allowedUserIds),
+        ));
+      if (members.length !== allowedUserIds.length) {
+        throw unprocessable("Only active members of this workspace can be given access to an AI partner.");
+      }
+    }
+
+    const agent = await svc.updateVisibility(id, { mode: req.body.mode, allowedUserIds });
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      agentApiKeyId: actor.agentApiKeyId,
+      action: "agent.visibility_updated",
+      entityType: "agent",
+      entityId: agent.id,
+      details: { mode: req.body.mode, allowedUserCount: allowedUserIds.length },
+    });
+
+    res.json({ mode: req.body.mode, allowedUserIds: req.body.mode === "private" ? allowedUserIds : [] });
   });
 
   router.patch("/agents/:id/instructions-path", validate(updateAgentInstructionsPathSchema), async (req, res) => {

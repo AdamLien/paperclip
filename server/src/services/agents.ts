@@ -1222,6 +1222,30 @@ export function agentService(db: Db) {
       return updated ? getById(updated.id) : null;
     },
 
+    updateVisibility: async (id: string, visibility: { mode: "discoverable" | "private"; allowedUserIds: string[] }) => {
+      const existing = await getById(id);
+      if (!existing) return null;
+      const permissions: Record<string, unknown> = isPlainRecord(existing.permissions) ? existing.permissions : {};
+      const policy = isPlainRecord(permissions.authorizationPolicy) ? permissions.authorizationPolicy : {};
+      const previous = isPlainRecord(policy.agentVisibility) ? policy.agentVisibility : {};
+      const agentVisibility = visibility.mode === "private"
+        ? { ...previous, mode: "private", allowedUserIds: visibility.allowedUserIds }
+        : { ...previous, mode: "discoverable", allowedUserIds: [] };
+      const updated = await db
+        .update(agents)
+        .set({
+          permissions: normalizeAgentPermissions({
+            ...permissions,
+            authorizationPolicy: { ...policy, agentVisibility },
+          }),
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.id, id))
+        .returning()
+        .then((rows) => rows[0] ?? null);
+      return updated ? getById(updated.id) : null;
+    },
+
     listConfigRevisions: async (id: string) =>
       db
         .select()
