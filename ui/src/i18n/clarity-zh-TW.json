@@ -165,5 +165,6 @@
   "Save model source": "儲存模型來源",
   "Model source saved": "已儲存模型來源",
   "Could not save the model source": "無法儲存模型來源",
-  "Could not load this partner's model source. Refresh the page to try again.": "無法載入這位夥伴的模型來源，請重新整理頁面再試一次。"
+  "Could not load this partner's model source. Refresh the page to try again.": "無法載入這位夥伴的模型來源，請重新整理頁面再試一次。",
+  "Restricted AI partner": "受限的 AI 夥伴"
 }

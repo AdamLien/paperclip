@@ -22,6 +22,7 @@ import { timeAgo } from "../lib/timeAgo";
 import { Identity } from "./Identity";
 import { StatusIcon } from "./StatusIcon";
 import { Badge } from "@/components/ui/badge";
+import { translateUiLiteral } from "@/i18n/LegacyLiteralLocalizer";
 
 export const issueTrailingColumns: InboxIssueColumn[] = ["assignee", "kickedOffBy", "project", "workspace", "parent", "labels", "updated"];
 
@@ -329,7 +330,7 @@ export function InboxIssueTrailingColumns({
             return (
               <span key={column} className="min-w-0 text-xs text-foreground">
                 <AgentIdentity
-                  agent={assigneeAgent ?? { id: issue.assigneeAgentId, name: assigneeName ?? issue.assigneeAgentId.slice(0, 8) }}
+                  agent={assigneeAgent ?? { id: issue.assigneeAgentId, name: assigneeName ?? translateUiLiteral("Restricted AI partner") }}
                   size="sm"
                   className="min-w-0"
                 />

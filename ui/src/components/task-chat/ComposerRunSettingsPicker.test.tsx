@@ -185,6 +185,13 @@ describe("composer assignee picker", () => {
     expect(document.querySelector('[role="listbox"]')).toBeNull();
   });
 
+  it("labels an assignee hidden from this member as a restricted partner without its id", () => {
+    render(vi.fn(), vi.fn(), false, { assigneeValue: "agent:private-1", currentAssigneeValue: "agent:private-1", settings: null });
+    const label = container!.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent;
+    expect(label).toBe("Restricted AI partner");
+    expect(container!.textContent).not.toContain("private-1");
+  });
+
   it("offers No assignee and clears settings when selected", async () => {
     const onAssigneeChange = vi.fn();
     const onSettingsChange = vi.fn();

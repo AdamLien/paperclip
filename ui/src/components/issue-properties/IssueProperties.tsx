@@ -1696,8 +1696,11 @@ export function IssueProperties({
     </>
   );
 
+  // A partner missing from the member's directory is private and not shared with them.
   const assigneeTrigger = assignee ? (
     <AgentIdentity agent={assignee} size="sm" />
+  ) : issue.assigneeAgentId && agents ? (
+    <span className="text-sm text-muted-foreground">Restricted AI partner</span>
   ) : assigneeUserLabel ? (
     <>
       <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
