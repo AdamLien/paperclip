@@ -70,6 +70,32 @@ async function discoveryRequest<T>(req: Request, res: Response, work: (signal: A
   }
 }
 
+function plainRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+/**
+ * Shape a gateway tool result as an MCP `tools/call` result. Plugin tools come
+ * back wrapped as `{ pluginId, toolName, result: { content, data } }`, so unwrap
+ * that first. MCP clients reject a non-object `structuredContent`, so it is
+ * omitted unless the tool returned an object.
+ */
+export function mcpToolCallResult(raw: unknown) {
+  const outer = plainRecord(raw);
+  const toolResult = outer && typeof outer.pluginId === "string" && plainRecord(outer.result)
+    ? plainRecord(outer.result)
+    : outer;
+  const text = typeof toolResult?.content === "string"
+    ? toolResult.content
+    : JSON.stringify(toolResult?.data ?? raw ?? null);
+  const structuredContent = plainRecord(toolResult?.data);
+  return {
+    content: [{ type: "text" as const, text }],
+    ...(structuredContent ? { structuredContent } : {}),
+    isError: false,
+  };
+}
+
 async function handleMcpGatewayProtocol(
   req: Request,
   res: Response,
@@ -188,21 +214,7 @@ async function handleMcpGatewayProtocol(
         parameters: params.arguments ?? {},
         callerHeaders: req.headers,
       });
-      const resultRecord = result.result && typeof result.result === "object" && !Array.isArray(result.result)
-        ? result.result as Record<string, unknown>
-        : null;
-      const contentText = typeof resultRecord?.content === "string"
-        ? resultRecord.content
-        : JSON.stringify(resultRecord?.data ?? result.result ?? null);
-      res.json({
-        jsonrpc: "2.0",
-        id,
-        result: {
-          content: [{ type: "text", text: contentText }],
-          structuredContent: resultRecord?.data ?? null,
-          isError: false,
-        },
-      });
+      res.json({ jsonrpc: "2.0", id, result: mcpToolCallResult(result.result) });
       return;
     }
     if (["resources/list", "resources/read", "prompts/list", "prompts/get"].includes(body.method ?? "")) {
