@@ -241,6 +241,77 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
   });
 
+  it("does not let an agent's unscoped default tool grant reach connection tools outside its profiles", async () => {
+    const company = await createCompany(db);
+    const agent = await createAgent(db, company.id);
+    const otherAgent = await createAgent(db, company.id);
+    const { connection, catalogEntry } = await createTool(db, company.id);
+    const unassigned = await db.insert(toolCatalogEntries).values({
+      companyId: company.id,
+      applicationId: catalogEntry.applicationId,
+      connectionId: connection.id,
+      name: "delete_contact",
+      toolName: "delete_contact",
+      riskLevel: "destructive",
+      versionHash: randomUUID(),
+      schemaHash: randomUUID(),
+    }).returning().then((rows) => rows[0]!);
+    // New standard agents receive this unscoped grant by default.
+    await db.insert(principalPermissionGrants).values([agent, otherAgent].map((principal) => ({
+      companyId: company.id,
+      principalType: "agent" as const,
+      principalId: principal.id,
+      permissionKey: "tools:use",
+      scope: null,
+    })));
+    const profile = await db.insert(toolProfiles).values({
+      companyId: company.id,
+      profileKey: `profile-${randomUUID()}`,
+      name: "Enabled app tools",
+      defaultAction: "deny",
+    }).returning().then((rows) => rows[0]!);
+    await db.insert(toolProfileBindings).values({ companyId: company.id, profileId: profile.id, targetType: "agent", targetId: agent.id });
+    await db.insert(toolProfileEntries).values({
+      companyId: company.id,
+      profileId: profile.id,
+      selectorType: "catalog_entry",
+      effect: "include",
+      catalogEntryId: catalogEntry.id,
+    });
+    const decide = (agentId: string, entry: typeof catalogEntry) => toolAccessPolicyService(db).decide({
+      companyId: company.id,
+      actor: { actorType: "agent", actorId: agentId, agentId },
+      request: { connectionId: connection.id, catalogEntryId: entry.id, toolName: entry.toolName },
+    });
+
+    await expect(decide(agent.id, catalogEntry)).resolves.toMatchObject({ allowed: true, reasonCode: "allow_profile" });
+    await expect(decide(agent.id, unassigned)).resolves.toMatchObject({ allowed: false, reasonCode: "deny_default" });
+    await expect(decide(otherAgent.id, catalogEntry)).resolves.toMatchObject({ allowed: false, reasonCode: "deny_default" });
+  });
+
+  it("keeps scoped agent tool grants and unscoped board-user grants authoritative for connection tools", async () => {
+    const company = await createCompany(db);
+    const agent = await createAgent(db, company.id);
+    const userId = `user-${randomUUID()}`;
+    const { connection, catalogEntry } = await createTool(db, company.id);
+    await db.insert(principalPermissionGrants).values([
+      { companyId: company.id, principalType: "agent", principalId: agent.id, permissionKey: "tools:use", scope: { connectionId: connection.id } },
+      { companyId: company.id, principalType: "user", principalId: userId, permissionKey: "tools:use", scope: null },
+    ]);
+    const request = { connectionId: connection.id, catalogEntryId: catalogEntry.id, toolName: "send_email" };
+
+    await expect(toolAccessPolicyService(db).decide({
+      companyId: company.id,
+      actor: { actorType: "agent", actorId: agent.id, agentId: agent.id },
+      request,
+    })).resolves.toMatchObject({ allowed: true, reasonCode: "allow_explicit_grant" });
+    await expect(toolAccessPolicyService(db).decide({
+      companyId: company.id,
+      actor: { actorType: "user", actorId: userId },
+      request,
+    })).resolves.toMatchObject({ allowed: true, reasonCode: "allow_explicit_grant" });
+  });
+
   it("uses issue-scoped profiles ahead of company defaults", async () => {
     const company = await createCompany(db);
     const agent = await createAgent(db, company.id);

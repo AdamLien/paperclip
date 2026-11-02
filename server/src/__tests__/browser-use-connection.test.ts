@@ -438,7 +438,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         bearerToken: servers[0]!.token!,
       });
       expect(tools).toHaveLength(7);
-      expect(tools.some((tool) => tool.name.endsWith(":browser-start"))).toBe(
+      expect(tools.some((tool) => /:browser-start(-[0-9a-f]{12})?$/.test(tool.name))).toBe(
         true,
       );
     });

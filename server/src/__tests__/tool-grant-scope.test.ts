@@ -30,14 +30,19 @@ suite("tool grant restrictions", () => {
     { name: "other selector", scope: { toolName: "tool_0005" }, allowed: false },
     { name: "combined mismatch", scope: { allow: ["tool:tool_0004"], toolName: "tool_0005" }, allowed: false },
     { name: "unknown combined selector", scope: { allow: ["tool:tool_0004"], unsupported: true }, allowed: false },
-    { name: "unrestricted empty scope", scope: {}, allowed: true },
-    { name: "unrestricted null scope", scope: null, allowed: true },
+    // An agent's unscoped default grant does not reach connection tools on its own.
+    { name: "unscoped empty scope on a connection tool", scope: {}, allowed: false },
+    { name: "unscoped null scope on a connection tool", scope: null, allowed: false },
+    { name: "connection-wide scope", scope: { connectionId: "__connection__" }, allowed: true },
     { name: "invalid scope array", scope: [] as unknown as Record<string, unknown>, allowed: false },
     { name: "invalid scope number", scope: 42 as unknown as Record<string, unknown>, allowed: false },
     { name: "invalid scope boolean", scope: false as unknown as Record<string, unknown>, allowed: false },
   ])("enforces $name", async ({ scope, allowed }) => {
     const fixture = await createListingFixture(db, 6);
-    await db.update(principalPermissionGrants).set({ scope }).where(eq(principalPermissionGrants.principalId, fixture.agent.id));
+    const effectiveScope = scope && typeof scope === "object" && !Array.isArray(scope) && scope.connectionId === "__connection__"
+      ? { connectionId: fixture.connection.id }
+      : scope;
+    await db.update(principalPermissionGrants).set({ scope: effectiveScope }).where(eq(principalPermissionGrants.principalId, fixture.agent.id));
     const result = await toolAccessPolicyService(db).decide({
       companyId: fixture.company.id,
       actor: { actorType: "agent", actorId: fixture.agent.id, agentId: fixture.agent.id },
@@ -51,7 +56,7 @@ suite("tool grant restrictions", () => {
     const fixture = await createListingFixture(db, 6);
     await db.update(toolProfiles).set({ defaultAction: "deny" }).where(eq(toolProfiles.id, fixture.namedGateway.profileId));
     await db.delete(toolPolicies).where(eq(toolPolicies.companyId, fixture.company.id));
-    await db.update(principalPermissionGrants).set({ scope: {} })
+    await db.update(principalPermissionGrants).set({ scope: { connectionId: fixture.connection.id } })
       .where(eq(principalPermissionGrants.principalId, fixture.agent.id));
     await db.insert(connectionGrants).values({ companyId: fixture.company.id, connectionId: fixture.connection.id,
       kind: "organization", status: "active", isDefault: true });
