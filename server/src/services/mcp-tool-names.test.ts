@@ -9,9 +9,17 @@ describe("provider MCP name budget", () => {
   it("bounds the complete provider name and retains unique, stable aliases", () => {
     const name = `mcp.app-gallery-posthog-${"a".repeat(40)}-cb60822c:file-download-batch-exports-count-rows-create`;
     const first = boundedMcpToolName(name, ["connection-one", "file_download_batch_exports_count_rows_create"]);
-    expect(`mcp__${ASSIGNED_MCP_SERVER_NAME}__${first}`.length).toBeLessThanOrEqual(128);
+    expect(first.length).toBeLessThanOrEqual(64);
+    expect(`mcp__${ASSIGNED_MCP_SERVER_NAME}__${first}`.length).toBeLessThan(128);
     expect(first).toContain("file-download");
     expect(boundedMcpToolName(name, ["connection-one", "file_download_batch_exports_count_rows_create"])).toBe(first);
     expect(boundedMcpToolName(name, ["connection-two", "file_download_batch_exports_count_rows_create"])).not.toBe(first);
+  });
+  it("keeps the readable tool part of a pasted-link connection name within budget", () => {
+    // Pasted MCP links are namespaced by a 53-character gallery key plus the connection id.
+    const name = "mcp.app-gallery-link-10d3f17f-dbd7-4c4b-9bd8-381984f63bc9-186c7d8e:metabiz-mcrm-member-growth-by-month";
+    const bounded = boundedMcpToolName(name, ["connection", "metabiz_mcrm_member_growth_by_month"]);
+    expect(bounded.length).toBeLessThanOrEqual(64);
+    expect(bounded).toContain("metabiz-mcrm-member-growth-by");
   });
 });

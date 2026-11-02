@@ -1212,7 +1212,12 @@ export function toolAccessPolicyService(db: Db) {
           eq(principalPermissionGrants.principalId, principalId),
           eq(principalPermissionGrants.permissionKey, "tools:use"),
         )));
-    return grants.some((grant) => scopeAllowsTool(grant.scope, ctx));
+    // Every new standard agent holds an unscoped tools:use grant. For an
+    // agent, connection tools come from the app assignments and profiles a
+    // manager chose; only an explicitly scoped grant may widen them.
+    const unscopedAgentGrantOnConnection = (scope: Record<string, unknown> | null) =>
+      principalType === "agent" && Boolean(ctx.connectionId) && (!isRecord(scope) || Object.keys(scope).length === 0);
+    return grants.some((grant) => !unscopedAgentGrantOnConnection(grant.scope) && scopeAllowsTool(grant.scope, ctx));
   }
 
   async function enforceRateLimit(policy: typeof toolPolicies.$inferSelect, ctx: ToolAccessContext, consume: boolean) {
