@@ -30,7 +30,7 @@ import {
 } from "../src/templates.js";
 import { SettingsPage, SidebarLink, WikiPage, WikiRouteSidebar } from "../src/ui/index.js";
 import plugin from "../src/worker.js";
-import { OPERATION_ORIGIN_KIND, type WikiSkillResource } from "../src/wiki.js";
+import { OPERATION_ORIGIN_KIND, wikiPageHref, type WikiSkillResource } from "../src/wiki.js";
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_COMPANY_ID = "99999999-9999-4999-8999-999999999999";
@@ -1528,6 +1528,96 @@ Duplicate headings receive stable suffixes.
       wikiId: "default",
     });
     expect(pages.content).toBe("No pages indexed yet.");
+  });
+
+  describe("citation links", () => {
+    const SOURCE = "# UAT source\n\nCode word: blue whale 7341\n";
+    const PAGE = "# Leave policy\n\nTen days.\n";
+
+    function citationHarness(withCompany = true) {
+      const harness = createTestHarness({ manifest });
+      if (withCompany) {
+        harness.seed({ companies: [{ id: COMPANY_ID, issuePrefix: "uat", name: "UAT Co" } as never] });
+      }
+      const files = new Map([["raw/2026-11-01-uat.md", SOURCE], ["wiki/policies/leave.md", PAGE]]);
+      harness.ctx.localFolders.readText = async (_companyId, _folderKey, relativePath) => {
+        const contents = files.get(relativePath);
+        if (contents == null) throw new Error(`missing ${relativePath}`);
+        return contents;
+      };
+      harness.ctx.db.query = async <T = Record<string, unknown>>(sql: string) => {
+        if (sql.includes("UNION ALL")) {
+          return [
+            { kind: "page", path: "wiki/policies/leave.md", title: "Leave policy", match_text: "policies" },
+            { kind: "source", path: "raw/2026-11-01-uat.md", title: "UAT source", match_text: "text" },
+          ] as T[];
+        }
+        if (sql.includes("wiki_sources")) {
+          return [{ raw_path: "raw/2026-11-01-uat.md", title: "UAT source", source_type: "text", url: null, content_hash: "h" }] as T[];
+        }
+        return [];
+      };
+      return harness;
+    }
+
+    it("builds the wiki UI route for default and named spaces", () => {
+      expect(wikiPageHref("uat", "default", "raw/2026-11-01-uat.md")).toBe("/UAT/wiki/page/raw/2026-11-01-uat.md");
+      expect(wikiPageHref("PAP", "finance team", "wiki/a b.md")).toBe("/PAP/wiki/spaces/finance%20team/page/wiki/a%20b.md");
+    });
+
+    it("gives search results and listed sources a clickable company link", async () => {
+      const harness = citationHarness();
+      await plugin.definition.setup(harness.ctx);
+
+      const search = await harness.executeTool<{ content: string; data: { results: Array<{ path: string; href: string }> } }>("wiki_search", {
+        companyId: COMPANY_ID, wikiId: "default", query: "uat",
+      });
+      expect(search.content).toContain("source: raw/2026-11-01-uat.md - UAT source (link: /UAT/wiki/page/raw/2026-11-01-uat.md)");
+      expect(search.content).toContain("page: wiki/policies/leave.md - Leave policy (link: /UAT/wiki/page/wiki/policies/leave.md)");
+      expect(search.data.results.map((row) => row.href)).toEqual([
+        "/UAT/wiki/page/wiki/policies/leave.md",
+        "/UAT/wiki/page/raw/2026-11-01-uat.md",
+      ]);
+
+      const sources = await harness.executeTool<{ content: string; data: { sources: Array<{ href: string }> } }>("wiki_list_sources", {
+        companyId: COMPANY_ID, wikiId: "default",
+      });
+      expect(sources.content).toBe("raw/2026-11-01-uat.md - UAT source (link: /UAT/wiki/page/raw/2026-11-01-uat.md)");
+      expect(sources.data.sources[0]?.href).toBe("/UAT/wiki/page/raw/2026-11-01-uat.md");
+    });
+
+    it("ends a raw source with its citation link but leaves page text exact for write-back", async () => {
+      const harness = citationHarness();
+      await plugin.definition.setup(harness.ctx);
+
+      const source = await harness.executeTool<{ content: string; data: { hash: string; href: string } }>("wiki_read_source", {
+        companyId: COMPANY_ID, wikiId: "default", rawPath: "raw/2026-11-01-uat.md",
+      });
+      expect(source.content.startsWith(SOURCE)).toBe(true);
+      expect(source.content.endsWith("Citation link for raw/2026-11-01-uat.md: /UAT/wiki/page/raw/2026-11-01-uat.md")).toBe(true);
+      expect(source.data.href).toBe("/UAT/wiki/page/raw/2026-11-01-uat.md");
+
+      const page = await harness.executeTool<{ content: string; data: { hash: string; href: string } }>("wiki_read_page", {
+        companyId: COMPANY_ID, wikiId: "default", path: "wiki/policies/leave.md",
+      });
+      expect(page.content).toBe(PAGE);
+      expect(page.data.href).toBe("/UAT/wiki/page/wiki/policies/leave.md");
+      // The write-back hash still covers only the stored text.
+      expect(source.data.hash).not.toBe(page.data.hash);
+    });
+
+    it("omits links rather than guessing when the company cannot be read", async () => {
+      const harness = citationHarness(false);
+      await plugin.definition.setup(harness.ctx);
+
+      const source = await harness.executeTool<{ content: string; data: { href: string | null } }>("wiki_read_source", {
+        companyId: COMPANY_ID, wikiId: "default", rawPath: "raw/2026-11-01-uat.md",
+      });
+      expect(source.content).toBe(SOURCE);
+      expect(source.data.href).toBeNull();
+      const sources = await harness.executeTool<{ content: string }>("wiki_list_sources", { companyId: COMPANY_ID, wikiId: "default" });
+      expect(sources.content).toBe("raw/2026-11-01-uat.md - UAT source");
+    });
   });
 
   it("filters stale page and raw source rows out of browse data", async () => {

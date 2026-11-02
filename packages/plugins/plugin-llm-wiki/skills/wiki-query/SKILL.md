@@ -19,7 +19,7 @@ Answer a question from what the wiki actually contains, with citations.
 3. **Inspect raw sources** when a wiki page's claim feels thin. The wiki points to `raw/` precisely so you can verify before answering. Use `wiki_read_source`.
 4. **Answer the question** in the operation issue thread. Structure:
    - Direct answer first, in 1–4 sentences.
-   - Then the supporting facts as bullet points, each with an inline citation: `(see [[wiki/concepts/managed-resources]])` or `(see raw/<filename>)`.
+   - Then the supporting facts as bullet points, each with an inline citation that people can click: a markdown link to the board link that `wiki_search`, `wiki_list_sources` and `wiki_read_source` return, e.g. `(see [Managed resources](/PAP/wiki/page/wiki/concepts/managed-resources.md))` or `(see [raw/<filename>](/PAP/wiki/page/raw/<filename>))`. Never cite a filesystem path.
    - If you needed to read a raw source the wiki did not summarise, name that as a gap.
 5. **Decide whether the answer is durable.** If the question forced you to do real synthesis (a comparison, a tradeoff, a definition of something that isn't already a page), offer to file it under `wiki/synthesis/<slug>.md`. Do not write the synthesis page silently — it is opt-in. If the user accepts, write the page, link it from `wiki/index.md`, and append a `query | filed synthesis` log entry.
 6. **When the wiki cannot answer**, say so plainly. Suggest a source the user should ingest, a Paperclip project that would help if distilled, or a web lookup. Never bluff.
@@ -34,7 +34,7 @@ Answer a question from what the wiki actually contains, with citations.
 
 Before closing the operation issue:
 
-- [ ] Every claim in the answer cites a wiki page or raw source.
+- [ ] Every claim in the answer cites a wiki page or raw source with a clickable board link.
 - [ ] If the wiki was insufficient, that is stated directly with a concrete next step (ingest source X, distill project Y, web search Z).
 - [ ] If you wrote a synthesis page, `wiki/index.md` lists it and `wiki/log.md` has a `query | filed synthesis` entry.
 - [ ] No file under `raw/` was modified.

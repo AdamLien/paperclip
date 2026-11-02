@@ -320,7 +320,7 @@ const manifest: PaperclipPluginManifestV1 = {
     {
       name: "wiki_search",
       displayName: "Search Wiki",
-      description: "Search indexed wiki page and source metadata for one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space.",
+      description: "Search indexed wiki page and source metadata for one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space. Each result includes a board link; cite it as a markdown link when answering.",
       parametersSchema: {
         type: "object",
         properties: {
@@ -386,7 +386,7 @@ const manifest: PaperclipPluginManifestV1 = {
     {
       name: "wiki_list_sources",
       displayName: "List Wiki Sources",
-      description: "Return captured raw source metadata from one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space.",
+      description: "Return captured raw source metadata from one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space. Each result includes a board link; cite it as a markdown link when answering.",
       parametersSchema: {
         type: "object",
         properties: {
@@ -401,7 +401,7 @@ const manifest: PaperclipPluginManifestV1 = {
     {
       name: "wiki_read_source",
       displayName: "Read Wiki Source",
-      description: "Read a captured raw source from one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space.",
+      description: "Read a captured raw source from one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space. The text ends with the source's board link; cite it as a markdown link when answering.",
       parametersSchema: {
         type: "object",
         properties: {
