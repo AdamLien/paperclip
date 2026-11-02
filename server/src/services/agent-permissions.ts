@@ -6,8 +6,6 @@ export const NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS = [
   "agents:suggest-changes",
   "skills:create",
   "skills:suggest-changes",
-  "tools:manage_connections",
-  "tools:manage_profiles",
   "tools:view_audit",
   "audit:view_agent_actions",
   "tools:use",
