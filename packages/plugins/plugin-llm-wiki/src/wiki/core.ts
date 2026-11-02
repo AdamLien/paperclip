@@ -4056,6 +4056,21 @@ export async function fileQueryAnswerAsPage(ctx: PluginContext, input: FileQuery
   };
 }
 
+/**
+ * Board link that opens a wiki page or raw source, matching the wiki UI's
+ * `/<PREFIX>/wiki[/spaces/<slug>]/page/<path>` route so agents can cite it.
+ */
+export function wikiPageHref(companyPrefix: string, spaceSlug: string, path: string): string {
+  const space = spaceSlug && spaceSlug !== DEFAULT_SPACE_SLUG ? `/spaces/${encodeURIComponent(spaceSlug)}` : "";
+  const encodedPath = path.split("/").filter(Boolean).map((segment) => encodeURIComponent(segment)).join("/");
+  return `/${encodeURIComponent(companyPrefix.trim().toUpperCase())}/wiki${space}/page/${encodedPath}`;
+}
+
+async function wikiHrefBuilder(ctx: PluginContext, companyId: string, spaceSlug: string) {
+  const prefix = (await ctx.companies.get(companyId))?.issuePrefix;
+  return (path: string) => (prefix ? wikiPageHref(prefix, spaceSlug, path) : null);
+}
+
 export async function registerWikiTools(ctx: PluginContext) {
   ctx.tools.register("wiki_search", {
     displayName: "Search Wiki",
@@ -4080,9 +4095,13 @@ export async function registerWikiTools(ctx: PluginContext) {
        LIMIT $4`,
       [companyId, wikiId, `%${query}%`, limit, space.id],
     );
+    const hrefFor = await wikiHrefBuilder(ctx, companyId, space.slug);
+    const results = rows.map((row) => ({ ...row, href: hrefFor(row.path) }));
     return {
-      content: rows.length ? rows.map((row) => `${row.kind}: ${row.path}${row.title ? ` - ${row.title}` : ""}`).join("\n") : "No wiki matches found.",
-      data: { companyId, wikiId, spaceSlug: space.slug, query, results: rows },
+      content: results.length
+        ? results.map((row) => `${row.kind}: ${row.path}${row.title ? ` - ${row.title}` : ""}${row.href ? ` (link: ${row.href})` : ""}`).join("\n")
+        : "No wiki matches found.",
+      data: { companyId, wikiId, spaceSlug: space.slug, query, results },
     };
   });
 
@@ -4097,7 +4116,9 @@ export async function registerWikiTools(ctx: PluginContext) {
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const path = assertPagePath(requireString(input.path, "path"));
     const contents = await ctx.localFolders.readText(companyId, WIKI_ROOT_FOLDER_KEY, spaceRelativePath(space, path));
-    return { content: contents, data: { companyId, wikiId, spaceSlug: space.slug, path, hash: contentHash(contents) } };
+    // The page text stays exact because agents edit and write it back; the link rides in data.
+    const href = (await wikiHrefBuilder(ctx, companyId, space.slug))(path);
+    return { content: contents, data: { companyId, wikiId, spaceSlug: space.slug, path, hash: contentHash(contents), href } };
   });
 
   ctx.tools.register("wiki_write_page", {
@@ -4164,9 +4185,13 @@ export async function registerWikiTools(ctx: PluginContext) {
         LIMIT $3`,
       [companyId, wikiId, limit, space.id],
     );
+    const hrefFor = await wikiHrefBuilder(ctx, companyId, space.slug);
+    const sources = rows.map((row) => ({ ...row, href: hrefFor(row.raw_path) }));
     return {
-      content: rows.length ? rows.map((row) => `${row.raw_path}${row.title ? ` - ${row.title}` : ""}`).join("\n") : "No sources captured yet.",
-      data: { companyId, wikiId, spaceSlug: space.slug, sources: rows },
+      content: sources.length
+        ? sources.map((row) => `${row.raw_path}${row.title ? ` - ${row.title}` : ""}${row.href ? ` (link: ${row.href})` : ""}`).join("\n")
+        : "No sources captured yet.",
+      data: { companyId, wikiId, spaceSlug: space.slug, sources },
     };
   });
 
@@ -4181,7 +4206,12 @@ export async function registerWikiTools(ctx: PluginContext) {
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const rawPath = assertRawPath(requireString(input.rawPath, "rawPath"));
     const contents = await ctx.localFolders.readText(companyId, WIKI_ROOT_FOLDER_KEY, spaceRelativePath(space, rawPath));
-    return { content: contents, data: { companyId, wikiId, spaceSlug: space.slug, rawPath, hash: contentHash(contents) } };
+    // Raw sources are never written back, so the citation link can follow the text.
+    const href = (await wikiHrefBuilder(ctx, companyId, space.slug))(rawPath);
+    return {
+      content: href ? `${contents}\n\n---\nCitation link for ${rawPath}: ${href}` : contents,
+      data: { companyId, wikiId, spaceSlug: space.slug, rawPath, hash: contentHash(contents), href },
+    };
   });
 
   ctx.tools.register("wiki_append_log", {
