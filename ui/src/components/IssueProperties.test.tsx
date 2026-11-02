@@ -902,6 +902,25 @@ describe("IssueProperties", () => {
     act(() => root.unmount());
   });
 
+  it("shows a restricted partner instead of Unassigned when the assignee is hidden from this member", async () => {
+    mockAgentsApi.list.mockResolvedValue([{ id: "agent-1", name: "CodexCoder", status: "active", adapterType: "codex_local" }]);
+    const root = renderProperties(container, {
+      issue: createIssue({ assigneeAgentId: "private-agent-123456" }),
+      childIssues: [],
+      onUpdate: vi.fn(),
+      inline: true,
+    });
+    await flush();
+
+    await waitForAssertion(() => {
+      expect(container.textContent).toContain("Restricted AI partner");
+      expect(container.textContent).not.toContain("Unassigned");
+      expect(container.textContent).not.toContain("private-");
+    });
+
+    act(() => root.unmount());
+  });
+
   it("shows originating without merged responsible wording when responsible is derived from the creator", async () => {
     const root = renderProperties(container, {
       issue: createIssue({
