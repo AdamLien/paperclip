@@ -78,17 +78,18 @@ function plainRecord(value: unknown): Record<string, unknown> | null {
  * Shape a gateway tool result as an MCP `tools/call` result. Plugin tools come
  * back wrapped as `{ pluginId, toolName, result: { content, data } }`, so unwrap
  * that first. MCP clients reject a non-object `structuredContent`, so it is
- * omitted unless the tool returned an object.
+ * omitted unless the tool returned an object. A plugin's `content` is its
+ * answer and `data` only side metadata, and clients that see
+ * `structuredContent` show it instead of the text, so plugin results are text only.
  */
 export function mcpToolCallResult(raw: unknown) {
   const outer = plainRecord(raw);
-  const toolResult = outer && typeof outer.pluginId === "string" && plainRecord(outer.result)
-    ? plainRecord(outer.result)
-    : outer;
+  const pluginResult = outer && typeof outer.pluginId === "string" ? plainRecord(outer.result) : null;
+  const toolResult = pluginResult ?? outer;
   const text = typeof toolResult?.content === "string"
     ? toolResult.content
     : JSON.stringify(toolResult?.data ?? raw ?? null);
-  const structuredContent = plainRecord(toolResult?.data);
+  const structuredContent = pluginResult && typeof pluginResult.content === "string" ? null : plainRecord(toolResult?.data);
   return {
     content: [{ type: "text" as const, text }],
     ...(structuredContent ? { structuredContent } : {}),
