@@ -16,7 +16,7 @@ function callTool(app: express.Express) {
 }
 
 describe("MCP tools/call results", () => {
-  it("unwraps a plugin tool result so the agent gets its text and an object structuredContent", async () => {
+  it("unwraps a plugin tool result and sends only its text, so clients do not swap it for side metadata", async () => {
     const response = await callTool(appReturning({
       pluginId: "paperclipai.plugin-llm-wiki",
       toolName: "wiki_read_source",
@@ -28,7 +28,14 @@ describe("MCP tools/call results", () => {
     expect(response.status).toBe(200);
     expect(response.body.result).toEqual({
       content: [{ type: "text", text: "Code word: blue whale 7341\n\n---\nCitation link for raw/a.md: /UAT/wiki/page/raw/a.md" }],
-      structuredContent: { rawPath: "raw/a.md", href: "/UAT/wiki/page/raw/a.md" },
+      isError: false,
+    });
+  });
+
+  it("falls back to a plugin's data as both text and structuredContent when it returns no text", () => {
+    expect(mcpToolCallResult({ pluginId: "p", toolName: "t", result: { data: { count: 2 } } })).toEqual({
+      content: [{ type: "text", text: JSON.stringify({ count: 2 }) }],
+      structuredContent: { count: 2 },
       isError: false,
     });
   });
