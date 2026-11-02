@@ -12,6 +12,7 @@ import type {
 } from "@paperclipai/shared";
 import { isSystemIssueDocumentKey } from "@paperclipai/shared";
 import { useLocation } from "@/lib/router";
+import { downloadDocumentFile } from "@/lib/document-download";
 import { ApiError } from "../api/client";
 import { issuesApi } from "../api/issues";
 import { useAutosaveIndicator } from "../hooks/useAutosaveIndicator";
@@ -132,18 +133,6 @@ function isDocumentConflictError(error: unknown) {
 
 function isLockedDocumentError(error: unknown) {
   return error instanceof ApiError && error.status === 409 && error.message === "Document is locked";
-}
-
-function downloadDocumentFile(key: string, body: string) {
-  const blob = new Blob([body], { type: "text/markdown;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${key}.md`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 function getRevisionActor(

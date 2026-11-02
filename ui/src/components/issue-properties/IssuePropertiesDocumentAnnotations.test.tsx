@@ -99,6 +99,27 @@ describe("issue properties document annotation mounting", () => {
     await act(async () => root.unmount());
   });
 
+  it("downloads the document as <key>.md from the Artifacts card", async () => {
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:document");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const downloads: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+    const root = createRoot(container);
+    await act(async () => root.render(<IssuePropertiesArtifactsTab issue={issue} />));
+
+    const download = container.querySelector('button[aria-label="Download document"]') as HTMLButtonElement;
+    await act(async () => download.click());
+
+    expect(downloads).toEqual(["qa-evidence.md"]);
+    expect(await createObjectURL.mock.calls[0][0].text()).toBe("Shared annotation target");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:document");
+    click.mockRestore();
+    await act(async () => root.unmount());
+  });
+
   it("does not expand an unrelated document when the requested key is missing", async () => {
     const root = createRoot(container);
     await act(async () => root.render(
