@@ -104,7 +104,14 @@ export function isUnrunnableWorktreeCombo(input: {
   return input.hasResolvablePriorSessionWorkspace !== true;
 }
 
-export function parseProjectExecutionWorkspacePolicy(raw: unknown): ProjectExecutionWorkspacePolicy | null {
+type ParseProjectExecutionWorkspacePolicyOptions = {
+  includeEnvironmentId?: boolean;
+};
+
+export function parseProjectExecutionWorkspacePolicy(
+  raw: unknown,
+  options: ParseProjectExecutionWorkspacePolicyOptions = {},
+): ProjectExecutionWorkspacePolicy | null {
   const parsed = parseObject(raw);
   if (Object.keys(parsed).length === 0) return null;
   const enabled = typeof parsed.enabled === "boolean" ? parsed.enabled : false;
@@ -134,6 +141,9 @@ export function parseProjectExecutionWorkspacePolicy(raw: unknown): ProjectExecu
     ...(normalizedDefaultMode ? { defaultMode: normalizedDefaultMode } : {}),
     ...(allowIssueOverride !== undefined ? { allowIssueOverride } : {}),
     ...(defaultProjectWorkspaceId ? { defaultProjectWorkspaceId } : {}),
+    ...(options.includeEnvironmentId && (typeof parsed.environmentId === "string" || parsed.environmentId === null)
+      ? { environmentId: parsed.environmentId }
+      : {}),
     ...(workspaceStrategy ? { workspaceStrategy } : {}),
     ...(parsed.workspaceRuntime && typeof parsed.workspaceRuntime === "object" && !Array.isArray(parsed.workspaceRuntime)
       ? { workspaceRuntime: { ...(parsed.workspaceRuntime as Record<string, unknown>) } }

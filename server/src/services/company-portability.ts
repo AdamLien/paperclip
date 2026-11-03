@@ -1395,6 +1395,8 @@ function exportPortableProjectExecutionWorkspacePolicy(
     }
     delete next.defaultProjectWorkspaceId;
   }
+  // Execution environments are instance-scoped ids; they do not carry over.
+  delete next.environmentId;
   const cleaned = stripEmptyValues(next);
   return isPlainRecord(cleaned) ? cleaned : null;
 }
