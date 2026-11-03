@@ -6,6 +6,7 @@ import {
 import {
   applyDefaultIsolatedExecutionWorkspacePolicy,
   buildExecutionWorkspaceAdapterConfig,
+  checkProjectExecutionEnvironment,
   defaultIssueExecutionWorkspaceSettingsForProject,
   gateProjectExecutionWorkspacePolicy,
   isUnrunnableWorktreeCombo,
@@ -13,6 +14,7 @@ import {
   parseIssueExecutionWorkspaceSettings,
   parseProjectExecutionWorkspacePolicy,
   ManagedSandboxUnavailableError,
+  readProjectExecutionEnvironmentId,
   resolveEffectiveWorkspaceStrategyType,
   resolveExecutionWorkspaceEnvironmentId,
   resolvePinnedIssueWorkspaceStrategyType,
@@ -596,6 +598,97 @@ describe("execution workspace policy helpers", () => {
         managedSandboxEnvironmentId: "managed-env",
       }),
     ).toEqual({ environmentId: "ssh-env", source: "agent" });
+  });
+
+  it("prefers the project environment over agent and instance defaults", () => {
+    expect(
+      resolveExecutionWorkspaceEnvironmentId({
+        projectEnvironmentId: "project-ssh-env",
+        agentDefaultEnvironmentId: "agent-env",
+        instanceDefaultEnvironmentId: "instance-env",
+        localDefaultEnvironmentId: "local-env",
+      }),
+    ).toEqual({ environmentId: "project-ssh-env", source: "project" });
+  });
+
+  it("falls through to the agent default when the project pins no environment", () => {
+    for (const projectEnvironmentId of [null, undefined, ""]) {
+      expect(
+        resolveExecutionWorkspaceEnvironmentId({
+          projectEnvironmentId,
+          agentDefaultEnvironmentId: "agent-env",
+          instanceDefaultEnvironmentId: "instance-env",
+          localDefaultEnvironmentId: "local-env",
+        }),
+      ).toEqual({ environmentId: "agent-env", source: "agent" });
+    }
+  });
+
+  it("does not let a project pin a sandboxed agent onto the local environment", () => {
+    expect(
+      resolveExecutionWorkspaceEnvironmentId({
+        projectEnvironmentId: "local-env",
+        agentDefaultEnvironmentId: "agent-sandbox-env",
+        instanceDefaultEnvironmentId: null,
+        localDefaultEnvironmentId: "local-env",
+      }),
+    ).toEqual({ environmentId: "agent-sandbox-env", source: "agent" });
+  });
+
+  it("keeps a non-local project environment under managed-sandbox-only", () => {
+    expect(
+      resolveExecutionWorkspaceEnvironmentId({
+        projectEnvironmentId: "project-ssh-env",
+        agentDefaultEnvironmentId: null,
+        instanceDefaultEnvironmentId: null,
+        localDefaultEnvironmentId: "local-env",
+        managedSandboxOnly: true,
+        managedSandboxEnvironmentId: null,
+      }),
+    ).toEqual({ environmentId: "project-ssh-env", source: "project" });
+  });
+
+  it("reads the project environment regardless of the isolated-workspaces gate", () => {
+    expect(readProjectExecutionEnvironmentId({ enabled: false, environmentId: "ssh-env" })).toBe("ssh-env");
+    expect(readProjectExecutionEnvironmentId({ environmentId: null })).toBeNull();
+    expect(readProjectExecutionEnvironmentId({ environmentId: "" })).toBeNull();
+    expect(readProjectExecutionEnvironmentId(null)).toBeNull();
+  });
+
+  it("accepts an active project environment that is instance-global or bound to the company", () => {
+    const environment = { status: "active", driver: "ssh", config: {} };
+    expect(checkProjectExecutionEnvironment({ companyId: "co-a", environment, boundCompanyIds: [] }))
+      .toEqual({ ok: true });
+    expect(checkProjectExecutionEnvironment({ companyId: "co-a", environment, boundCompanyIds: ["co-b", "co-a"] }))
+      .toEqual({ ok: true });
+  });
+
+  it("rejects a project environment that is missing, archived, foreign or probe-only instead of falling back", () => {
+    const active = { status: "active", driver: "ssh", config: {} };
+    expect(checkProjectExecutionEnvironment({ companyId: "co-a", environment: null, boundCompanyIds: [] }))
+      .toEqual({ ok: false, reason: "environment_not_found" });
+    expect(checkProjectExecutionEnvironment({
+      companyId: "co-a",
+      environment: { ...active, status: "archived" },
+      boundCompanyIds: [],
+    })).toEqual({ ok: false, reason: "environment_not_active" });
+    expect(checkProjectExecutionEnvironment({ companyId: "co-a", environment: active, boundCompanyIds: ["co-b"] }))
+      .toEqual({ ok: false, reason: "environment_company_mismatch" });
+    expect(checkProjectExecutionEnvironment({
+      companyId: "co-a",
+      environment: { status: "active", driver: "sandbox", config: { provider: "fake" } },
+      boundCompanyIds: [],
+    })).toEqual({ ok: false, reason: "environment_probe_only" });
+    // The resolver still reports the project environment, never local, so the
+    // caller's rejection is what stops the run.
+    expect(
+      resolveExecutionWorkspaceEnvironmentId({
+        projectEnvironmentId: "archived-env",
+        agentDefaultEnvironmentId: null,
+        instanceDefaultEnvironmentId: null,
+        localDefaultEnvironmentId: "local-env",
+      }),
+    ).toEqual({ environmentId: "archived-env", source: "project" });
   });
 
   it("fails closed — never local — when managed-sandbox-only has no managed environment", () => {

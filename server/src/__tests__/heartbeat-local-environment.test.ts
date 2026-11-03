@@ -10,6 +10,7 @@ import {
   createDb,
   environmentLeases,
   environments,
+  projects,
 } from "@paperclipai/db";
 import {
   getEmbeddedPostgresTestSupport,
@@ -91,6 +92,7 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
         "agent_wakeup_requests",
         "agent_runtime_state",
         "company_skills",
+        "projects",
         "agents",
         "companies"
       RESTART IDENTITY CASCADE
@@ -223,5 +225,63 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
       apiKeyPresent: true,
     });
     expect(captured.apiUrl).toEqual(expect.stringMatching(/^https?:\/\//));
+  });
+  it("fails a project run whose pinned environment is archived instead of falling back to Local", async () => {
+    const companyId = randomUUID();
+    const agentId = randomUUID();
+    const projectId = randomUUID();
+    const archivedEnvironmentId = randomUUID();
+    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix,
+      requireBoardApprovalForNewAgents: false,
+      defaultResponsibleUserId: "responsible-user",
+    });
+    await db.insert(environments).values({
+      id: archivedEnvironmentId,
+      name: "Retired SSH executor",
+      driver: "ssh",
+      status: "archived",
+    });
+    await db.insert(projects).values({
+      id: projectId,
+      companyId,
+      name: "Pinned project",
+      executionWorkspacePolicy: { environmentId: archivedEnvironmentId },
+    });
+    await db.insert(agents).values({
+      id: agentId,
+      companyId,
+      name: "ProcessAgent",
+      role: "engineer",
+      status: "idle",
+      adapterType: "process",
+      adapterConfig: {
+        command: process.execPath,
+        args: ["-e", "process.exit(0)"],
+      },
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    const queued = await heartbeat.wakeup(agentId, {
+      source: "on_demand",
+      triggerDetail: "manual",
+      contextSnapshot: { projectId },
+    });
+    expect(queued).not.toBeNull();
+
+    const finished = await waitForRunToFinish(heartbeat, queued!.id);
+    expect(finished?.status).toBe("failed");
+    expect(finished?.errorCode).toBe("configuration_incomplete");
+
+    const leases = await db
+      .select()
+      .from(environmentLeases)
+      .where(eq(environmentLeases.heartbeatRunId, queued!.id));
+    expect(leases).toHaveLength(0);
   });
 });

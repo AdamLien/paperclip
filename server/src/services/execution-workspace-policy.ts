@@ -272,6 +272,7 @@ export function selectEnvironmentExecutionWorkspaceSettings(
 }
 
 export type ExecutionWorkspaceEnvironmentSource =
+  | "project"
   | "agent"
   | "instance"
   | "default"
@@ -293,7 +294,42 @@ export class ManagedSandboxUnavailableError extends Error {
   }
 }
 
+/**
+ * Read the environment a project pins its runs to. Kept apart from
+ * `parseProjectExecutionWorkspacePolicy` because environment selection is not
+ * gated by the isolated-workspaces flag: the policy blob can be gated off
+ * while its environment still has to apply.
+ */
+export function readProjectExecutionEnvironmentId(rawPolicy: unknown): string | null {
+  const environmentId = parseObject(rawPolicy).environmentId;
+  return typeof environmentId === "string" && environmentId.length > 0 ? environmentId : null;
+}
+
+/**
+ * Environment precedence for a run:
+ *
+ * 1. project policy `environmentId` (the project the run's issue belongs to)
+ * 2. agent `defaultEnvironmentId`
+ * 3. instance `defaultEnvironmentId`
+ * 4. the built-in local environment
+ *
+ * A project can move runs off the local environment, never onto it: a project
+ * that pins the local environment is treated as not pinning one, so an agent
+ * scoped to a sandbox or SSH host is not downgraded onto the server host by
+ * project configuration.
+ *
+ * Issue-level `executionWorkspaceSettings.environmentId` is deliberately not
+ * consulted. Issue settings are copied into child issues and survive
+ * reassignment, so honoring them would let a stale environment follow an
+ * issue to a new assignee (the reason upstream #8375 dropped issue/project
+ * stamping).
+ *
+ * The project environment is only an id here; the caller must validate it
+ * with `checkProjectExecutionEnvironment` and fail the run when it is
+ * unusable, rather than fall back to a lower layer.
+ */
 export function resolveExecutionWorkspaceEnvironmentId(input: {
+  projectEnvironmentId?: string | null;
   agentDefaultEnvironmentId: string | null;
   instanceDefaultEnvironmentId: string | null;
   localDefaultEnvironmentId: string;
@@ -309,6 +345,12 @@ export function resolveExecutionWorkspaceEnvironmentId(input: {
   managedSandboxEnvironmentId?: string | null;
 }): ExecutionWorkspaceEnvironmentResolution {
   const resolved = ((): ExecutionWorkspaceEnvironmentResolution => {
+    if (input.projectEnvironmentId && input.projectEnvironmentId !== input.localDefaultEnvironmentId) {
+      return {
+        environmentId: input.projectEnvironmentId,
+        source: "project",
+      };
+    }
     if (input.agentDefaultEnvironmentId) {
       return {
         environmentId: input.agentDefaultEnvironmentId,
@@ -333,6 +375,37 @@ export function resolveExecutionWorkspaceEnvironmentId(input: {
     throw new ManagedSandboxUnavailableError();
   }
   return { environmentId: input.managedSandboxEnvironmentId, source: "managed" };
+}
+
+export type ProjectExecutionEnvironmentRejection =
+  | "environment_not_found"
+  | "environment_not_active"
+  | "environment_company_mismatch"
+  | "environment_probe_only";
+
+/**
+ * Validate a project-pinned environment at run time. The project route checks
+ * the selection when it is saved, but the environment can be archived or
+ * rebound afterwards, and environments are instance-scoped, so ownership is
+ * checked again here. A rejection must fail the run: falling back to the
+ * agent, instance or local environment would run the project's code somewhere
+ * the project did not choose.
+ */
+export function checkProjectExecutionEnvironment(input: {
+  companyId: string;
+  environment: { status: string; driver: string; config: Record<string, unknown> | null } | null;
+  /** Companies the environment is bound to; empty means instance-global. */
+  boundCompanyIds: string[];
+}): { ok: true } | { ok: false; reason: ProjectExecutionEnvironmentRejection } {
+  if (!input.environment) return { ok: false, reason: "environment_not_found" };
+  if (input.environment.status !== "active") return { ok: false, reason: "environment_not_active" };
+  if (input.boundCompanyIds.length > 0 && !input.boundCompanyIds.includes(input.companyId)) {
+    return { ok: false, reason: "environment_company_mismatch" };
+  }
+  if (input.environment.driver === "sandbox" && parseObject(input.environment.config).provider === "fake") {
+    return { ok: false, reason: "environment_probe_only" };
+  }
+  return { ok: true };
 }
 
 export function defaultIssueExecutionWorkspaceSettingsForProject(
