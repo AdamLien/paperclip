@@ -488,11 +488,13 @@ import {
 import {
   applyDefaultIsolatedExecutionWorkspacePolicy,
   buildExecutionWorkspaceAdapterConfig,
+  checkProjectExecutionEnvironment,
   gateProjectExecutionWorkspacePolicy,
   issueExecutionWorkspaceModeForPersistedWorkspace,
   isUnrunnableWorktreeCombo,
   parseIssueExecutionWorkspaceSettings,
   parseProjectExecutionWorkspacePolicy,
+  readProjectExecutionEnvironmentId,
   resolveEffectiveWorkspaceStrategyType,
   resolveExecutionWorkspaceEnvironmentId,
   resolveExecutionWorkspaceMode,
@@ -21467,7 +21469,11 @@ export function heartbeatService(
       const managedSandboxEnvironment = managedSandboxOnly
         ? await environmentsSvc.findManagedSandboxEnvironment(agent.companyId)
         : null;
+      const projectEnvironmentId = readProjectExecutionEnvironmentId(
+        projectContext?.executionWorkspacePolicy,
+      );
       const environmentResolution = resolveExecutionWorkspaceEnvironmentId({
+        projectEnvironmentId,
         agentDefaultEnvironmentId: agent.defaultEnvironmentId,
         instanceDefaultEnvironmentId:
           resolvedInstanceSettings.defaultEnvironmentId ?? null,
@@ -21475,6 +21481,31 @@ export function heartbeatService(
         managedSandboxOnly,
         managedSandboxEnvironmentId: managedSandboxEnvironment?.id ?? null,
       });
+      if (environmentResolution.source === "project") {
+        const projectEnvironment = await environmentsSvc.getById(
+          environmentResolution.environmentId,
+        );
+        const projectEnvironmentCheck = checkProjectExecutionEnvironment({
+          companyId: agent.companyId,
+          environment: projectEnvironment,
+          boundCompanyIds: projectEnvironment
+            ? await environmentsSvc.listBoundCompanyIds(projectEnvironment.id)
+            : [],
+        });
+        if (!projectEnvironmentCheck.ok) {
+          throw new ConfigurationIncompleteFailure(
+            "This task's project runs in a selected execution environment that is missing, archived, or not available to this company. Select an active environment for the project; refusing to fall back to another environment.",
+            {
+              configurationIncomplete: {
+                reason: "project_environment_unavailable",
+                detail: projectEnvironmentCheck.reason,
+                projectId: executionProjectId,
+                environmentId: environmentResolution.environmentId,
+              },
+            },
+          );
+        }
+      }
       const effectiveExecutionWorkspaceMode: ReturnType<
         typeof resolveExecutionWorkspaceMode
       > = requestedExecutionWorkspaceMode;
