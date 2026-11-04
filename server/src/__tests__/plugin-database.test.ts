@@ -499,7 +499,18 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
       "001_llm_wiki.sql",
       "002_paperclip_distillation.sql",
       "003_spaces.sql",
+      "004_revision_bodies.sql",
     ]);
+
+    const bodyColumn = Array.from(
+      await db.execute(
+        sql<{ data_type: string }>`
+          SELECT data_type FROM information_schema.columns
+          WHERE table_schema = ${namespace} AND table_name = 'wiki_page_revisions' AND column_name = 'body'
+        `,
+      ) as Iterable<{ data_type: string }>,
+    );
+    expect(bodyColumn.map((row) => row.data_type)).toEqual(["text"]);
 
     const constraintRows = Array.from(
       await db.execute(
