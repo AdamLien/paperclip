@@ -1025,6 +1025,16 @@ describe("chat prompt policy", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("In Ask mode, discuss the plan without creating or revising documents or approval cards");
   });
 
+  it("does quick self-contained work in the chat and hands off only specialist, repository, parallel or long work", () => {
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Do quick, self-contained work yourself in this conversation");
+    expect(AGENT_CHAT_DIRECTIVE).toContain(
+      "Hand off to separate tasks only work that changes a repository, needs another agent's specialty or tools, can run in parallel, or will take long",
+    );
+    expect(AGENT_CHAT_DIRECTIVE).not.toContain("Put implementation and substantial execution into separate tasks");
+    // Accepted plans still never authorize repository or specialist execution in the chat itself.
+    expect(AGENT_CHAT_DIRECTIVE).toContain("it does not authorize repository changes or specialist execution in this conversation");
+  });
+
   it.each([true, false])("preserves rejected-plan changes in task markdown (includeDescription=%s)", (includeDescription) => {
     const prompt = buildPaperclipTaskMarkdown({
       issue: { id: "chat", title: "Chat", workMode: "planning", conversationAgentId: "agent" },
