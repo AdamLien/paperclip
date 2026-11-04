@@ -7440,6 +7440,41 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     }
   });
 
+  it("books an mBase run's cost as unknown and keeps the CLI's figure as an estimate", async () => {
+    const { agentId, runId } = await seedRunFixture({ adapterType: "claude_local", runtimeMode: "legacy", agentStatus: "idle", runStatus: "queued" });
+    const model = "anthropic/claude-sonnet-5-5";
+    await db.update(agents).set({ runtimeConfig: { mbase: { model } } }).where(eq(agents.id, agentId));
+    const runtimeProjection = vi.fn(async () => ({
+      env: { ANTHROPIC_BASE_URL: "http://ocx.test", ANTHROPIC_AUTH_TOKEN: "ocx-fixture-token" },
+      secretKeys: ["ANTHROPIC_AUTH_TOKEN"], model,
+    }));
+    // The Claude adapter calls a blanked ANTHROPIC_API_KEY "subscription" and reports the CLI's
+    // own list-price total, although only the gateway knows which upstream account paid.
+    mockAdapterExecute.mockImplementationOnce(async () => ({
+      exitCode: 0, signal: null, timedOut: false, errorMessage: null, summary: "Done.",
+      provider: "anthropic", biller: "anthropic", billingType: "subscription", model,
+      usage: { inputTokens: 1_000, outputTokens: 200 }, costUsd: 0.0973,
+    }));
+    const heartbeat = heartbeatService(db, {
+      mbasePartnerModels: { configured: true, listModels: async () => [model], runtimeProjection } as never,
+    });
+    await heartbeat.resumeQueuedRuns();
+    await heartbeat.drainActiveRunExecutions();
+
+    const settled = await heartbeat.getRun(runId);
+    expect(settled?.status).toBe("succeeded");
+    expect(runtimeProjection).toHaveBeenCalled();
+    expect(settled?.usageJson).toMatchObject({
+      inputTokens: 1_000, outputTokens: 200,
+      biller: "mbase", billingType: "unknown", costStatus: "unpriced", estimatedCostUsd: 0.0973,
+    });
+    expect(settled?.usageJson).not.toHaveProperty("costUsd");
+    expect(settled?.usageJson).not.toHaveProperty("cacheAdjustedCostUsd");
+    const costs = await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, runId));
+    expect(costs).toHaveLength(1);
+    expect(costs[0]).toMatchObject({ biller: "mbase", billingType: "unknown", costStatus: "unpriced", costCents: 0, inputTokens: 1_000 });
+  });
+
   it("stops controller renewal and releases execution controls when teardown deadline cleanup throws", async () => {
     const { runId, issueId } = await seedRunFixture({ runtimeMode: "legacy", agentStatus: "idle", runStatus: "queued" });
     mockAdapterExecute.mockImplementationOnce(async () => {

@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createMbasePartnerModelService, MbaseModelUnavailable } from "../services/mbase-partner-model.js";
+import { classifyMbaseRunCost, createMbasePartnerModelService, MbaseModelUnavailable } from "../services/mbase-partner-model.js";
 import { resolveExecutionRunAdapterConfig } from "../services/heartbeat.ts";
 
 const TOKEN = "ocx-client-token-test";
@@ -93,5 +93,28 @@ describe("mBase partner models", () => {
       KEEP: "yes",
     });
     expect(result.secretKeys.has("ANTHROPIC_AUTH_TOKEN")).toBe(true);
+  });
+});
+
+describe("mBase run cost", () => {
+  it("books billed cost as unknown and keeps the cache-adjusted CLI figure as the estimate", () => {
+    const { result, estimatedCostUsd } = classifyMbaseRunCost({
+      provider: "anthropic", biller: "anthropic", billingType: "subscription", costUsd: 0.2, cacheAdjustedCostUsd: 0.15,
+    });
+    expect(result).toEqual({ provider: "anthropic", biller: "mbase", billingType: "unknown", costUsd: null, cacheAdjustedCostUsd: null });
+    expect(estimatedCostUsd).toBe(0.15);
+  });
+
+  it.each([undefined, null, Number.NaN, Number.POSITIVE_INFINITY, -0.01])(
+    "keeps the estimate unknown rather than zero when the CLI reports %s",
+    (costUsd) => {
+      const { result, estimatedCostUsd } = classifyMbaseRunCost({ billingType: "api", costUsd });
+      expect(estimatedCostUsd).toBeNull();
+      expect(result).toMatchObject({ biller: "mbase", billingType: "unknown", costUsd: null });
+    },
+  );
+
+  it("keeps a reported zero as a zero estimate, not as unknown", () => {
+    expect(classifyMbaseRunCost({ costUsd: 0 }).estimatedCostUsd).toBe(0);
   });
 });
