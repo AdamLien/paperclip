@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { Agent, AgentSessionEvent, Issue, IssueComment, PluginContext, PluginEvent, PluginLocalFolderEntry, Project, ToolResult } from "@paperclipai/plugin-sdk";
+import type { Agent, AgentSessionEvent, Issue, IssueComment, PluginContext, PluginEvent, PluginLocalFolderEntry, Project, ToolResult, ToolRunContext } from "@paperclipai/plugin-sdk";
 import type { IssueDocument, PluginIssueOriginKind, PluginManagedRoutineResolution, PluginManagedSkillResolution } from "@paperclipai/plugin-sdk/types";
 import {
   DEFAULT_MAX_SOURCE_BYTES,
@@ -1831,9 +1831,9 @@ async function upsertPageMetadata(ctx: PluginContext, input: {
 
   await ctx.db.execute(
     `INSERT INTO ${tableName(ctx.db.namespace, "wiki_page_revisions")}
-       (id, company_id, wiki_id, space_id, page_id, operation_id, path, content_hash, summary, metadata)
-     VALUES ($1, $2, $3, $8, (SELECT id FROM ${tableName(ctx.db.namespace, "wiki_pages")} WHERE company_id = $2 AND wiki_id = $3 AND space_id = $8 AND path = $4), $7, $4, $5, $6, '{}'::jsonb)`,
-    [revisionId, input.companyId, input.wikiId, input.path, hash, input.summary ?? null, input.operationId ?? null, input.spaceId],
+       (id, company_id, wiki_id, space_id, page_id, operation_id, path, content_hash, summary, metadata, body)
+     VALUES ($1, $2, $3, $8, (SELECT id FROM ${tableName(ctx.db.namespace, "wiki_pages")} WHERE company_id = $2 AND wiki_id = $3 AND space_id = $8 AND path = $4), $7, $4, $5, $6, '{}'::jsonb, $9)`,
+    [revisionId, input.companyId, input.wikiId, input.path, hash, input.summary ?? null, input.operationId ?? null, input.spaceId, input.contents],
   );
 
   return { title, pageType, backlinks, hash, revisionId };
@@ -4071,24 +4071,85 @@ async function wikiHrefBuilder(ctx: PluginContext, companyId: string, spaceSlug:
   return (path: string) => (prefix ? wikiPageHref(prefix, spaceSlug, path) : null);
 }
 
+function toolCompanyId(input: ToolParams, runContext: ToolRunContext): string {
+  // The gateway sets runContext from the authenticated run; a companyId argument is only a hint the agent may get wrong.
+  const requested = stringField(input.companyId);
+  if (requested && requested !== runContext.companyId) {
+    throw new Error("Wiki tools cannot read or write another company's wiki");
+  }
+  return runContext.companyId;
+}
+
+const MAX_DIFF_CELLS = 4_000_000;
+
+/** Line diff: " " unchanged, "-" removed, "+" added. */
+export function lineDiff(before: string, after: string): string {
+  const a = before.replace(/\n$/, "").split("\n");
+  const b = after.replace(/\n$/, "").split("\n");
+  if (before === "") a.length = 0;
+  if (after === "") b.length = 0;
+  if (a.length * b.length > MAX_DIFF_CELLS) return `(diff too large: ${a.length} -> ${b.length} lines)`;
+  const lcs: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i -= 1) {
+    for (let j = b.length - 1; j >= 0; j -= 1) {
+      lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
+    }
+  }
+  const out: string[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      out.push(` ${a[i]}`); i += 1; j += 1;
+    } else if (i < a.length && (j === b.length || lcs[i + 1]![j]! >= lcs[i]![j + 1]!)) {
+      out.push(`-${a[i]}`); i += 1;
+    } else {
+      out.push(`+${b[j]}`); j += 1;
+    }
+  }
+  return out.join("\n");
+}
+
+export async function listPageRevisions(ctx: PluginContext, input: { companyId: string; wikiId?: string | null; spaceSlug?: string | null; path: string; limit?: number | null }) {
+  const wikiId = normalizeWikiId(input.wikiId);
+  const space = await resolveSpace(ctx, { companyId: input.companyId, wikiId, spaceSlug: input.spaceSlug });
+  const path = assertPagePath(input.path);
+  const limit = normalizeLimit(input.limit, 20, 100);
+  // One extra row so the oldest listed revision can still be diffed against its predecessor.
+  const rows = await ctx.db.query<{ id: string; content_hash: string; summary: string | null; body: string | null; created_at: string }>(
+    `SELECT id::text AS id, content_hash, summary, body, created_at::text AS created_at
+       FROM ${tableName(ctx.db.namespace, "wiki_page_revisions")}
+      WHERE company_id = $1 AND wiki_id = $2 AND space_id = $4 AND path = $3
+      ORDER BY created_at DESC
+      LIMIT $5`,
+    [input.companyId, wikiId, path, space.id, limit + 1],
+  );
+  const revisions = rows.slice(0, limit).map((row, index) => {
+    const previous = rows[index + 1];
+    const diff = row.body != null && previous?.body != null ? lineDiff(previous.body, row.body) : null;
+    return { id: row.id, hash: row.content_hash, summary: row.summary, createdAt: row.created_at, hasBody: row.body != null, diff };
+  });
+  return { wikiId, spaceSlug: space.slug, path, revisions };
+}
+
 export async function registerWikiTools(ctx: PluginContext) {
   ctx.tools.register("wiki_search", {
     displayName: "Search Wiki",
     description: "Search indexed wiki page and source metadata.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_search")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
-    const companyId = requireString(input.companyId, "companyId");
+    const companyId = toolCompanyId(input, runContext);
     const wikiId = normalizeWikiId(input.wikiId);
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const query = requireString(input.query, "query");
     const limit = normalizeLimit(input.limit, 20, 50);
-    const rows = await ctx.db.query<{ kind: string; path: string; title: string | null; match_text: string | null }>(
-      `SELECT 'page' AS kind, path, title, page_type AS match_text
+    const rows = await ctx.db.query<{ kind: string; path: string; title: string | null; match_text: string | null; revision_id?: string | null; indexed_hash?: string | null }>(
+      `SELECT 'page' AS kind, path, title, page_type AS match_text, current_revision_id::text AS revision_id, content_hash AS indexed_hash
          FROM ${tableName(ctx.db.namespace, "wiki_pages")}
         WHERE company_id = $1 AND wiki_id = $2 AND space_id = $5 AND (lower(path) LIKE lower($3) OR lower(coalesce(title, '')) LIKE lower($3))
        UNION ALL
-       SELECT 'source' AS kind, raw_path AS path, title, source_type AS match_text
+       SELECT 'source' AS kind, raw_path AS path, title, source_type AS match_text, NULL AS revision_id, content_hash AS indexed_hash
          FROM ${tableName(ctx.db.namespace, "wiki_sources")}
         WHERE company_id = $1 AND wiki_id = $2 AND space_id = $5 AND (lower(raw_path) LIKE lower($3) OR lower(coalesce(title, '')) LIKE lower($3) OR lower(coalesce(url, '')) LIKE lower($3))
        ORDER BY kind, path
@@ -4096,10 +4157,23 @@ export async function registerWikiTools(ctx: PluginContext) {
       [companyId, wikiId, `%${query}%`, limit, space.id],
     );
     const hrefFor = await wikiHrefBuilder(ctx, companyId, space.slug);
-    const results = rows.map((row) => ({ ...row, href: hrefFor(row.path) }));
+    // The index is derived metadata; compare it with the file so a lagging index is never cited as current.
+    const results = await Promise.all(rows.map(async (row) => {
+      const revisionId = row.revision_id ?? null;
+      const indexStale = row.indexed_hash
+        ? (await readCurrentWithHash(ctx, companyId, row.path, space)).hash !== row.indexed_hash
+        : false;
+      return { ...row, revisionId, indexStale, href: hrefFor(row.path) };
+    }));
     return {
       content: results.length
-        ? results.map((row) => `${row.kind}: ${row.path}${row.title ? ` - ${row.title}` : ""}${row.href ? ` (link: ${row.href})` : ""}`).join("\n")
+        ? results.map((row) => {
+          const labels = [row.revisionId ? `revision: ${row.revisionId}` : null, row.href ? `link: ${row.href}` : null].filter(Boolean);
+          const stale = row.indexStale
+            ? ` INDEX BEHIND: file changed after ${row.revisionId ? `revision ${row.revisionId}` : "the indexed copy"}; read it before citing it as current.`
+            : "";
+          return `${row.kind}: ${row.path}${row.title ? ` - ${row.title}` : ""}${labels.length ? ` (${labels.join(", ")})` : ""}${stale}`;
+        }).join("\n")
         : "No wiki matches found.",
       data: { companyId, wikiId, spaceSlug: space.slug, query, results },
     };
@@ -4109,9 +4183,9 @@ export async function registerWikiTools(ctx: PluginContext) {
     displayName: "Read Wiki Page",
     description: "Read a markdown wiki page from the configured local wiki root.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_read_page")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
-    const companyId = requireString(input.companyId, "companyId");
+    const companyId = toolCompanyId(input, runContext);
     const wikiId = normalizeWikiId(input.wikiId);
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const path = assertPagePath(requireString(input.path, "path"));
@@ -4125,10 +4199,10 @@ export async function registerWikiTools(ctx: PluginContext) {
     displayName: "Write Wiki Page",
     description: "Atomically write a markdown wiki page after plugin path validation.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_write_page")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
     const result = await writeWikiPage(ctx, {
-      companyId: requireString(input.companyId, "companyId"),
+      companyId: toolCompanyId(input, runContext),
       wikiId: stringField(input.wikiId),
       spaceSlug: stringField(input.spaceSlug),
       path: requireString(input.path, "path"),
@@ -4144,17 +4218,19 @@ export async function registerWikiTools(ctx: PluginContext) {
     displayName: "Propose Wiki Patch",
     description: "Return a structured proposed page write without changing files.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_propose_patch")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
-    const companyId = requireString(input.companyId, "companyId");
+    const companyId = toolCompanyId(input, runContext);
     const wikiId = normalizeWikiId(input.wikiId);
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const path = assertPagePath(requireString(input.path, "path"));
     const contents = requireString(input.contents, "contents");
     const current = await readCurrentWithHash(ctx, companyId, path, space);
+    const diff = lineDiff(current.contents ?? "", contents);
     return {
-      content: `Proposed patch for ${path}`,
+      content: `Proposed patch for ${path}${current.hash ? "" : " (new page)"}\n\n${diff}`,
       data: {
+        diff,
         companyId,
         wikiId,
         spaceSlug: space.slug,
@@ -4171,9 +4247,9 @@ export async function registerWikiTools(ctx: PluginContext) {
     displayName: "List Wiki Sources",
     description: "Return captured raw source metadata from the plugin index.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_list_sources")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
-    const companyId = requireString(input.companyId, "companyId");
+    const companyId = toolCompanyId(input, runContext);
     const wikiId = normalizeWikiId(input.wikiId);
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const limit = normalizeLimit(input.limit, 50, 200);
@@ -4199,9 +4275,9 @@ export async function registerWikiTools(ctx: PluginContext) {
     displayName: "Read Wiki Source",
     description: "Read a captured raw source from the configured local wiki root.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_read_source")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
-    const companyId = requireString(input.companyId, "companyId");
+    const companyId = toolCompanyId(input, runContext);
     const wikiId = normalizeWikiId(input.wikiId);
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const rawPath = assertRawPath(requireString(input.rawPath, "rawPath"));
@@ -4218,9 +4294,9 @@ export async function registerWikiTools(ctx: PluginContext) {
     displayName: "Append Wiki Log",
     description: "Append a maintenance note to wiki/log.md.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_append_log")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
-    const companyId = requireString(input.companyId, "companyId");
+    const companyId = toolCompanyId(input, runContext);
     const wikiId = normalizeWikiId(input.wikiId);
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const entry = requireString(input.entry, "entry");
@@ -4247,10 +4323,10 @@ export async function registerWikiTools(ctx: PluginContext) {
     displayName: "Update Wiki Index",
     description: "Atomically replace wiki/index.md with optional hash conflict checks.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_update_index")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
     const result = await writeWikiPage(ctx, {
-      companyId: requireString(input.companyId, "companyId"),
+      companyId: toolCompanyId(input, runContext),
       wikiId: stringField(input.wikiId),
       spaceSlug: stringField(input.spaceSlug),
       path: "wiki/index.md",
@@ -4265,9 +4341,9 @@ export async function registerWikiTools(ctx: PluginContext) {
     displayName: "List Wiki Backlinks",
     description: "Return indexed backlinks for a wiki page.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_list_backlinks")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
-    const companyId = requireString(input.companyId, "companyId");
+    const companyId = toolCompanyId(input, runContext);
     const wikiId = normalizeWikiId(input.wikiId);
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const path = assertPagePath(requireString(input.path, "path"));
@@ -4289,9 +4365,9 @@ export async function registerWikiTools(ctx: PluginContext) {
     displayName: "List Wiki Pages",
     description: "Return the known page index from plugin metadata.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_list_pages")?.parametersSchema ?? { type: "object" },
-  }, async (params: unknown): Promise<ToolResult> => {
+  }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
-    const companyId = requireString(input.companyId, "companyId");
+    const companyId = toolCompanyId(input, runContext);
     const wikiId = normalizeWikiId(input.wikiId);
     const space = await resolveSpace(ctx, { companyId, wikiId, spaceSlug: input.spaceSlug as string | null | undefined });
     const rows = await ctx.db.query<{ path: string; title: string | null; page_type: string | null }>(

@@ -21,6 +21,7 @@ Answer a question from what the wiki actually contains, with citations.
    - Direct answer first, in 1–4 sentences.
    - Then the supporting facts as bullet points, each with an inline citation that people can click: a markdown link to the board link that `wiki_search`, `wiki_list_sources` and `wiki_read_source` return, e.g. `(see [Managed resources](/PAP/wiki/page/wiki/concepts/managed-resources.md))` or `(see [raw/<filename>](/PAP/wiki/page/raw/<filename>))`. Never cite a filesystem path.
    - If you needed to read a raw source the wiki did not summarise, name that as a gap.
+   - When `wiki_search` names a page revision, put it next to the link, e.g. `(see [Leave policy](/PAP/wiki/page/wiki/policies/leave.md), revision 3f2a…)`. If a result says `INDEX BEHIND`, read the page before citing it and tell the user the index is behind; never present it as the latest.
 5. **Decide whether the answer is durable.** If the question forced you to do real synthesis (a comparison, a tradeoff, a definition of something that isn't already a page), offer to file it under `wiki/synthesis/<slug>.md`. Do not write the synthesis page silently — it is opt-in. If the user accepts, write the page, link it from `wiki/index.md`, and append a `query | filed synthesis` log entry.
 6. **When the wiki cannot answer**, say so plainly. Suggest a source the user should ingest, a Paperclip project that would help if distilled, or a web lookup. Never bluff.
 

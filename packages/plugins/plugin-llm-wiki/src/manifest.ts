@@ -320,7 +320,7 @@ const manifest: PaperclipPluginManifestV1 = {
     {
       name: "wiki_search",
       displayName: "Search Wiki",
-      description: "Search indexed wiki page and source metadata for one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space. Each result includes a board link; cite it as a markdown link when answering.",
+      description: "Search indexed wiki page and source metadata for one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space. Each result includes a board link; cite it as a markdown link when answering. Page results name the indexed revision; cite it with the link. A result marked INDEX BEHIND means the file changed after indexing: read the page before citing it, and say the index is behind.",
       parametersSchema: {
         type: "object",
         properties: {
@@ -330,7 +330,7 @@ const manifest: PaperclipPluginManifestV1 = {
           query: { type: "string" },
           limit: { type: "number" }
         },
-        required: ["companyId", "wikiId", "query"]
+        required: ["wikiId", "query"]
       }
     },
     {
@@ -345,7 +345,7 @@ const manifest: PaperclipPluginManifestV1 = {
           spaceSlug: { type: "string" },
           path: { type: "string" }
         },
-        required: ["companyId", "wikiId", "path"]
+        required: ["wikiId", "path"]
       }
     },
     {
@@ -363,7 +363,7 @@ const manifest: PaperclipPluginManifestV1 = {
           expectedHash: { type: "string" },
           summary: { type: "string" }
         },
-        required: ["companyId", "wikiId", "path", "contents"]
+        required: ["wikiId", "path", "contents"]
       }
     },
     {
@@ -380,7 +380,7 @@ const manifest: PaperclipPluginManifestV1 = {
           contents: { type: "string" },
           summary: { type: "string" }
         },
-        required: ["companyId", "wikiId", "path", "contents"]
+        required: ["wikiId", "path", "contents"]
       }
     },
     {
@@ -395,7 +395,7 @@ const manifest: PaperclipPluginManifestV1 = {
           spaceSlug: { type: "string" },
           limit: { type: "number" }
         },
-        required: ["companyId", "wikiId"]
+        required: ["wikiId"]
       }
     },
     {
@@ -410,7 +410,7 @@ const manifest: PaperclipPluginManifestV1 = {
           spaceSlug: { type: "string" },
           rawPath: { type: "string" }
         },
-        required: ["companyId", "wikiId", "rawPath"]
+        required: ["wikiId", "rawPath"]
       }
     },
     {
@@ -425,7 +425,7 @@ const manifest: PaperclipPluginManifestV1 = {
           spaceSlug: { type: "string" },
           entry: { type: "string" }
         },
-        required: ["companyId", "wikiId", "entry"]
+        required: ["wikiId", "entry"]
       }
     },
     {
@@ -441,7 +441,7 @@ const manifest: PaperclipPluginManifestV1 = {
           contents: { type: "string" },
           expectedHash: { type: "string" }
         },
-        required: ["companyId", "wikiId", "contents"]
+        required: ["wikiId", "contents"]
       }
     },
     {
@@ -456,7 +456,7 @@ const manifest: PaperclipPluginManifestV1 = {
           spaceSlug: { type: "string" },
           path: { type: "string" }
         },
-        required: ["companyId", "wikiId", "path"]
+        required: ["wikiId", "path"]
       }
     },
     {
@@ -470,7 +470,7 @@ const manifest: PaperclipPluginManifestV1 = {
           wikiId: { type: "string" },
           spaceSlug: { type: "string" }
         },
-        required: ["companyId", "wikiId"]
+        required: ["wikiId"]
       }
     }
   ],

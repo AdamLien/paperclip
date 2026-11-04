@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -1526,7 +1527,7 @@ Duplicate headings receive stable suffixes.
     const pages = await harness.executeTool<{ content?: string }>("wiki_list_pages", {
       companyId: COMPANY_ID,
       wikiId: "default",
-    });
+    }, { companyId: COMPANY_ID });
     expect(pages.content).toBe("No pages indexed yet.");
   });
 
@@ -1571,7 +1572,7 @@ Duplicate headings receive stable suffixes.
 
       const search = await harness.executeTool<{ content: string; data: { results: Array<{ path: string; href: string }> } }>("wiki_search", {
         companyId: COMPANY_ID, wikiId: "default", query: "uat",
-      });
+      }, { companyId: COMPANY_ID });
       expect(search.content).toContain("source: raw/2026-11-01-uat.md - UAT source (link: /UAT/wiki/page/raw/2026-11-01-uat.md)");
       expect(search.content).toContain("page: wiki/policies/leave.md - Leave policy (link: /UAT/wiki/page/wiki/policies/leave.md)");
       expect(search.data.results.map((row) => row.href)).toEqual([
@@ -1581,7 +1582,7 @@ Duplicate headings receive stable suffixes.
 
       const sources = await harness.executeTool<{ content: string; data: { sources: Array<{ href: string }> } }>("wiki_list_sources", {
         companyId: COMPANY_ID, wikiId: "default",
-      });
+      }, { companyId: COMPANY_ID });
       expect(sources.content).toBe("raw/2026-11-01-uat.md - UAT source (link: /UAT/wiki/page/raw/2026-11-01-uat.md)");
       expect(sources.data.sources[0]?.href).toBe("/UAT/wiki/page/raw/2026-11-01-uat.md");
     });
@@ -1592,14 +1593,14 @@ Duplicate headings receive stable suffixes.
 
       const source = await harness.executeTool<{ content: string; data: { hash: string; href: string } }>("wiki_read_source", {
         companyId: COMPANY_ID, wikiId: "default", rawPath: "raw/2026-11-01-uat.md",
-      });
+      }, { companyId: COMPANY_ID });
       expect(source.content.startsWith(SOURCE)).toBe(true);
       expect(source.content.endsWith("Citation link for raw/2026-11-01-uat.md: /UAT/wiki/page/raw/2026-11-01-uat.md")).toBe(true);
       expect(source.data.href).toBe("/UAT/wiki/page/raw/2026-11-01-uat.md");
 
       const page = await harness.executeTool<{ content: string; data: { hash: string; href: string } }>("wiki_read_page", {
         companyId: COMPANY_ID, wikiId: "default", path: "wiki/policies/leave.md",
-      });
+      }, { companyId: COMPANY_ID });
       expect(page.content).toBe(PAGE);
       expect(page.data.href).toBe("/UAT/wiki/page/wiki/policies/leave.md");
       // The write-back hash still covers only the stored text.
@@ -1612,11 +1613,141 @@ Duplicate headings receive stable suffixes.
 
       const source = await harness.executeTool<{ content: string; data: { href: string | null } }>("wiki_read_source", {
         companyId: COMPANY_ID, wikiId: "default", rawPath: "raw/2026-11-01-uat.md",
-      });
+      }, { companyId: COMPANY_ID });
       expect(source.content).toBe(SOURCE);
       expect(source.data.href).toBeNull();
-      const sources = await harness.executeTool<{ content: string }>("wiki_list_sources", { companyId: COMPANY_ID, wikiId: "default" });
+      const sources = await harness.executeTool<{ content: string }>("wiki_list_sources", { companyId: COMPANY_ID, wikiId: "default" }, { companyId: COMPANY_ID });
       expect(sources.content).toBe("raw/2026-11-01-uat.md - UAT source");
+    });
+  });
+
+  describe("revisions, diff and run-company binding (BRAIN-01)", () => {
+    const PAGE_V1 = "# Leave policy\n\nTen days.\n";
+    const PAGE_V2 = "# Leave policy\n\nTwelve days.\n";
+    const sha = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
+    const RUN = { companyId: COMPANY_ID };
+
+    function revisionHarness(input: { file?: string; indexedHash?: string; revisions?: Array<Record<string, unknown>> } = {}) {
+      const harness = createTestHarness({ manifest });
+      harness.seed({ companies: [{ id: COMPANY_ID, issuePrefix: "uat", name: "UAT Co" } as never] });
+      const files = new Map([["wiki/policies/leave.md", input.file ?? PAGE_V1], ["raw/2026-11-04-synthetic.md", "# Synthetic source\n"]]);
+      const reads: string[] = [];
+      harness.ctx.localFolders.readText = async (companyId, _folderKey, relativePath) => {
+        reads.push(`${companyId}:${relativePath}`);
+        const contents = files.get(relativePath);
+        if (contents == null) throw new Error(`missing ${relativePath}`);
+        return contents;
+      };
+      harness.ctx.localFolders.writeTextAtomic = async (_companyId, _folderKey, relativePath, contents) => {
+        files.set(relativePath, contents);
+        return undefined as never;
+      };
+      harness.ctx.db.query = async <T = Record<string, unknown>>(sql: string, params?: unknown[]) => {
+        harness.dbQueries.push({ sql, params });
+        if (sql.includes("UNION ALL")) {
+          return [{
+            kind: "page",
+            path: "wiki/policies/leave.md",
+            title: "Leave policy",
+            match_text: "policies",
+            revision_id: "rev-2",
+            indexed_hash: input.indexedHash ?? sha(input.file ?? PAGE_V1),
+          }] as T[];
+        }
+        if (sql.includes("wiki_page_revisions")) return (input.revisions ?? []) as T[];
+        return [];
+      };
+      return { harness, files, reads };
+    }
+
+    it("refuses a wiki tool call that names another company than the run", async () => {
+      const { harness, reads } = revisionHarness();
+      await plugin.definition.setup(harness.ctx);
+
+      await expect(harness.executeTool("wiki_read_source", {
+        companyId: OTHER_COMPANY_ID, wikiId: "default", rawPath: "raw/2026-11-04-synthetic.md",
+      }, RUN)).rejects.toThrow(/another company/);
+      await expect(harness.executeTool("wiki_search", {
+        companyId: OTHER_COMPANY_ID, wikiId: "default", query: "leave",
+      }, RUN)).rejects.toThrow(/another company/);
+      expect(reads).toEqual([]);
+      expect(harness.dbQueries.some((query) => query.params?.includes(OTHER_COMPANY_ID))).toBe(false);
+    });
+
+    it("uses the run's company when the tool call leaves companyId out", async () => {
+      const { harness, reads } = revisionHarness();
+      await plugin.definition.setup(harness.ctx);
+
+      await harness.executeTool("wiki_read_source", { wikiId: "default", rawPath: "raw/2026-11-04-synthetic.md" }, RUN);
+      expect(reads).toEqual([`${COMPANY_ID}:raw/2026-11-04-synthetic.md`]);
+    });
+
+    it("keeps the page body with each published revision", async () => {
+      const { harness, files } = revisionHarness();
+      await plugin.definition.setup(harness.ctx);
+
+      await harness.executeTool("wiki_write_page", {
+        companyId: COMPANY_ID, wikiId: "default", path: "wiki/policies/leave.md", contents: PAGE_V2, expectedHash: sha(PAGE_V1),
+      }, RUN);
+      const revisionInsert = harness.dbExecutes.find((call) => call.sql.includes("INSERT INTO") && call.sql.includes("wiki_page_revisions"));
+      expect(revisionInsert?.sql).toContain("body");
+      // The revision keeps exactly the text that was published to the page file.
+      expect(files.get("wiki/policies/leave.md")).toContain("Twelve days.");
+      expect(revisionInsert?.params).toContain(files.get("wiki/policies/leave.md"));
+    });
+
+    it("shows a line diff when proposing a change, before anything is written", async () => {
+      const { harness, files } = revisionHarness();
+      await plugin.definition.setup(harness.ctx);
+
+      const proposal = await harness.executeTool<{ content: string; data: { diff: string } }>("wiki_propose_patch", {
+        companyId: COMPANY_ID, wikiId: "default", path: "wiki/policies/leave.md", contents: PAGE_V2,
+      }, RUN);
+      expect(proposal.data.diff).toBe(" # Leave policy\n \n-Ten days.\n+Twelve days.");
+      expect(proposal.content).toContain("-Ten days.\n+Twelve days.");
+      expect(files.get("wiki/policies/leave.md")).toBe(PAGE_V1);
+    });
+
+    it("lists page revisions newest first with the diff from the previous body", async () => {
+      const { harness } = revisionHarness({
+        revisions: [
+          { id: "rev-2", content_hash: sha(PAGE_V2), summary: "Twelve days", body: PAGE_V2, created_at: "2026-11-04 10:00:00+00" },
+          { id: "rev-1", content_hash: sha(PAGE_V1), summary: "First", body: PAGE_V1, created_at: "2026-11-03 10:00:00+00" },
+          { id: "rev-0", content_hash: "legacy", summary: null, body: null, created_at: "2026-11-01 10:00:00+00" },
+        ],
+      });
+      await plugin.definition.setup(harness.ctx);
+
+      const history = await harness.getData<{ revisions: Array<{ id: string; diff: string | null }> }>("page-history", {
+        companyId: COMPANY_ID, wikiId: "default", path: "wiki/policies/leave.md",
+      });
+      expect(history.revisions.map((revision) => revision.id)).toEqual(["rev-2", "rev-1", "rev-0"]);
+      expect(history.revisions[0]?.diff).toBe(" # Leave policy\n \n-Ten days.\n+Twelve days.");
+      // Revisions written before bodies were kept cannot be diffed; say so instead of guessing.
+      expect(history.revisions[1]?.diff).toBeNull();
+      expect(history.revisions[2]?.diff).toBeNull();
+    });
+
+    it("labels search results with the indexed revision", async () => {
+      const { harness } = revisionHarness();
+      await plugin.definition.setup(harness.ctx);
+
+      const search = await harness.executeTool<{ content: string; data: { results: Array<{ revisionId: string; indexStale: boolean }> } }>("wiki_search", {
+        companyId: COMPANY_ID, wikiId: "default", query: "leave",
+      }, RUN);
+      expect(search.content).toBe("page: wiki/policies/leave.md - Leave policy (revision: rev-2, link: /UAT/wiki/page/wiki/policies/leave.md)");
+      expect(search.data.results[0]).toMatchObject({ revisionId: "rev-2", indexStale: false });
+    });
+
+    it("says the index is behind when the page file changed after the indexed revision", async () => {
+      const { harness } = revisionHarness({ file: PAGE_V2, indexedHash: sha(PAGE_V1) });
+      await plugin.definition.setup(harness.ctx);
+
+      const search = await harness.executeTool<{ content: string; data: { results: Array<{ indexStale: boolean }> } }>("wiki_search", {
+        companyId: COMPANY_ID, wikiId: "default", query: "leave",
+      }, RUN);
+      expect(search.content).toContain("INDEX BEHIND: file changed after revision rev-2");
+      expect(search.data.results[0]?.indexStale).toBe(true);
     });
   });
 
@@ -3564,7 +3695,7 @@ Duplicate headings receive stable suffixes.
       path: "wiki/concepts/plugin-boundaries.md",
       contents: "# New Title\n",
       expectedHash: "stale",
-    });
+    }, { companyId: COMPANY_ID });
     await expect(staleWrite).rejects.toThrow("Refusing to overwrite");
 
     const result = await harness.executeTool<{ data?: { hash: string } }>("wiki_write_page", {
@@ -3572,7 +3703,7 @@ Duplicate headings receive stable suffixes.
       wikiId: "default",
       path: "wiki/concepts/plugin-boundaries.md",
       contents: "# Plugin Boundaries\n\nSee [Knowledge](wiki/areas/knowledge.md).",
-    });
+    }, { companyId: COMPANY_ID });
 
     expect(result.data?.hash).toHaveLength(64);
     expect(files.get("wiki/concepts/plugin-boundaries.md")).toContain("Plugin Boundaries");
@@ -3602,7 +3733,7 @@ Duplicate headings receive stable suffixes.
       wikiId: "default",
       path: "AGENTS.md",
       contents: "# LLM Wiki Maintainer\n\nCompromised instructions.\n",
-    })).rejects.toThrow("Refusing to overwrite protected wiki control file AGENTS.md");
+    }, { companyId: COMPANY_ID })).rejects.toThrow("Refusing to overwrite protected wiki control file AGENTS.md");
 
     const result = await harness.performAction<{ hash: string }>("write-page", {
       companyId: COMPANY_ID,

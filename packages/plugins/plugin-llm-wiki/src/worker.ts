@@ -41,6 +41,7 @@ import {
   readCompanyIdFromParams,
   readTemplate,
   readWikiPage,
+  listPageRevisions,
   recordPaperclipDistillationOutcome,
   reconcileWikiAgentResource,
   reconcileWikiProjectResource,
@@ -842,6 +843,19 @@ const plugin = definePlugin({
       const path = stringField(params.path);
       if (!path) throw new Error("path is required");
       return readWikiPage(ctx, { companyId, wikiId: stringField(params.wikiId), spaceSlug: stringField(params.spaceSlug), path });
+    });
+
+    ctx.data.register("page-history", async (params) => {
+      const companyId = readCompanyIdFromParams(params);
+      const path = stringField(params.path);
+      if (!path) throw new Error("path is required");
+      return listPageRevisions(ctx, {
+        companyId,
+        wikiId: stringField(params.wikiId),
+        spaceSlug: stringField(params.spaceSlug),
+        path,
+        limit: typeof params.limit === "number" ? params.limit : null,
+      });
     });
 
     ctx.data.register("template", async (params) => {
