@@ -1562,6 +1562,32 @@ describe("sandbox callback bridge", () => {
     }
   });
 
+  it("reads a request envelope larger than the SSH runner output buffer", async () => {
+    // The SSH runner fails any command whose stdout passes 1 MiB. A 1.25 MB
+    // attachment upload is a ~1.7 MB envelope, ~2.2 MB once read back as base64.
+    const outputLimit = 1024 * 1024;
+    const inner = createExecRunner();
+    const runner = {
+      execute: async (input: Parameters<typeof inner.execute>[0]): Promise<RunProcessResult> => {
+        const result = await inner.execute(input);
+        if (Buffer.byteLength(result.stdout) <= outputLimit) return result;
+        return { ...result, exitCode: null, stdout: "", stderr: `Process output exceeded maxBuffer of ${outputLimit} bytes.` };
+      },
+    };
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-bridge-large-read-"));
+    cleanupDirs.push(rootDir);
+    const body = JSON.stringify({ id: "req-1", body: "x".repeat(1_700_000) + "é" });
+    const requestPath = path.join(rootDir, "req-1.json");
+    await writeFile(requestPath, body, "utf8");
+    const client = createCommandManagedSandboxCallbackBridgeQueueClient({ runner, remoteCwd: rootDir });
+
+    await expect(client.readTextFile(requestPath, Buffer.byteLength(body))).resolves.toBe(body);
+    await expect(client.readTextFile(requestPath)).resolves.toBe(body);
+    await expect(client.readTextFile(requestPath, Buffer.byteLength(body) - 1)).rejects.toThrow(
+      "Bridge envelope exceeded the configured size limit.",
+    );
+  });
+
   it("abandons a timed-out upload without replaying it or continuing after a late response", async () => {
     vi.useFakeTimers();
     try {
