@@ -85,6 +85,8 @@ const BACKSTOP_WRITE_RETRY_MS = 50;
 // call every poll interval.
 const MAX_TRANSIENT_ITERATION_BACKOFF_MS = 5_000;
 const REMOTE_WRITE_BASE64_CHUNK_SIZE = 32 * 1024;
+// Raw bytes per remote read; base64 output stays well under the SSH runner's 1 MiB stdout buffer.
+const REMOTE_READ_CHUNK_BYTES = 512 * 1024;
 export const SANDBOX_CALLBACK_BRIDGE_ENTRYPOINT = "paperclip-bridge-server.mjs";
 const SANDBOX_EXEC_CHANNEL_ENV = "PAPERCLIP_SANDBOX_EXEC_CHANNEL";
 const SANDBOX_EXEC_CHANNEL_BRIDGE = "bridge";
@@ -702,11 +704,24 @@ export function createCommandManagedSandboxCallbackBridgeQueueClient(input: {
       return Number(result.stdout.trim());
     },
     readTextFile: async (remotePath, maxBytes) => {
-      const command = maxBytes === undefined
-        ? `base64 < ${shellQuote(remotePath)}`
-        : `head -c ${Math.trunc(maxBytes) + 1} ${shellQuote(remotePath)} | base64`;
-      const result = await runChecked(`read ${remotePath}`, command);
-      const bytes = Buffer.from(result.stdout.replace(/\s+/g, ""), "base64");
+      // Read in slices: the SSH runner fails any command whose stdout passes
+      // its 1 MiB buffer, and an attachment upload envelope read back as base64
+      // passes that well below the bridge body limit.
+      const limit = maxBytes === undefined ? Number.POSITIVE_INFINITY : Math.trunc(maxBytes) + 1;
+      const chunks: Buffer[] = [];
+      let length = 0;
+      while (length < limit) {
+        const count = Math.min(REMOTE_READ_CHUNK_BYTES, limit - length);
+        const result = await runChecked(
+          `read ${remotePath}`,
+          `tail -c +${length + 1} ${shellQuote(remotePath)} | head -c ${count} | base64`,
+        );
+        const chunk = Buffer.from(result.stdout.replace(/\s+/g, ""), "base64");
+        chunks.push(chunk);
+        length += chunk.length;
+        if (chunk.length < count) break;
+      }
+      const bytes = Buffer.concat(chunks);
       if (maxBytes !== undefined && bytes.length > maxBytes) throw new Error("Bridge envelope exceeded the configured size limit.");
       return bytes.toString("utf8");
     },
