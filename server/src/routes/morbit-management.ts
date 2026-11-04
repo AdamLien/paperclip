@@ -389,6 +389,13 @@ export function morbitManagementAssets(deps: ManagementDependencies, directory: 
   const router = Router();
   router.use(async (req, res, next) => {
     res.set("Cache-Control", "no-store");
+    const isHtmlNavigation = req.method === "GET"
+      && req.get("accept")?.toLowerCase().split(",").some(value => value.trim().split(";", 1)[0] === "text/html") === true
+      && ["/", "/index.html"].includes(req.path);
+    if (req.actor.type === "none" && isHtmlNavigation) {
+      res.redirect(302, `/auth?next=${encodeURIComponent("/management/")}`);
+      return;
+    }
     const workspaces = await managementWorkspaces(deps, req);
     if (!workspaces.length && !req.actor.isInstanceAdmin && req.actor.source !== "local_implicit") throw forbidden("Workspace management access required");
     if (!directory) throw new HttpError(503, "Management UI assets are not installed");

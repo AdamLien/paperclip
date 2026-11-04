@@ -485,6 +485,18 @@ describe("mDeck management authority and truthful status", () => {
     }
     expect((await request(setup().app).get("/management/")).status).toBe(503);
   });
+  it.each(["/management", "/management/", "/management/index.html"])("sends anonymous browser navigation at %s to login", async (url) => {
+    const res = await request(setup({ type: "none" }).app).get(url).set("Accept", "text/html");
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe("/auth?next=%2Fmanagement%2F");
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+  it("does not redirect anonymous asset requests or writes, or bypass employee authorization", async () => {
+    const anonymous = setup({ type: "none" }).app;
+    expect((await request(anonymous).get("/management/_next/static/chunks/app.js").set("Accept", "text/html")).status).toBe(401);
+    expect((await request(anonymous).post("/management/").set("Accept", "text/html")).status).toBe(401);
+    expect((await request(setup(member).app).get("/management/").set("Accept", "text/html")).status).toBe(403);
+  });
   it("serves HTML and hashed assets only to an authorized manager", async () => {
     const directory = await mkdtemp(join(tmpdir(), "morbit-management-"));
     try {
