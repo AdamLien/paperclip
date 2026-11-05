@@ -6,6 +6,8 @@ const mockRegistry = vi.hoisted(() => ({
   getById: vi.fn(),
   getByKey: vi.fn(),
   upsertConfig: vi.fn(),
+  initializeConfig: vi.fn(),
+  listConfigs: vi.fn(),
   getCompanySettings: vi.fn(),
   upsertCompanySettings: vi.fn(),
 }));
@@ -258,6 +260,8 @@ describe("plugin install and upgrade authz", () => {
     ["enable", "post", "/api/plugins/11111111-1111-4111-8111-111111111111/enable", {}],
     ["disable", "post", "/api/plugins/11111111-1111-4111-8111-111111111111/disable", {}],
     ["config", "post", "/api/plugins/11111111-1111-4111-8111-111111111111/config", { configJson: {} }],
+    ["initialize config", "post", "/api/plugins/11111111-1111-4111-8111-111111111111/config", { companyId: companyA, configJson: {}, initializeOnly: true }],
+    ["initialize config endpoint", "post", "/api/plugins/11111111-1111-4111-8111-111111111111/config/initialize", { companyId: companyA }],
   ] as const)("rejects plugin %s for non-admin board users", async (_name, method, path, body) => {
     const { app } = await createApp({
       type: "board",
@@ -351,6 +355,53 @@ describe("plugin install and upgrade authz", () => {
       companyId: companyA,
       configJson,
     });
+  }, 20_000);
+
+  it.each(["config", "config/initialize"])("initializes through %s without replacing values or secret bindings and refreshes company scopes", async (endpoint) => {
+    readyPlugin();
+    const config = { id: "config-1", pluginId, companyId: companyA, configJson: { keep: "stored-value", apiKeyRef: { secretId } } };
+    mockRegistry.initializeConfig.mockResolvedValue({ config, created: false });
+    mockRegistry.listConfigs.mockResolvedValue([{ companyId: companyA }, { companyId: companyB }]);
+    const workerManager = { isRunning: vi.fn().mockReturnValue(true), setProactiveCompanyScopes: vi.fn(), call: vi.fn().mockResolvedValue(undefined) };
+    const { app } = await createApp(boardActor({ isInstanceAdmin: true }), {}, { bridgeDeps: { workerManager } });
+    const res = await request(app).post(`/api/plugins/${pluginId}/${endpoint}`)
+      .send(endpoint === "config/initialize" ? { companyId: companyA } : { companyId: companyA, configJson: {}, initializeOnly: true });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(config);
+    expect(mockRegistry.initializeConfig).toHaveBeenCalledWith(pluginId, companyA);
+    expect(mockRegistry.upsertConfig).not.toHaveBeenCalled();
+    expect(mockSecretService.syncSecretRefsForTarget).not.toHaveBeenCalled();
+    expect(workerManager.setProactiveCompanyScopes).toHaveBeenCalledWith(pluginId, [companyA, companyB]);
+    expect(workerManager.call).toHaveBeenCalledWith(pluginId, "configChanged", { config: config.configJson, companyId: companyA });
+  }, 20_000);
+
+  it("rejects initialization payloads that try to set config values", async () => {
+    readyPlugin();
+    const { app } = await createApp(boardActor({ isInstanceAdmin: true }));
+    const res = await request(app).post(`/api/plugins/${pluginId}/config`)
+      .send({ companyId: companyA, configJson: { shouldNotBeSet: true }, initializeOnly: true });
+    expect(res.status).toBe(400);
+    expect(mockRegistry.initializeConfig).not.toHaveBeenCalled();
+    expect(mockRegistry.upsertConfig).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("does not let the initialization endpoint become a replacement write", async () => {
+    readyPlugin();
+    const { app } = await createApp(boardActor({ isInstanceAdmin: true }));
+    const res = await request(app).post(`/api/plugins/${pluginId}/config/initialize`)
+      .send({ companyId: companyA, configJson: { replacement: true }, initializeOnly: false });
+    expect(res.status).toBe(400);
+    expect(mockRegistry.initializeConfig).not.toHaveBeenCalled();
+    expect(mockRegistry.upsertConfig).not.toHaveBeenCalled();
+    expect(mockSecretService.syncSecretRefsForTarget).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("rejects agent requests to initialize company configuration", async () => {
+    const { app } = await createApp(agentActor());
+    const res = await request(app).post(`/api/plugins/${pluginId}/config/initialize`).send({ companyId: companyA });
+    expect(res.status).toBe(403);
+    expect(mockRegistry.getById).not.toHaveBeenCalled();
+    expect(mockRegistry.initializeConfig).not.toHaveBeenCalled();
   }, 20_000);
 
   it("rejects plugin config saves that reference another company's secret before syncing bindings", async () => {

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "../lib/queryKeys";
 import { PluginSettings } from "./PluginSettings";
+import { ApiError } from "../api/client";
 
 const mockPluginsApi = vi.hoisted(() => ({
   get: vi.fn(),
@@ -13,11 +14,17 @@ const mockPluginsApi = vi.hoisted(() => ({
   dashboard: vi.fn(),
   logs: vi.fn(),
   getConfig: vi.fn(),
+  saveConfig: vi.fn(),
+  initializeConfig: vi.fn(),
   listLocalFolders: vi.fn(),
   configureLocalFolder: vi.fn(),
 }));
 
 const mockSetBreadcrumbs = vi.hoisted(() => vi.fn());
+const mockCompany = vi.hoisted(() => ({
+  selectedCompany: { id: "company-1", name: "Paperclip", issuePrefix: "PAP" } as { id: string; name: string; issuePrefix: string } | null,
+  selectedCompanyId: "company-1" as string | null,
+}));
 
 vi.mock("@/api/plugins", () => ({
   pluginsApi: mockPluginsApi,
@@ -30,10 +37,7 @@ vi.mock("@/context/BreadcrumbContext", () => ({
 }));
 
 vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({
-    selectedCompany: { id: "company-1", name: "Paperclip", issuePrefix: "PAP" },
-    selectedCompanyId: "company-1",
-  }),
+  useCompany: () => mockCompany,
 }));
 
 vi.mock("@/lib/router", () => ({
@@ -99,6 +103,20 @@ function wikiFolderDeclaration() {
   };
 }
 
+function wikiWithBackgroundJob() {
+  return basePlugin({
+    pluginKey: "paperclipai.plugin-llm-wiki",
+    packageName: "@paperclipai/plugin-llm-wiki",
+    status: "ready",
+    manifestJson: {
+      displayName: "LLM Wiki", version: "0.1.0", description: "Local-file wiki.", author: "Paperclip",
+      capabilities: ["local.folders", "jobs.schedule"],
+      localFolders: [wikiFolderDeclaration()],
+      jobs: [{ jobKey: "wiki-index-sync", displayName: "Sync wiki index", schedule: "*/5 * * * *" }],
+    },
+  });
+}
+
 function folderStatus(overrides: Record<string, unknown> = {}) {
   return {
     folderKey: "wiki-root",
@@ -122,11 +140,9 @@ function folderStatus(overrides: Record<string, unknown> = {}) {
 async function renderSettings(
   container: HTMLDivElement,
   experimentalSettings: Record<string, unknown> = {},
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
 ) {
   const root = createRoot(container);
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
   // The local-folders section is a host-path surface, so it stays hidden until
   // the managed-sandbox-only policy is known. Seed the policy as off; the tests
   // below are about folder rendering, not about the gate.
@@ -150,11 +166,16 @@ describe("PluginSettings", () => {
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
+    mockCompany.selectedCompany = { id: "company-1", name: "Paperclip", issuePrefix: "PAP" };
+    mockCompany.selectedCompanyId = "company-1";
 
     mockPluginsApi.get.mockResolvedValue(basePlugin());
     mockPluginsApi.dashboard.mockResolvedValue(null);
     mockPluginsApi.health.mockResolvedValue({ pluginId: "plugin-1", status: "ready", healthy: true, checks: [] });
     mockPluginsApi.logs.mockResolvedValue([]);
+    mockPluginsApi.getConfig.mockResolvedValue(null);
+    mockPluginsApi.saveConfig.mockImplementation(async (_pluginId, companyId, configJson) => ({ id: "config-1", companyId, configJson }));
+    mockPluginsApi.initializeConfig.mockImplementation(async (_pluginId, companyId) => ({ id: "config-1", companyId, configJson: {} }));
     mockPluginsApi.listLocalFolders.mockResolvedValue({
       pluginId: "plugin-1",
       companyId: "company-1",
@@ -180,6 +201,134 @@ describe("PluginSettings", () => {
     await act(async () => {
       root.unmount();
     });
+  });
+
+  it("initializes background configuration without a schema only for the selected organization", async () => {
+    mockPluginsApi.get.mockResolvedValue(wikiWithBackgroundJob());
+    const root = await renderSettings(container);
+    try {
+      const button = Array.from(container.querySelectorAll("button"))
+        .find((node) => node.textContent === "Initialize background configuration");
+      expect(button).toBeDefined();
+      expect(button?.disabled).toBe(false);
+      await act(async () => { button!.click(); });
+      await flushReact();
+      expect(mockPluginsApi.initializeConfig).toHaveBeenCalledExactlyOnceWith("plugin-1", "company-1");
+      expect(mockPluginsApi.saveConfig).not.toHaveBeenCalled();
+      expect(mockPluginsApi.configureLocalFolder).not.toHaveBeenCalled();
+      expect(container.textContent).toContain("Background configuration is saved for this organization.");
+    } finally {
+      await act(async () => { root.unmount(); });
+    }
+  });
+
+  it("shows an existing background config without replacing its values", async () => {
+    mockPluginsApi.get.mockResolvedValue(wikiWithBackgroundJob());
+    mockPluginsApi.getConfig.mockResolvedValue({ id: "config-existing", companyId: "company-1", configJson: { keep: "value" } });
+    const root = await renderSettings(container);
+    try {
+      expect(container.textContent).toContain("Background configuration is saved for this organization.");
+      expect(container.textContent).not.toContain("Initialize background configuration");
+      expect(mockPluginsApi.initializeConfig).not.toHaveBeenCalled();
+      expect(mockPluginsApi.saveConfig).not.toHaveBeenCalled();
+      expect(mockPluginsApi.configureLocalFolder).not.toHaveBeenCalled();
+    } finally { await act(async () => { root.unmount(); }); }
+  });
+
+  it("shows the instance-admin requirement when initialization returns 403", async () => {
+    mockPluginsApi.get.mockResolvedValue(wikiWithBackgroundJob());
+    mockPluginsApi.initializeConfig.mockRejectedValue(new ApiError("Permission denied", 403, {}));
+    const root = await renderSettings(container);
+    try {
+      const button = Array.from(container.querySelectorAll("button")).find((node) => node.textContent === "Initialize background configuration")!;
+      await act(async () => { button.click(); });
+      await flushReact();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("An instance administrator must initialize background configuration. Nothing was changed.");
+      expect(container.textContent).not.toContain("Background configuration is saved for this organization.");
+      expect(button.disabled).toBe(false);
+    } finally { await act(async () => { root.unmount(); }); }
+  });
+
+  it("does not initialize when existing configuration cannot be read", async () => {
+    mockPluginsApi.get.mockResolvedValue(wikiWithBackgroundJob());
+    mockPluginsApi.getConfig.mockRejectedValue(new Error("Network unavailable"));
+    const root = await renderSettings(container);
+    try {
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("Could not load background configuration. Nothing was changed.");
+      expect(container.textContent).not.toContain("Initialize background configuration");
+      expect(mockPluginsApi.initializeConfig).not.toHaveBeenCalled();
+    } finally { await act(async () => { root.unmount(); }); }
+  });
+
+  it("waits for configuration to load and prevents duplicate initialization while saving", async () => {
+    mockPluginsApi.get.mockResolvedValue(wikiWithBackgroundJob());
+    let finishRead!: (value: null) => void;
+    let finishSave!: (value: unknown) => void;
+    mockPluginsApi.getConfig.mockImplementation(() => new Promise((resolve) => { finishRead = resolve; }));
+    mockPluginsApi.initializeConfig.mockImplementation(() => new Promise((resolve) => { finishSave = resolve; }));
+    const root = await renderSettings(container);
+    try {
+      let button = Array.from(container.querySelectorAll("button")).find((node) => node.textContent === "Initialize background configuration")!;
+      expect(button.disabled).toBe(true);
+      await act(async () => { finishRead(null); });
+      await flushReact();
+      expect(button.disabled).toBe(false);
+      await act(async () => { button.click(); });
+      await flushReact();
+      button = Array.from(container.querySelectorAll("button")).find((node) => node.textContent === "Initializing...")!;
+      expect(button.disabled).toBe(true);
+      await act(async () => { button.click(); });
+      expect(mockPluginsApi.initializeConfig).toHaveBeenCalledTimes(1);
+      await act(async () => { finishSave({ id: "config-1", companyId: "company-1", configJson: {} }); });
+      await flushReact();
+      expect(container.textContent).toContain("Background configuration is saved for this organization.");
+    } finally { await act(async () => { root.unmount(); }); }
+  });
+
+  it("requires a selected organization before reading or initializing background configuration", async () => {
+    mockPluginsApi.get.mockResolvedValue(wikiWithBackgroundJob());
+    mockCompany.selectedCompany = null;
+    mockCompany.selectedCompanyId = null;
+    const root = await renderSettings(container);
+    try {
+      expect(container.textContent).toContain("Select an organization before initializing background configuration.");
+      expect(mockPluginsApi.getConfig).not.toHaveBeenCalled();
+      expect(mockPluginsApi.initializeConfig).not.toHaveBeenCalled();
+    } finally { await act(async () => { root.unmount(); }); }
+  });
+
+  it("does not apply an old organization's save result to the newly selected organization", async () => {
+    mockPluginsApi.get.mockResolvedValue(wikiWithBackgroundJob());
+    let finishSave!: (value: unknown) => void;
+    mockPluginsApi.initializeConfig.mockImplementation(() => new Promise((resolve) => { finishSave = resolve; }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const root = await renderSettings(container, {}, client);
+    try {
+      const button = Array.from(container.querySelectorAll("button")).find((node) => node.textContent === "Initialize background configuration")!;
+      await act(async () => { button.click(); });
+      await flushReact();
+      mockCompany.selectedCompany = { id: "company-2", name: "Second organization", issuePrefix: "TWO" };
+      mockCompany.selectedCompanyId = "company-2";
+      await act(async () => { root.render(<QueryClientProvider client={client}><PluginSettings /></QueryClientProvider>); });
+      await flushReact();
+      await act(async () => { finishSave({ id: "config-1", companyId: "company-1", configJson: {} }); });
+      await flushReact();
+      expect(container.textContent).toContain("Second organization");
+      expect(container.textContent).not.toContain("Background configuration is saved for this organization.");
+      expect(container.textContent).toContain("Initialize background configuration");
+      expect(mockPluginsApi.initializeConfig).toHaveBeenCalledExactlyOnceWith("plugin-1", "company-1");
+      expect(client.getQueryData(queryKeys.plugins.config("plugin-1", "company-2"))).toBeNull();
+    } finally { await act(async () => { root.unmount(); }); }
+  });
+
+  it("keeps schema-backed configuration on its normal form instead of initialization", async () => {
+    const plugin = wikiWithBackgroundJob();
+    mockPluginsApi.get.mockResolvedValue({ ...plugin, manifestJson: { ...plugin.manifestJson, instanceConfigSchema: { type: "object", properties: { label: { type: "string" } } } } });
+    const root = await renderSettings(container);
+    try {
+      expect(container.textContent).toContain("Save Configuration");
+      expect(container.textContent).not.toContain("Initialize background configuration");
+    } finally { await act(async () => { root.unmount(); }); }
   });
 
   it("renders unconfigured manifest local folders with required paths", async () => {

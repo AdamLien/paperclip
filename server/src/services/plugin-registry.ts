@@ -317,11 +317,21 @@ export function pluginRegistryService(db: Db) {
         .where(eq(pluginConfig.pluginId, pluginId))
         .orderBy(asc(pluginConfig.companyId)),
 
-    /**
-     * Create or fully replace a plugin's company-scoped configuration.
-     * If a config row already exists for the plugin/company pair it is replaced;
-     * otherwise a new row is inserted.
-     */
+    /** Create an empty config only if absent; never replace a concurrent operator's values. */
+    initializeConfig: async (pluginId: string, companyId: string) => {
+      if (!(await getById(pluginId))) throw notFound("Plugin not found");
+      const [created] = await db.insert(pluginConfig)
+        .values({ pluginId, companyId, configJson: {} })
+        .onConflictDoNothing({ target: [pluginConfig.pluginId, pluginConfig.companyId] })
+        .returning();
+      if (created) return { config: created, created: true };
+      const [existing] = await db.select().from(pluginConfig)
+        .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)));
+      if (!existing) throw notFound("Plugin configuration no longer exists");
+      return { config: existing, created: false };
+    },
+
+    /** Create or fully replace the company-scoped configuration. */
     upsertConfig: async (pluginId: string, companyId: string, input: UpsertPluginConfig) => {
       const plugin = await getById(pluginId);
       if (!plugin) throw notFound("Plugin not found");

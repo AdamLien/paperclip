@@ -2288,8 +2288,10 @@ export function pluginRoutes(
 
   /**
    * POST /api/plugins/:pluginId/config
+   * POST /api/plugins/:pluginId/config/initialize
    *
-   * Save (create or replace) the company-scoped configuration for a plugin.
+   * Save (create or replace) company configuration, or create it without
+   * replacing an existing row on the initialize path.
    *
    * The caller provides the full `configJson` object. The server persists it
    * via `registry.upsertConfig()`.
@@ -2303,10 +2305,10 @@ export function pluginRoutes(
    * - 400 if request validation fails
    * - 404 if plugin not found
    */
-  router.post("/plugins/:pluginId/config", async (req, res) => {
+  const savePluginConfig = async (req: Request, res: Response) => {
     assertInstanceAdmin(req);
     assertPluginManagementVisible();
-    const { pluginId } = req.params;
+    const pluginId = req.params.pluginId as string;
 
     const plugin = await resolvePlugin(registry, pluginId);
     if (!plugin) {
@@ -2314,10 +2316,19 @@ export function pluginRoutes(
       return;
     }
 
-    const body = req.body as { companyId?: unknown; configJson?: Record<string, unknown> } | undefined;
+    const body = req.body as { companyId?: unknown; configJson?: Record<string, unknown>; initializeOnly?: boolean } | undefined;
     const companyId = requirePluginConfigCompanyId(req, body?.companyId);
     if (!body?.configJson || typeof body.configJson !== "object" || Array.isArray(body.configJson)) {
       res.status(400).json({ error: '"configJson" is required and must be an object' });
+      return;
+    }
+    if (body.initializeOnly !== undefined && typeof body.initializeOnly !== "boolean") {
+      res.status(400).json({ error: '"initializeOnly" must be a boolean' });
+      return;
+    }
+    const initializeOnly = body.initializeOnly === true;
+    if (initializeOnly && Object.keys(body.configJson).length > 0) {
+      res.status(400).json({ error: '"initializeOnly" requires an empty configJson' });
       return;
     }
 
@@ -2346,16 +2357,19 @@ export function pluginRoutes(
     }
 
     try {
-      const secretRefs = extractSecretRefBindingsFromConfig(body.configJson, schema);
-      await validatePluginSecretRefsForCompany(companyId, secretRefs);
-      await secretService(db).syncSecretRefsForTarget(
-        companyId,
-        { targetType: "plugin", targetId: plugin.id },
-        secretRefs,
-        { replaceAll: true },
-      );
+      const secretRefs = initializeOnly ? [] : extractSecretRefBindingsFromConfig(body.configJson, schema);
+      if (!initializeOnly) {
+        await validatePluginSecretRefsForCompany(companyId, secretRefs);
+        await secretService(db).syncSecretRefsForTarget(
+          companyId,
+          { targetType: "plugin", targetId: plugin.id },
+          secretRefs,
+          { replaceAll: true },
+        );
+      }
 
-      const result = await registry.upsertConfig(plugin.id, companyId, {
+      const initialized = initializeOnly ? await registry.initializeConfig(plugin.id, companyId) : null;
+      const result = initialized ? initialized.config : await registry.upsertConfig(plugin.id, companyId, {
         companyId,
         configJson: body.configJson,
       });
@@ -2363,8 +2377,9 @@ export function pluginRoutes(
         pluginId: plugin.id,
         pluginKey: plugin.pluginKey,
         companyId,
-        secretRefCount: secretRefs.length,
-        configKeyCount: Object.keys(body.configJson).length,
+        secretRefCount: initializeOnly ? undefined : secretRefs.length,
+        configKeyCount: Object.keys(result.configJson).length,
+        ...(initialized ? { initializeOnly: true, created: initialized.created } : {}),
       });
 
       // Notify the running worker about the config change (PLUGIN_SPEC §25.4.4).
@@ -2390,7 +2405,7 @@ export function pluginRoutes(
           await bridgeDeps.workerManager.call(
             plugin.id,
             "configChanged",
-            { config: body.configJson, companyId },
+            { config: result.configJson, companyId },
           );
         } catch (rpcErr) {
           if (
@@ -2414,6 +2429,14 @@ export function pluginRoutes(
       const message = err instanceof Error ? err.message : String(err);
       res.status(400).json({ error: message });
     }
+  };
+
+  router.post("/plugins/:pluginId/config", savePluginConfig);
+  // A distinct URL fails closed on older servers rather than letting an old
+  // config handler ignore initializeOnly and replace stored values with {}.
+  router.post("/plugins/:pluginId/config/initialize", async (req, res) => {
+    req.body = { ...req.body, configJson: req.body?.configJson ?? {}, initializeOnly: true };
+    await savePluginConfig(req, res);
   });
 
   /**
