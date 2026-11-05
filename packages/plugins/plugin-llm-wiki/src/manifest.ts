@@ -329,7 +329,7 @@ const manifest: PaperclipPluginManifestV1 = {
     {
       name: "wiki_search",
       displayName: "Search Wiki",
-      description: "Search indexed wiki page and source metadata for one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space. Each result includes a board link; cite it as a markdown link when answering. Page results name the indexed revision; cite it with the link. A result marked INDEX BEHIND means the file changed after indexing: read the page before citing it, and say the index is behind.",
+      description: "Search wiki page titles, paths and current published revision bodies, plus source metadata, for one wiki space. Operation agents should pass the issue's spaceSlug; omitting it uses the default space. Each result includes a board link; cite it as a markdown link when answering. Page results name the indexed revision; cite it with the link. A result marked INDEX BEHIND means the file changed after indexing: read the page before citing it, and say the index is behind.",
       parametersSchema: {
         type: "object",
         properties: {
