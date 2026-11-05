@@ -1749,6 +1749,54 @@ Duplicate headings receive stable suffixes.
       expect(search.content).toContain("INDEX BEHIND: file changed after revision rev-2");
       expect(search.data.results[0]?.indexStale).toBe(true);
     });
+
+    function indexSyncHarness(pages: Array<{ path: string; indexedHash: string }>, files: Map<string, string>) {
+      const harness = createTestHarness({ manifest });
+      harness.ctx.localFolders.readText = async (_companyId, _folderKey, relativePath) => {
+        const contents = files.get(relativePath);
+        if (contents == null) throw new Error(`missing ${relativePath}`);
+        return contents;
+      };
+      harness.ctx.db.query = async <T = Record<string, unknown>>(sql: string, params?: unknown[]) => {
+        harness.dbQueries.push({ sql, params });
+        if (sql.includes("wiki-index-sync")) {
+          return pages.map((page, index) => ({
+            id: `page-${index}`, current_revision_id: `revision-${index}`,
+            company_id: COMPANY_ID, wiki_id: "default", space_id: "space-1", path_prefix: null,
+            path: page.path, content_hash: page.indexedHash,
+          })) as T[];
+        }
+        return [];
+      };
+      return harness;
+    }
+
+    it("re-indexes a page whose file changed outside the wiki tools, without a model call", async () => {
+      const files = new Map([["wiki/policies/leave.md", PAGE_V2], ["wiki/policies/travel.md", PAGE_V1]]);
+      const harness = indexSyncHarness([
+        { path: "wiki/policies/leave.md", indexedHash: sha(PAGE_V1) },
+        { path: "wiki/policies/travel.md", indexedHash: sha(PAGE_V1) },
+        { path: "wiki/policies/removed.md", indexedHash: sha(PAGE_V1) },
+      ], files);
+      await plugin.definition.setup(harness.ctx);
+
+      await harness.runJob("wiki-index-sync");
+
+      const pageWrites = harness.dbExecutes.filter((execute) => execute.sql.includes("UPDATE") && execute.sql.includes("wiki_pages"));
+      const revisionWrites = harness.dbExecutes.filter((execute) => execute.sql.includes("wiki_page_revisions") && execute.sql.includes("INSERT"));
+      // Only the changed page: the unchanged one keeps its revision and an unreadable file is left alone.
+      expect(pageWrites).toHaveLength(1);
+      expect(pageWrites[0]?.params?.[0]).toBe("page-0");
+      expect(pageWrites[0]?.params).toContain(sha(PAGE_V2));
+      expect(revisionWrites).toHaveLength(1);
+      expect(revisionWrites[0]?.params).toContain(PAGE_V2);
+    });
+
+    it("declares the index sync as a frequent scheduled job", () => {
+      const job = manifest.jobs?.find((entry) => entry.jobKey === "wiki-index-sync");
+      expect(job?.schedule).toBe("*/5 * * * *");
+      expect(manifest.capabilities).toContain("jobs.schedule");
+    });
   });
 
   it("filters stale page and raw source rows out of browse data", async () => {

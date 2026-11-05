@@ -117,6 +117,7 @@ const manifest: PaperclipPluginManifestV1 = {
     "agent.tools.register",
     "metrics.write",
     "activity.log.write",
+    "jobs.schedule",
     "plugin.state.read",
     "plugin.state.write",
     "ui.sidebar.register",
@@ -232,6 +233,14 @@ const manifest: PaperclipPluginManifestV1 = {
       description: "Refresh wiki/index.md so it accurately catalogs current wiki pages.",
       markdown: skillMarkdown(INDEX_REFRESH_SKILL_KEY)
     }
+  ],
+  jobs: [
+    {
+      jobKey: "wiki-index-sync",
+      displayName: "Sync wiki index",
+      description: "Re-index wiki pages whose file changed outside the wiki tools. Hashes files only; no model call.",
+      schedule: "*/5 * * * *",
+    },
   ],
   routines: [
     {
