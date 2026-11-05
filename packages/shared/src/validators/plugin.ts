@@ -1209,6 +1209,7 @@ export type InstallPlugin = z.infer<typeof installPluginSchema>;
 export const upsertPluginConfigSchema = z.object({
   companyId: z.string().guid(),
   configJson: z.record(z.string(), z.unknown()),
+  initializeOnly: z.boolean().optional(),
 });
 
 export type UpsertPluginConfig = z.infer<typeof upsertPluginConfigSchema>;

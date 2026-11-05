@@ -37,6 +37,16 @@ describe("static UI literal localization", () => {
     expect(translateUiLiteral("Alpha")).toBe("早期測試版");
   });
 
+  it("translates background configuration actions and permission errors without changing organization names", async () => {
+    await setLocale("zh-TW");
+    expect(translateUiLiteral("Initialize background configuration")).toBe("初始化此工作區的外掛背景設定");
+    expect(translateUiLiteral("Background configuration is saved for this organization.")).toBe("此工作區的外掛背景設定已儲存。");
+    expect(translateUiLiteral("An instance administrator must initialize background configuration. Nothing was changed.")).toBe("需要實例管理員權限才能初始化背景設定，未變更任何資料。");
+    expect(translateUiLiteral("Example Workspace")).toBe("Example Workspace");
+    await setLocale("en");
+    expect(translateUiLiteral("Initialize background configuration")).toBe("Initialize background configuration");
+  });
+
   it("updates literals without resetting component state", async () => {
     const container = document.createElement("div");
     const root = createRoot(container);

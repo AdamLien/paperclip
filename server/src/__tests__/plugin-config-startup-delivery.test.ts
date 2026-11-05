@@ -84,6 +84,43 @@ describeEmbeddedPostgres("registry.listConfigs (startup config delivery)", () =>
     return companyId;
   }
 
+  it("initializes configuration once even when two requests arrive together", async () => {
+    const registry = pluginRegistryService(db);
+    const pluginId = await seedPlugin("paperclip.background-test", 1);
+    const companyA = await seedCompany();
+    const companyB = await seedCompany();
+    const results = await Promise.all([
+      registry.initializeConfig(pluginId, companyA),
+      registry.initializeConfig(pluginId, companyA),
+    ]);
+    expect(results.filter((result) => result.created)).toHaveLength(1);
+    expect(results[0].config.id).toBe(results[1].config.id);
+    expect(results[0].config.configJson).toEqual({});
+    const rows = await registry.listConfigs(pluginId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].companyId).toBe(companyA);
+    expect(await registry.getConfig(pluginId, companyB)).toBeNull();
+  });
+
+  it("initializing an existing config preserves all values and timestamps", async () => {
+    const registry = pluginRegistryService(db);
+    const pluginId = await seedPlugin("paperclip.background-test", 1);
+    const companyA = await seedCompany();
+    const existing = await registry.upsertConfig(pluginId, companyA, {
+      companyId: companyA, configJson: { customOption: "keep", apiKeyRef: { secretId: "fixture-reference" } },
+    });
+    const initialized = await registry.initializeConfig(pluginId, companyA);
+    expect(initialized.created).toBe(false);
+    expect(initialized.config).toEqual(existing);
+    expect(await registry.getConfig(pluginId, companyA)).toEqual(existing);
+  });
+
+  it("does not initialize configuration for an unknown plugin", async () => {
+    const registry = pluginRegistryService(db);
+    const companyA = await seedCompany();
+    await expect(registry.initializeConfig(randomUUID(), companyA)).rejects.toThrow("Plugin not found");
+  });
+
   it("returns every company-scoped config row for a plugin", async () => {
     const registry = pluginRegistryService(db);
     const pluginId = await seedPlugin("paperclip.gateway-test", 1);

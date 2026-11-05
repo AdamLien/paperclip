@@ -373,6 +373,10 @@ export const pluginsApi = {
   saveConfig: (pluginId: string, companyId: string, configJson: Record<string, unknown>) =>
     api.post<PluginConfig>(`/plugins/${pluginId}/config`, { companyId, configJson }),
 
+  /** Establish company-scoped background configuration without replacing an existing row. */
+  initializeConfig: (pluginId: string, companyId: string) =>
+    api.post<PluginConfig>(`/plugins/${pluginId}/config/initialize`, { companyId }),
+
   /**
    * Call the plugin's `validateConfig` RPC method to test the configuration
    * without persisting it.

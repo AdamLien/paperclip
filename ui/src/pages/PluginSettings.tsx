@@ -8,6 +8,7 @@ import { useManagedSandboxOnly } from "@/hooks/useManagedSandboxOnly";
 import { Link, Navigate, useParams } from "@/lib/router";
 import { PluginSlotMount, usePluginSlots } from "@/plugins/slots";
 import { pluginsApi, type PluginLocalFolderStatus } from "@/api/plugins";
+import { ApiError } from "@/api/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -237,6 +238,14 @@ export function PluginSettings() {
                   pluginId={pluginId!}
                   companyId={selectedCompanyId}
                   declarations={localFolderDeclarations}
+                />
+              ) : null}
+              {hasLocalFolders && !hasConfigSchema && !hasCustomSettingsPage && (plugin.manifestJson.jobs?.length ?? 0) > 0 ? (
+                <PluginBackgroundConfiguration
+                  key={`${pluginId}:${selectedCompanyId}`}
+                  pluginId={pluginId!}
+                  companyId={selectedCompanyId}
+                  companyName={selectedCompany?.name}
                 />
               ) : null}
               {hasCustomSettingsPage ? (
@@ -922,6 +931,69 @@ function isLikelyAbsolutePath(pathValue: string) {
     pathValue.startsWith("/") ||
     /^[A-Za-z]:[\\/]/.test(pathValue) ||
     pathValue.startsWith("\\\\")
+  );
+}
+
+function PluginBackgroundConfiguration({ pluginId, companyId, companyName }: {
+  pluginId: string;
+  companyId: string | null;
+  companyName?: string;
+}) {
+  const queryClient = useQueryClient();
+  const config = useQuery({
+    queryKey: companyId ? queryKeys.plugins.config(pluginId, companyId) : ["plugins", pluginId, "background-config", "unselected"],
+    queryFn: () => pluginsApi.getConfig(pluginId, companyId!),
+    enabled: !!companyId,
+  });
+  const initialize = useMutation({
+    mutationFn: (targetCompanyId: string) => pluginsApi.initializeConfig(pluginId, targetCompanyId),
+    onSuccess: (saved, targetCompanyId) => {
+      queryClient.setQueryData(queryKeys.plugins.config(pluginId, targetCompanyId), saved);
+    },
+  });
+
+  return (
+    <div className="space-y-3" aria-busy={config.isLoading || initialize.isPending}>
+      <h3 className="text-sm font-medium">Background configuration</h3>
+      <p className="text-sm text-muted-foreground">
+        Initialize this organization so the plugin can run its scheduled background work. Local folder paths and saved options are not changed.
+      </p>
+      {!companyId ? (
+        <p className="text-sm text-muted-foreground">Select an organization before initializing background configuration.</p>
+      ) : (
+        <>
+          <p className="text-sm">Selected organization: <strong>{companyName ?? "Organization"}</strong></p>
+          {config.isLoading ? <p role="status" className="text-sm text-muted-foreground">Loading background configuration...</p> : null}
+          {config.isError ? (
+            <div className="space-y-2">
+              <p role="alert" className="text-sm text-destructive">Could not load background configuration. Nothing was changed.</p>
+              <Button type="button" variant="outline" size="sm" disabled={config.isFetching} onClick={() => void config.refetch()}>Retry</Button>
+            </div>
+          ) : config.data ? (
+            <div role="status" className="space-y-2 text-sm">
+              <p>Background configuration is saved for this organization.</p>
+              <p className="text-muted-foreground">Check the Status tab to verify scheduled jobs.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-end">
+                <Button type="button" size="sm" disabled={config.isLoading || initialize.isPending} onClick={() => initialize.mutate(companyId)}>
+                  {initialize.isPending ? "Initializing..." : "Initialize background configuration"}
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">Only an instance administrator can initialize this configuration.</p>
+            </>
+          )}
+          {initialize.error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {initialize.error instanceof ApiError && initialize.error.status === 403
+                ? "An instance administrator must initialize background configuration. Nothing was changed."
+                : initialize.error.message || "Could not initialize background configuration."}
+            </p>
+          ) : null}
+        </>
+      )}
+    </div>
   );
 }
 
