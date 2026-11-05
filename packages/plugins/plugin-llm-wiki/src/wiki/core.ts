@@ -4135,7 +4135,7 @@ export async function listPageRevisions(ctx: PluginContext, input: { companyId: 
 export async function registerWikiTools(ctx: PluginContext) {
   ctx.tools.register("wiki_search", {
     displayName: "Search Wiki",
-    description: "Search indexed wiki page and source metadata.",
+    description: "Search wiki page titles, paths and current published revision bodies, plus source metadata.",
     parametersSchema: ctx.manifest.tools?.find((tool) => tool.name === "wiki_search")?.parametersSchema ?? { type: "object" },
   }, async (params: unknown, runContext: ToolRunContext): Promise<ToolResult> => {
     const input = params as ToolParams;
@@ -4145,9 +4145,16 @@ export async function registerWikiTools(ctx: PluginContext) {
     const query = requireString(input.query, "query");
     const limit = normalizeLimit(input.limit, 20, 50);
     const rows = await ctx.db.query<{ kind: string; path: string; title: string | null; match_text: string | null; revision_id?: string | null; indexed_hash?: string | null }>(
-      `SELECT 'page' AS kind, path, title, page_type AS match_text, current_revision_id::text AS revision_id, content_hash AS indexed_hash
-         FROM ${tableName(ctx.db.namespace, "wiki_pages")}
-        WHERE company_id = $1 AND wiki_id = $2 AND space_id = $5 AND (lower(path) LIKE lower($3) OR lower(coalesce(title, '')) LIKE lower($3))
+      `SELECT 'page' AS kind, p.path, p.title, p.page_type AS match_text, p.current_revision_id::text AS revision_id, p.content_hash AS indexed_hash
+         FROM ${tableName(ctx.db.namespace, "wiki_pages")} p
+        WHERE p.company_id = $1 AND p.wiki_id = $2 AND p.space_id = $5
+          AND (lower(p.path) LIKE lower($3) OR lower(coalesce(p.title, '')) LIKE lower($3)
+            OR EXISTS (
+              SELECT 1 FROM ${tableName(ctx.db.namespace, "wiki_page_revisions")} r
+               WHERE r.id = p.current_revision_id AND r.page_id = p.id
+                 AND r.company_id = p.company_id AND r.wiki_id = p.wiki_id AND r.space_id = p.space_id
+                 AND lower(coalesce(r.body, '')) LIKE lower($3)
+            ))
        UNION ALL
        SELECT 'source' AS kind, raw_path AS path, title, source_type AS match_text, NULL AS revision_id, content_hash AS indexed_hash
          FROM ${tableName(ctx.db.namespace, "wiki_sources")}
