@@ -1,4 +1,5 @@
 import { classifyMbaseRunCost, createMbasePartnerModelService, MbaseModelUnavailable } from "./mbase-partner-model.js";
+import { estimateMbaseCostUsd } from "./mbase-model-prices.js";
 import { retryIdempotentDatabaseOperation } from "../database-retry.js";
 import { prepareConnectionInstructionDelivery } from "./connection-instructions.js";
 import { resolveAssignedConnectionInstructionsForRun } from "./native-runtime/assigned-mcp-tools.js";
@@ -21792,6 +21793,7 @@ export function heartbeatService(
       const mbaseModel = readNonEmptyString(parseObject(parseObject(agent.runtimeConfig).mbase).model);
       let mbaseProjection: Awaited<ReturnType<typeof mbasePartnerModels.runtimeProjection>> | null = null;
       let mbaseEstimatedCostUsd: number | null = null;
+      let mbaseEstimateSource: "table" | "default" | "cli" | null = null;
       if (mbaseModel) {
         const mbaseUnavailable = (message: string) => new ConfigurationIncompleteFailure(message, {
           configurationIncomplete: { reason: "mbase_model_unavailable", companyId: agent.companyId, agentId: agent.id, responsibleUserId,
@@ -25216,7 +25218,10 @@ export function heartbeatService(
           if (mbaseProjection) {
             const mbaseCost = classifyMbaseRunCost(adapterResult);
             adapterResult = mbaseCost.result;
-            mbaseEstimatedCostUsd = mbaseCost.estimatedCostUsd;
+            // Our price table is the estimate; the CLI's own list-price total is the fallback without usage.
+            const priced = estimateMbaseCostUsd(mbaseProjection.model ?? adapterResult.model, adapterResult.usage);
+            mbaseEstimatedCostUsd = priced.usd ?? mbaseCost.estimatedCostUsd;
+            mbaseEstimateSource = priced.usd != null ? priced.priceSource : mbaseCost.estimatedCostUsd != null ? "cli" : null;
           }
           // A returned result can include a failed restore. Keep the workspace
           // barrier closed until required files have been restored.
@@ -25700,7 +25705,7 @@ export function heartbeatService(
                   ? { cacheAdjustedCostUsd }
                   : {}),
                 ...(mbaseEstimatedCostUsd != null
-                  ? { estimatedCostUsd: mbaseEstimatedCostUsd }
+                  ? { estimatedCostUsd: mbaseEstimatedCostUsd, estimatedCostSource: mbaseEstimateSource }
                   : {}),
                 costStatus: resolveLedgerCostStatus({
                   costUsd: cacheAdjustedCostUsd,

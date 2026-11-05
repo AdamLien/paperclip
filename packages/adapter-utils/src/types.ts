@@ -34,6 +34,8 @@ export interface UsageSummary {
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens?: number;
+  /** Cache writes, already included in inputTokens; reported apart where the adapter knows them. */
+  cacheCreationInputTokens?: number;
 }
 
 export type AdapterBillingType =

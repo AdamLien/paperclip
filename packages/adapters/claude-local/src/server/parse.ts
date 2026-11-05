@@ -41,17 +41,19 @@ export function claudeModelUsageTotals(modelUsage: unknown): UsageSummary | null
   let inputTokens = 0;
   let outputTokens = 0;
   let cachedInputTokens = 0;
+  let cacheCreationInputTokens = 0;
   let sawEntry = false;
   for (const value of Object.values(byModel)) {
     const entry = parseObject(value);
     if (Object.keys(entry).length === 0) continue;
     sawEntry = true;
     inputTokens += asNumber(entry.inputTokens, 0) + asNumber(entry.cacheCreationInputTokens, 0);
+    cacheCreationInputTokens += asNumber(entry.cacheCreationInputTokens, 0);
     outputTokens += asNumber(entry.outputTokens, 0);
     cachedInputTokens += asNumber(entry.cacheReadInputTokens, 0);
   }
   if (!sawEntry) return null;
-  return { inputTokens, outputTokens, cachedInputTokens };
+  return { inputTokens, outputTokens, cachedInputTokens, cacheCreationInputTokens };
 }
 
 export function parseClaudeStreamJson(stdout: string) {
