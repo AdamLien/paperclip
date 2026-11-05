@@ -8,6 +8,7 @@ import {
   companies,
   costEvents,
   createDb,
+  heartbeatRuns,
   projects,
 } from "@paperclipai/db";
 import { budgetService } from "../services/budgets.ts";
@@ -36,6 +37,7 @@ function createDbStub(selectResults: SelectResult[]) {
     where: selectWhere,
     then: selectThen,
     orderBy: selectOrderBy,
+    leftJoin: vi.fn(() => ({ where: selectWhere, then: selectThen, orderBy: selectOrderBy })),
   }));
   const select = vi.fn(() => ({
     from: selectFrom,
@@ -347,6 +349,7 @@ describeEmbeddedPostgres("budgetService release gate enforcement", () => {
     await db.delete(approvals);
     await db.delete(budgetPolicies);
     await db.delete(costEvents);
+    await db.delete(heartbeatRuns);
     await db.delete(projects);
     await db.delete(agents);
     await db.delete(companies);
@@ -416,6 +419,26 @@ describeEmbeddedPostgres("budgetService release gate enforcement", () => {
 
     return event!;
   }
+
+  it("counts the estimate of an unpriced run toward the budget and hard-stops on it", async () => {
+    const { companyId, agentId } = await createBudgetFixture();
+    const service = budgetService(db, { cancelWorkForScope: vi.fn().mockResolvedValue(undefined) });
+    await db.insert(budgetPolicies).values({
+      companyId, scopeType: "agent", scopeId: agentId, metric: "billed_cents", windowKind: "calendar_month_utc",
+      amount: 100, warnPercent: 80, hardStopEnabled: true, notifyEnabled: true, isActive: true,
+    });
+    // A gateway-routed run: the billed amount is unknown (0 cents, unpriced) and the run carries a $1.30 estimate.
+    const runId = randomUUID();
+    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", usageJson: { estimatedCostUsd: 1.3 } });
+    const [event] = await db.insert(costEvents).values({
+      companyId, agentId, heartbeatRunId: runId, provider: "anthropic", biller: "mbase", billingType: "unknown",
+      costStatus: "unpriced", model: "anthropic/claude-sonnet-5-5", costCents: 0, occurredAt: new Date(),
+    }).returning();
+    await service.evaluateCostEvent(event!);
+
+    const incidents = await db.select().from(budgetIncidents);
+    expect(incidents.find((incident) => incident.thresholdType === "hard")).toMatchObject({ amountObserved: 130, status: "open" });
+  });
 
   it("raises one soft incident per window before hard-stopping and safely logging agent telemetry", async () => {
     const { companyId, agentId } = await createBudgetFixture();

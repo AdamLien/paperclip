@@ -8,6 +8,7 @@ import {
   budgetPolicies,
   companies,
   costEvents,
+  heartbeatRuns,
   projects,
 } from "@paperclipai/db";
 import type {
@@ -156,11 +157,16 @@ async function computeObservedAmount(
     conditions.push(lt(costEvents.occurredAt, end));
   }
 
+  // An unpriced event (billed amount unknown, e.g. an mBase run) counts its run's price-table
+  // estimate, so a budget still stops spend it cannot see as billed cents.
   const [row] = await db
     .select({
-      total: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::double precision`,
+      total: sql<number>`coalesce(sum(case when ${costEvents.costStatus} = 'unpriced'
+        then coalesce(round((${heartbeatRuns.usageJson}->>'estimatedCostUsd')::numeric * 100), 0)
+        else ${costEvents.costCents} end), 0)::double precision`,
     })
     .from(costEvents)
+    .leftJoin(heartbeatRuns, eq(heartbeatRuns.id, costEvents.heartbeatRunId))
     .where(and(...conditions));
 
   return Number(row?.total ?? 0);

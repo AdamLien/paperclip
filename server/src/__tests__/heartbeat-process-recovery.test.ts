@@ -7466,7 +7466,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(runtimeProjection).toHaveBeenCalled();
     expect(settled?.usageJson).toMatchObject({
       inputTokens: 1_000, outputTokens: 200,
-      biller: "mbase", billingType: "unknown", costStatus: "unpriced", estimatedCostUsd: 0.0973,
+      // Estimated from our price table (1,000 input x $2 + 200 output x $10 per million), not the CLI's figure.
+      biller: "mbase", billingType: "unknown", costStatus: "unpriced", estimatedCostUsd: 0.004, estimatedCostSource: "table",
     });
     expect(settled?.usageJson).not.toHaveProperty("costUsd");
     expect(settled?.usageJson).not.toHaveProperty("cacheAdjustedCostUsd");
