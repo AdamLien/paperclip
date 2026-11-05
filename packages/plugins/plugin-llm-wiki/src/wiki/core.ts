@@ -1846,11 +1846,15 @@ async function upsertPageMetadata(ctx: PluginContext, input: {
  */
 export async function syncChangedWikiPages(ctx: PluginContext): Promise<{ checked: number; reindexed: number; unreadable: number }> {
   const rows = await ctx.db.query<{
-    company_id: string; wiki_id: string; space_id: string; path: string; content_hash: string | null; path_prefix: string | null;
+    id: string; company_id: string; wiki_id: string; space_id: string; path: string;
+    content_hash: string | null; current_revision_id: string | null; path_prefix: string | null;
   }>(
-    `/* wiki-index-sync */ SELECT p.company_id, p.wiki_id, p.space_id, p.path, p.content_hash, s.path_prefix
+    `/* wiki-index-sync */ SELECT p.id, p.company_id, p.wiki_id, p.space_id, p.path,
+            p.content_hash, p.current_revision_id, s.path_prefix
        FROM ${tableName(ctx.db.namespace, "wiki_pages")} p
-       JOIN ${spaceTable(ctx)} s ON s.id = p.space_id`,
+       JOIN ${spaceTable(ctx)} s ON s.id = p.space_id AND s.company_id = p.company_id AND s.wiki_id = p.wiki_id
+       JOIN public.companies c ON c.id = p.company_id
+      WHERE s.status = 'active' AND c.status = 'active'`,
   );
   let reindexed = 0;
   let unreadable = 0;
@@ -1861,15 +1865,33 @@ export async function syncChangedWikiPages(ctx: PluginContext): Promise<{ checke
       continue;
     }
     if (current.hash === row.content_hash) continue;
-    await upsertPageMetadata(ctx, {
-      companyId: row.company_id,
-      wikiId: row.wiki_id,
-      spaceId: row.space_id,
-      path: row.path,
-      contents: current.contents,
-      summary: "Index sync: file changed outside the wiki tools",
-    });
-    reindexed += 1;
+    // Atomically advance only the revision/hash we observed. A normal publish or
+    // another sync worker that got here first wins; never overwrite it or add an
+    // orphan revision. Source references and other author-managed metadata stay intact.
+    const revisionId = randomUUID();
+    const changed = await ctx.db.execute(
+      `WITH changed AS (
+         UPDATE ${tableName(ctx.db.namespace, "wiki_pages")} p
+            SET title = $6, page_type = $7, backlinks = $8::jsonb,
+                content_hash = $9, current_revision_id = $10::uuid, updated_at = now()
+          WHERE p.id = $1 AND p.company_id = $2 AND p.wiki_id = $3 AND p.space_id = $4
+            AND p.current_revision_id IS NOT DISTINCT FROM $11::uuid
+            AND p.content_hash IS NOT DISTINCT FROM $12::text
+            AND EXISTS (SELECT 1 FROM ${spaceTable(ctx)} s
+                         WHERE s.id = p.space_id AND s.company_id = p.company_id
+                           AND s.wiki_id = p.wiki_id AND s.status = 'active')
+         RETURNING p.id, p.company_id, p.wiki_id, p.space_id, p.path
+       )
+       INSERT INTO ${tableName(ctx.db.namespace, "wiki_page_revisions")}
+         (id, company_id, wiki_id, space_id, page_id, path, content_hash, summary, metadata, body)
+       SELECT $10::uuid, company_id, wiki_id, space_id, id, path, $9,
+              'Index sync: file changed outside the wiki tools', '{}'::jsonb, $5 FROM changed`,
+      [row.id, row.company_id, row.wiki_id, row.space_id, current.contents,
+        inferTitle(row.path, current.contents), inferPageType(row.path),
+        jsonParam(extractWikiLinks(current.contents)), current.hash, revisionId,
+        row.current_revision_id, row.content_hash],
+    );
+    reindexed += changed.rowCount;
   }
   return { checked: rows.length, reindexed, unreadable };
 }

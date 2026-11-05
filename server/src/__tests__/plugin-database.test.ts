@@ -16,7 +16,7 @@ import {
 import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
 import { createTestHarness } from "@paperclipai/plugin-sdk/testing";
 import wikiManifest from "../../../packages/plugins/plugin-llm-wiki/src/manifest.js";
-import { registerWikiTools, writeWikiPage } from "../../../packages/plugins/plugin-llm-wiki/src/wiki.js";
+import { registerWikiTools, syncChangedWikiPages, writeWikiPage } from "../../../packages/plugins/plugin-llm-wiki/src/wiki.js";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -130,6 +130,33 @@ describe("plugin database SQL validation", () => {
     expect(() =>
       validatePluginRuntimeExecute("UPDATE public.issues SET title = $1", "plugin_test")
     ).toThrow(/namespace/i);
+  });
+
+  it("allows atomic namespace writes but keeps CTE writes out of other schemas", () => {
+    expect(() => validatePluginRuntimeExecute(
+      "WITH changed AS (UPDATE plugin_test.rows SET label = $1 RETURNING id) INSERT INTO plugin_test.revisions (id) SELECT id FROM changed",
+      "plugin_test",
+    )).not.toThrow();
+    expect(() => validatePluginRuntimeExecute(
+      "WITH changed AS (UPDATE public.issues SET title = $1 RETURNING id) INSERT INTO plugin_test.revisions (id) SELECT id FROM changed",
+      "plugin_test",
+    )).toThrow(/namespace|public/i);
+    expect(() => validatePluginRuntimeExecute(
+      "WITH changed AS (UPDATE plugin_test.rows SET label = $1 RETURNING id) INSERT INTO plugin_other.revisions (id) SELECT id FROM changed",
+      "plugin_test",
+    )).toThrow(/namespace|schema/i);
+    // Checking only the first qualified target would miss an unqualified later write.
+    expect(() => validatePluginRuntimeExecute(
+      "WITH changed AS (UPDATE plugin_test.rows SET label = $1 RETURNING id) DELETE FROM issues",
+      "plugin_test",
+    )).toThrow(/namespace/i);
+    expect(() => validatePluginRuntimeExecute(
+      "WITH changed AS (DELETE FROM issues RETURNING id) INSERT INTO plugin_test.revisions (id) SELECT id FROM changed",
+      "plugin_test",
+    )).toThrow(/namespace/i);
+    expect(() => validatePluginRuntimeExecute(
+      "WITH rows AS (SELECT id FROM plugin_test.rows) SELECT id FROM rows", "plugin_test",
+    )).toThrow(/INSERT, UPDATE, or DELETE/i);
   });
 
   it("targets anonymous DO blocks without rejecting do-prefixed aliases", () => {
@@ -621,6 +648,93 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
     await expect(harness.executeTool("wiki_search", {
       companyId: otherCompanyId, query: "其他公司專用暗號",
     }, { companyId })).rejects.toThrow(/another company/);
+  });
+
+  it("index sync preserves sources and cannot replace a concurrent publish or duplicate a revision", async () => {
+    const pluginManifest = llmWikiManifest();
+    const repoRoot = path.basename(process.cwd()) === "server" ? path.resolve(process.cwd(), "..") : process.cwd();
+    const packageRoot = path.join(repoRoot, "packages", "plugins", "plugin-llm-wiki");
+    const namespace = derivePluginDatabaseNamespace(pluginManifest.id, pluginManifest.database?.namespaceSlug);
+    const pluginId = await installPluginRecord(pluginManifest);
+    const pluginDb = pluginDatabaseService(db);
+    await pluginDb.applyMigrations(pluginId, pluginManifest, packageRoot);
+    const companyId = randomUUID();
+    await db.insert(companies).values({ id: companyId, name: "Sync audit", issuePrefix: "SYNC" });
+    const harness = createTestHarness({ manifest: wikiManifest });
+    harness.seed({ companies: [{ id: companyId, name: "Sync audit", issuePrefix: "SYNC" } as never] });
+    harness.ctx.db.namespace = namespace;
+    harness.ctx.db.query = (statement, params) => pluginDb.query(pluginId, statement, params);
+    harness.ctx.db.execute = (statement, params) => pluginDb.execute(pluginId, statement, params);
+    const files = new Map<string, string>();
+    const pagePath = "wiki/concepts/sync-audit.md";
+    harness.ctx.localFolders.readText = async (_company, _folder, relativePath) => {
+      const contents = files.get(relativePath);
+      if (contents == null) throw new Error("missing synthetic file");
+      return contents;
+    };
+    harness.ctx.localFolders.writeTextAtomic = async (_company, _folder, relativePath, contents) => {
+      files.set(relativePath, contents);
+      return undefined as never;
+    };
+    const sources = [{ path: "raw/synthetic.md", revision: "source-v1" }];
+    await writeWikiPage(harness.ctx, {
+      companyId, path: pagePath, contents: "# Sync audit\n\nVersion one.", sourceRefs: sources,
+    });
+    const page = async () => (await pluginDb.query<{ source_refs: unknown; current_revision_id: string; content_hash: string }>(
+      pluginId, `SELECT source_refs, current_revision_id, content_hash FROM ${namespace}.wiki_pages WHERE company_id = $1 AND path = $2`,
+      [companyId, pagePath],
+    ))[0]!;
+    const revisions = () => pluginDb.query<{ id: string; body: string }>(
+      pluginId, `SELECT id, body FROM ${namespace}.wiki_page_revisions WHERE company_id = $1 AND path = $2`, [companyId, pagePath],
+    );
+    files.set(pagePath, "# Sync audit\n\nVersion two.");
+    expect((await syncChangedWikiPages(harness.ctx)).reindexed).toBe(1);
+    expect((await page()).source_refs).toEqual(sources);
+    const synced = await page();
+    expect((await revisions()).find((r) => r.id === synced.current_revision_id)?.body).toContain("Version two.");
+    expect((await syncChangedWikiPages(harness.ctx)).reindexed).toBe(0);
+    expect(await revisions()).toHaveLength(2);
+
+    // A normal publish lands after enumeration and after the sync read starts.
+    // The stale reader must not move the current revision back to its snapshot.
+    files.set(pagePath, "# Sync audit\n\nStale file snapshot.");
+    const plainRead = harness.ctx.localFolders.readText;
+    let publishDuringRead = true;
+    let publishedRevision = "";
+    harness.ctx.localFolders.readText = async (...args) => {
+      const snapshot = await plainRead(...args);
+      if (publishDuringRead) {
+        publishDuringRead = false;
+        publishedRevision = (await writeWikiPage(harness.ctx, {
+          companyId, path: pagePath, contents: "# Sync audit\n\nNew concurrent publish.", sourceRefs: sources,
+        })).revisionId;
+      }
+      return snapshot;
+    };
+    expect((await syncChangedWikiPages(harness.ctx)).reindexed).toBe(0);
+    expect((await page()).current_revision_id).toBe(publishedRevision);
+    expect(await revisions()).toHaveLength(3);
+    harness.ctx.localFolders.readText = plainRead;
+
+    // Two workers observe the same edit: only one may publish its revision.
+    files.set(pagePath, "# Sync audit\n\nOne edit, two workers.");
+    const workers = await Promise.all([syncChangedWikiPages(harness.ctx), syncChangedWikiPages(harness.ctx)]);
+    expect(workers.reduce((sum, result) => sum + result.reindexed, 0)).toBe(1);
+    expect(await revisions()).toHaveLength(4);
+    expect((await page()).source_refs).toEqual(sources);
+
+    // If storing the new revision fails, its page-index update must roll back too.
+    const beforeFailure = await page();
+    await db.execute(sql.raw(`ALTER TABLE ${namespace}.wiki_page_revisions
+      ADD CONSTRAINT reject_bad_sync_body CHECK (body NOT LIKE '%reject-this-sync%')`));
+    files.set(pagePath, "# Sync audit\n\nreject-this-sync");
+    await expect(syncChangedWikiPages(harness.ctx)).rejects.toThrow();
+    expect(await page()).toEqual(beforeFailure);
+    expect(await revisions()).toHaveLength(4);
+
+    // Disabled spaces are not inspected or silently reactivated by maintenance.
+    await pluginDb.execute(pluginId, `UPDATE ${namespace}.wiki_spaces SET status = 'archived' WHERE company_id = $1`, [companyId]);
+    expect(await syncChangedWikiPages(harness.ctx)).toMatchObject({ checked: 0, reindexed: 0 });
   });
 
   it("applies migrations once and allows whitelisted core joins at runtime", async () => {

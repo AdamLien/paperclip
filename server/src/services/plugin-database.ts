@@ -281,8 +281,22 @@ export function validatePluginRuntimeExecute(query: string, namespace: string): 
   const statement = statements[0]!;
   assertNoBannedSql(statement);
   const normalized = normaliseSql(statement);
-  if (!/^(insert\s+into|update|delete\s+from)\b/.test(normalized)) {
+  const directWrite = /^(insert\s+into|update|delete\s+from)\b/.test(normalized);
+  const atomicWrite = normalized.startsWith("with ") && /\b(insert\s+into|update|delete\s+from)\b/.test(normalized);
+  if (!directWrite && !atomicWrite) {
     throw new Error("ctx.db.execute only allows INSERT, UPDATE, or DELETE");
+  }
+  if (atomicWrite) {
+    // A CTE may have multiple write targets. Do not let the first qualified
+    // namespace target hide a later unqualified write through the search path.
+    const writeSql = statement
+      .replace(/'([^']|'')*'/g, "''")
+      .replace(/--.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    const targets = [...writeSql.matchAll(/\b(?:insert\s+into|update(?!\s+set\b)|delete\s+from)\s+("?[A-Za-z_][A-Za-z0-9_]*"?)(?:\s*\.\s*("?[A-Za-z_][A-Za-z0-9_]*"?))?/gi)];
+    if (targets.length === 0 || targets.some((target) => !target[2] || target[1]!.replaceAll('"', "") !== namespace)) {
+      throw new Error("Every atomic write target must be fully qualified inside the plugin namespace");
+    }
   }
   if (/\b(alter|create|drop|truncate)\b/.test(normalized)) {
     throw new Error("ctx.db.execute cannot contain DDL keywords");
