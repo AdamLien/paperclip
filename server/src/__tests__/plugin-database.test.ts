@@ -14,6 +14,9 @@ import {
   plugins,
 } from "@paperclipai/db";
 import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import { createTestHarness } from "@paperclipai/plugin-sdk/testing";
+import wikiManifest from "../../../packages/plugins/plugin-llm-wiki/src/manifest.js";
+import { registerWikiTools, writeWikiPage } from "../../../packages/plugins/plugin-llm-wiki/src/wiki.js";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -546,6 +549,78 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
     expect(uniqueColumnSets).not.toContain("paperclip_distillation_cursors:company_id,wiki_id,source_scope,scope_key,source_kind");
     expect(uniqueColumnSets).not.toContain("paperclip_distillation_work_items:company_id,wiki_id,idempotency_key");
     expect(uniqueColumnSets).not.toContain("paperclip_page_bindings:company_id,wiki_id,page_path");
+  });
+
+  it("searches current wiki page bodies without old-revision, cross-company or cross-space matches", async () => {
+    const pluginManifest = llmWikiManifest();
+    const repoRoot = path.basename(process.cwd()) === "server" ? path.resolve(process.cwd(), "..") : process.cwd();
+    const packageRoot = path.join(repoRoot, "packages", "plugins", "plugin-llm-wiki");
+    const namespace = derivePluginDatabaseNamespace(pluginManifest.id, pluginManifest.database?.namespaceSlug);
+    const pluginId = await installPluginRecord(pluginManifest);
+    const pluginDb = pluginDatabaseService(db);
+    await pluginDb.applyMigrations(pluginId, pluginManifest, packageRoot);
+    const companyId = randomUUID();
+    const otherCompanyId = randomUUID();
+    await db.insert(companies).values([
+      { id: companyId, name: "Search A", issuePrefix: "SRCA" },
+      { id: otherCompanyId, name: "Search B", issuePrefix: "SRCB" },
+    ]);
+
+    const harness = createTestHarness({ manifest: wikiManifest });
+    harness.seed({ companies: [
+      { id: companyId, name: "Search A", issuePrefix: "SRCA" } as never,
+      { id: otherCompanyId, name: "Search B", issuePrefix: "SRCB" } as never,
+    ] });
+    harness.ctx.db.namespace = namespace;
+    harness.ctx.db.query = (statement, params) => pluginDb.query(pluginId, statement, params);
+    harness.ctx.db.execute = (statement, params) => pluginDb.execute(pluginId, statement, params);
+    const files = new Map<string, string>();
+    harness.ctx.localFolders.readText = async (company, _folder, relativePath) => {
+      const contents = files.get(`${company}:${relativePath}`);
+      if (contents == null) throw new Error("missing synthetic file");
+      return contents;
+    };
+    harness.ctx.localFolders.writeTextAtomic = async (company, _folder, relativePath, contents) => {
+      files.set(`${company}:${relativePath}`, contents);
+      return undefined as never;
+    };
+    await registerWikiTools(harness.ctx);
+    const pagePath = "wiki/concepts/employee-handbook.md";
+    await writeWikiPage(harness.ctx, {
+      companyId, wikiId: "default", path: pagePath,
+      contents: "# 合成手冊\n\n試用期：已廢止的規定。\n",
+    });
+    const current = await writeWikiPage(harness.ctx, {
+      companyId, wikiId: "default", path: pagePath,
+      contents: "# 合成手冊\n\n試用期：90 天。\n客服分機：4721。\n",
+    });
+    await writeWikiPage(harness.ctx, {
+      companyId: otherCompanyId, wikiId: "default", path: pagePath,
+      contents: "# Other handbook\n\n其他公司專用暗號。\n",
+    });
+    await pluginDb.execute(pluginId,
+      `INSERT INTO ${namespace}.wiki_spaces (id, company_id, wiki_id, slug, display_name, path_prefix)
+       VALUES ($1, $2, 'default', 'other-space', 'Other space', 'spaces/other-space')`,
+      [randomUUID(), companyId]);
+    await writeWikiPage(harness.ctx, {
+      companyId, wikiId: "default", spaceSlug: "other-space", path: pagePath,
+      contents: "# Other space handbook\n\n其他空間專用暗號。\n",
+    });
+    const search = (query: string) => harness.executeTool<{ data: { results: Array<{ path: string; revisionId: string }> } }>(
+      "wiki_search", { wikiId: "default", query }, { companyId },
+    );
+    const found = await search("試用期");
+    expect(found.data.results).toHaveLength(1);
+    expect(found.data.results[0]).toMatchObject({ path: pagePath, revisionId: current.revisionId });
+    expect((await search("4721")).data.results).toHaveLength(1);
+    expect((await search("已廢止的規定")).data.results).toHaveLength(0);
+    expect((await search("其他公司專用暗號")).data.results).toHaveLength(0);
+    expect((await search("其他空間專用暗號")).data.results).toHaveLength(0);
+    // Title/path search still works; an explicit cross-company tool call is denied before querying.
+    expect((await search("合成手冊")).data.results).toHaveLength(1);
+    await expect(harness.executeTool("wiki_search", {
+      companyId: otherCompanyId, query: "其他公司專用暗號",
+    }, { companyId })).rejects.toThrow(/another company/);
   });
 
   it("applies migrations once and allows whitelisted core joins at runtime", async () => {
