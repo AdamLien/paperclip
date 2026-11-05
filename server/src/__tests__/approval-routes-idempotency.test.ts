@@ -197,6 +197,34 @@ describe("approval routes idempotent retries", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
+  it.each(["approve", "reject"])("refuses to %s a partner hire without the authority to create partners", async (decision) => {
+    mockApprovalService.getById.mockResolvedValue({
+      id: "approval-1",
+      companyId: "company-1",
+      type: "hire_agent",
+      status: "pending",
+      payload: {},
+    });
+    mockAccessService.decide.mockImplementation(async (input: { action: string }) => ({
+      allowed: input.action !== "agents:create",
+      action: input.action,
+      reason: input.action === "agents:create" ? "deny_missing_grant" : "allow_test",
+      explanation: "test",
+    }));
+
+    const res = await request(await createApp())
+      .post(`/api/approvals/approval-1/${decision}`)
+      .send({});
+
+    expect(res.status).toBe(403);
+    expect(mockApprovalService.approve).not.toHaveBeenCalled();
+    expect(mockApprovalService.reject).not.toHaveBeenCalled();
+    expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
+      action: "agents:create",
+      resource: { type: "company", companyId: "company-1" },
+    }));
+  });
+
   it("rejects approval decisions for companies outside the caller scope", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-2",

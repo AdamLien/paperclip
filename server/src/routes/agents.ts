@@ -6057,6 +6057,8 @@ export function agentRoutes(
     if (!existing) {
       return;
     }
+    // Approving a hire takes the same authority as creating a partner directly.
+    await assertCanCreateAgentsForCompany(req, existing.companyId);
     if (existing.status !== "pending_approval") {
       res.status(409).json({ error: "Only pending approval agents can be approved" });
       return;
