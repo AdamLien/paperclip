@@ -11,6 +11,9 @@ describe("PaperclipLoading", () => {
     expect(html).toContain('role="status"');
     expect(html).toContain("min-h-dvh");
     expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('src="/mdeck-app.png"');
+    expect(html).toContain('morbit-loading-orbit');
+    expect(html).not.toContain('paperclip-thinking-icon');
     expect(html).toContain('<span class="sr-only">Loading…</span>');
   });
 
