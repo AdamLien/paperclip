@@ -1839,6 +1839,41 @@ async function upsertPageMetadata(ctx: PluginContext, input: {
   return { title, pageType, backlinks, hash, revisionId };
 }
 
+/**
+ * Re-index pages whose file changed outside the wiki tools. The index only holds derived
+ * metadata (title, hash, revision), so this hashes files and needs no model call. A file that
+ * can no longer be read keeps its last indexed revision.
+ */
+export async function syncChangedWikiPages(ctx: PluginContext): Promise<{ checked: number; reindexed: number; unreadable: number }> {
+  const rows = await ctx.db.query<{
+    company_id: string; wiki_id: string; space_id: string; path: string; content_hash: string | null; path_prefix: string | null;
+  }>(
+    `/* wiki-index-sync */ SELECT p.company_id, p.wiki_id, p.space_id, p.path, p.content_hash, s.path_prefix
+       FROM ${tableName(ctx.db.namespace, "wiki_pages")} p
+       JOIN ${spaceTable(ctx)} s ON s.id = p.space_id`,
+  );
+  let reindexed = 0;
+  let unreadable = 0;
+  for (const row of rows) {
+    const current = await readCurrentWithHash(ctx, row.company_id, row.path, { pathPrefix: row.path_prefix });
+    if (current.contents == null) {
+      unreadable += 1;
+      continue;
+    }
+    if (current.hash === row.content_hash) continue;
+    await upsertPageMetadata(ctx, {
+      companyId: row.company_id,
+      wikiId: row.wiki_id,
+      spaceId: row.space_id,
+      path: row.path,
+      contents: current.contents,
+      summary: "Index sync: file changed outside the wiki tools",
+    });
+    reindexed += 1;
+  }
+  return { checked: rows.length, reindexed, unreadable };
+}
+
 export async function writeWikiPage(ctx: PluginContext, input: WritePageInput) {
   const wikiId = normalizeWikiId(input.wikiId);
   const space = await resolveSpace(ctx, { companyId: input.companyId, wikiId, spaceSlug: input.spaceSlug });

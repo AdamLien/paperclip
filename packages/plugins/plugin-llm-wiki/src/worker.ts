@@ -59,6 +59,7 @@ import {
   updatePaperclipIngestionProfile,
   updateSpace,
   writeTemplate,
+  syncChangedWikiPages,
   writeWikiPage,
 } from "./wiki.js";
 
@@ -188,6 +189,10 @@ const plugin = definePlugin({
   async setup(ctx) {
     activeContext = ctx;
     await registerWikiTools(ctx);
+    ctx.jobs.register("wiki-index-sync", async () => {
+      const result = await syncChangedWikiPages(ctx);
+      if (result.reindexed > 0) ctx.logger.info("wiki index sync re-indexed changed pages", result);
+    });
 
     for (const eventName of PAPERCLIP_EVENT_INGESTION_EVENTS) {
       ctx.events.on(eventName, async (event) => {
