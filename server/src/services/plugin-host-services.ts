@@ -2668,6 +2668,35 @@ export function buildHostServices(
           throw new Error("actorUserId is required to decide an approval on behalf of a board user");
         }
         await requireActiveHumanMember(companyId, params.actorUserId);
+        if (existing.type === "hire_agent") {
+          // Deciding a partner hire takes the same authority as creating a partner directly.
+          const [membership] = await db
+            .select()
+            .from(companyMemberships)
+            .where(and(
+              eq(companyMemberships.companyId, companyId),
+              eq(companyMemberships.principalType, "user"),
+              eq(companyMemberships.principalId, params.actorUserId),
+              eq(companyMemberships.status, "active"),
+            ))
+            .limit(1);
+          const decision = await access.decide({
+            actor: {
+              type: "board",
+              userId: params.actorUserId,
+              companyIds: [companyId],
+              memberships: membership ? [membership] : [],
+              isInstanceAdmin: false,
+              ignoreInstanceAdmin: true,
+              source: "session",
+            },
+            action: "agents:create",
+            resource: { type: "company", companyId },
+          });
+          if (!decision.allowed) {
+            throw new Error(`actorUserId "${params.actorUserId}" cannot decide a partner hire without the authority to create partners`);
+          }
+        }
 
         const { approval, applied } = params.action === "approve"
           ? await approvalSvc.approve(params.approvalId, params.actorUserId, params.decisionNote ?? null)
