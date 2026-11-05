@@ -109,6 +109,24 @@ export function createMbasePartnerModelService(options: {
   return service;
 }
 
+/**
+ * Cost for a run that went through mBase. Only the gateway knows whether a subscription or a
+ * metered key paid, so the billed amount is unknown here. The CLI's own total is a list-price
+ * estimate: it is returned apart and must not be booked as billed cost.
+ */
+export function classifyMbaseRunCost<T extends {
+  biller?: string | null;
+  billingType?: string | null;
+  costUsd?: number | null;
+  cacheAdjustedCostUsd?: number | null;
+}>(result: T): { result: T; estimatedCostUsd: number | null } {
+  const figure = result.cacheAdjustedCostUsd ?? result.costUsd;
+  return {
+    result: { ...result, biller: "mbase", billingType: "unknown", costUsd: null, cacheAdjustedCostUsd: null },
+    estimatedCostUsd: typeof figure === "number" && Number.isFinite(figure) && figure >= 0 ? figure : null,
+  };
+}
+
 export function mbaseUnavailableHttpError(error: unknown) {
   if (error instanceof MbaseModelUnavailable) return new HttpError(422, error.message, { code: "mbase_model_unavailable" });
   return error;

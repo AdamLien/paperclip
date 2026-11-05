@@ -1,4 +1,4 @@
-import { createMbasePartnerModelService, MbaseModelUnavailable } from "./mbase-partner-model.js";
+import { classifyMbaseRunCost, createMbasePartnerModelService, MbaseModelUnavailable } from "./mbase-partner-model.js";
 import { retryIdempotentDatabaseOperation } from "../database-retry.js";
 import { prepareConnectionInstructionDelivery } from "./connection-instructions.js";
 import { resolveAssignedConnectionInstructionsForRun } from "./native-runtime/assigned-mcp-tools.js";
@@ -21791,6 +21791,7 @@ export function heartbeatService(
 
       const mbaseModel = readNonEmptyString(parseObject(parseObject(agent.runtimeConfig).mbase).model);
       let mbaseProjection: Awaited<ReturnType<typeof mbasePartnerModels.runtimeProjection>> | null = null;
+      let mbaseEstimatedCostUsd: number | null = null;
       if (mbaseModel) {
         const mbaseUnavailable = (message: string) => new ConfigurationIncompleteFailure(message, {
           configurationIncomplete: { reason: "mbase_model_unavailable", companyId: agent.companyId, agentId: agent.id, responsibleUserId,
@@ -25212,6 +25213,11 @@ export function heartbeatService(
           }
           if (instructionSave) adapterResult.resultJson = { ...adapterResult.resultJson, instructionSave };
           adapterResult = applyWorkspaceRestoreFailure(adapterResult);
+          if (mbaseProjection) {
+            const mbaseCost = classifyMbaseRunCost(adapterResult);
+            adapterResult = mbaseCost.result;
+            mbaseEstimatedCostUsd = mbaseCost.estimatedCostUsd;
+          }
           // A returned result can include a failed restore. Keep the workspace
           // barrier closed until required files have been restored.
           // If recording the barrier itself fails, propagate as a run failure
@@ -25692,6 +25698,9 @@ export function heartbeatService(
                   : {}),
                 ...(cacheAdjustedCostUsd != null
                   ? { cacheAdjustedCostUsd }
+                  : {}),
+                ...(mbaseEstimatedCostUsd != null
+                  ? { estimatedCostUsd: mbaseEstimatedCostUsd }
                   : {}),
                 costStatus: resolveLedgerCostStatus({
                   costUsd: cacheAdjustedCostUsd,
