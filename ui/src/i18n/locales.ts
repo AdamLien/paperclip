@@ -1,6 +1,8 @@
 import type { Resource } from "i18next";
 
 import { assertValidLocaleMessages } from "./locale-validation";
+import profilePasswordEn from "./profile-password.en.json";
+import profilePasswordZhTW from "./profile-password.zh-TW.json";
 
 export const DEFAULT_LOCALE = "en" as const;
 
@@ -35,7 +37,10 @@ for (const [locale, messages] of Object.entries(localeMessages)) {
 export const supportedLocales = Object.keys(localeMessages);
 
 export const i18nextResources: Resource = Object.fromEntries(
-  Object.entries(localeMessages).map(([locale, messages]) => [locale, { translation: messages }]),
+  Object.entries(localeMessages).map(([locale, messages]) => [locale, {
+    translation: messages,
+    profilePassword: locale === "zh-TW" ? profilePasswordZhTW : profilePasswordEn,
+  }]),
 ) as Resource;
 
 export type SupportedLocale = keyof typeof localeMessages;

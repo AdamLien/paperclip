@@ -112,7 +112,7 @@ function logAuthHttpError(method: string, path: string, status: number, statusTe
   });
 }
 
-async function authPost(path: string, body: Record<string, unknown>): Promise<unknown> {
+async function authPost(path: string, body: Record<string, unknown>, sensitive = false): Promise<unknown> {
   let res: Response;
   try {
     res = await fetch(`/api/auth${path}`, {
@@ -122,6 +122,7 @@ async function authPost(path: string, body: Record<string, unknown>): Promise<un
       body: JSON.stringify(body),
     });
   } catch (networkError) {
+    if (sensitive) throw new AuthApiError("Unable to change password.", 0, null, "NETWORK_ERROR");
     logAuthNetworkFailure("POST", path, networkError);
     throw networkError;
   }
@@ -129,8 +130,10 @@ async function authPost(path: string, body: Record<string, unknown>): Promise<un
   if (!res.ok) {
     const recovery = tenantSessionRecovery.recoverIfNeeded(res.status, payload);
     if (recovery) return recovery;
+    const error = extractAuthError(payload as AuthErrorBody, res.status);
+    if (sensitive) throw new AuthApiError("Unable to change password.", res.status, null, error.code);
     logAuthHttpError("POST", path, res.status, res.statusText, payload);
-    throw extractAuthError(payload as AuthErrorBody, res.status);
+    throw error;
   }
   return payload;
 }
@@ -177,6 +180,10 @@ export const authApi = {
 
   signUpEmail: async (input: { name: string; email: string; password: string }) => {
     await authPost("/sign-up/email", input);
+  },
+
+  changePassword: async (input: { currentPassword: string; newPassword: string }): Promise<void> => {
+    await authPost("/change-password", { ...input, revokeOtherSessions: true }, true);
   },
 
   getProfile: async (): Promise<CurrentUserProfile> => {

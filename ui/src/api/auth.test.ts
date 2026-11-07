@@ -48,6 +48,38 @@ describe("authApi.getSession", () => {
   });
 });
 
+describe("authApi.changePassword", () => {
+  it("uses the existing credential endpoint and revokes other sessions without returning tokens", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token: "private-token", user: { id: "user-1" } })));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(authApi.changePassword({ currentPassword: "old-password", newPassword: "new-password" })).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith("/api/auth/change-password", {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword: "old-password", newPassword: "new-password", revokeOtherSessions: true }),
+    });
+  });
+
+  it("does not log or retain sensitive error bodies", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      code: "INVALID_PASSWORD", message: "old-password new-password", echoed: "private-token",
+    }), { status: 400 })));
+    const error = await authApi.changePassword({ currentPassword: "old-password", newPassword: "new-password" }).catch(error => error);
+    expect(error).toMatchObject({ status: 400, code: "INVALID_PASSWORD", body: null });
+    expect(error.message).not.toContain("old-password");
+    expect(error.message).not.toContain("new-password");
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it("does not log or retain a sensitive network error", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("new-password")));
+    await expect(authApi.changePassword({ currentPassword: "old-password", newPassword: "new-password" }))
+      .rejects.toMatchObject({ status: 0, code: "NETWORK_ERROR", body: null });
+    expect(log).not.toHaveBeenCalled();
+  });
+});
+
 describe("authApi.signOut", () => {
   it("returns the managed deployment redirect from the response", async () => {
     const fetchMock = vi.fn().mockResolvedValue(

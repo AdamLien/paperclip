@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ChangePasswordForm } from "./ChangePasswordForm";
 
 function deriveInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -270,6 +271,7 @@ export function ProfileSettings() {
           </div>
         </form>
 
+        <ChangePasswordForm key={sessionQuery.data.user.id} />
         <InboxAgentPolicyControl companyId={selectedCompanyId} />
       </section>
     </div>

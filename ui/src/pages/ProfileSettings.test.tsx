@@ -96,6 +96,9 @@ describe("ProfileSettings", () => {
     });
     await flushReact();
     expect(container.textContent).toContain("Jane Example");
+    expect(container.querySelector('input[name="currentPassword"]')).not.toBeNull();
+    expect(container.querySelector('input[name="newPassword"]')).not.toBeNull();
+    expect(container.querySelector('input[name="confirmPassword"]')).not.toBeNull();
     expect(container.textContent).not.toContain("Keyboard shortcuts");
     expect(container.querySelector('[aria-label="Toggle keyboard shortcuts"]')).toBeNull();
     await act(async () => root.unmount());
