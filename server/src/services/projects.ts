@@ -115,7 +115,9 @@ async function attachGoals(db: Db, rows: ProjectRow[]): Promise<ProjectWithGoals
       urlKey: deriveProjectUrlKey(r.name, r.id),
       goalIds: g.map((x) => x.id),
       goals: g,
-      executionWorkspacePolicy: parseProjectExecutionWorkspacePolicy(r.executionWorkspacePolicy),
+      executionWorkspacePolicy: parseProjectExecutionWorkspacePolicy(r.executionWorkspacePolicy, {
+        includeEnvironmentId: true,
+      }),
     } as ProjectWithGoals;
   });
 }
@@ -957,7 +959,9 @@ export function projectService(db: Db, options: { captureWorkspaceUpdates?: bool
 
       let cleared = 0;
       for (const row of rows) {
-        const policy = parseProjectExecutionWorkspacePolicy(row.executionWorkspacePolicy);
+        const policy = parseProjectExecutionWorkspacePolicy(row.executionWorkspacePolicy, {
+          includeEnvironmentId: true,
+        });
         if (policy?.environmentId !== environmentId) continue;
 
         await projectService(db).update(row.id, {

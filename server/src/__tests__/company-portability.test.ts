@@ -1305,6 +1305,7 @@ describe("company portability", () => {
           enabled: true,
           defaultMode: "shared_workspace",
           defaultProjectWorkspaceId: "workspace-1",
+          environmentId: "8f2d6c1e-4b7a-4c3e-9a51-2e6f0b9d7c44",
           workspaceStrategy: {
             type: "project_primary",
           },
@@ -1396,6 +1397,7 @@ describe("company portability", () => {
     expect(extension).toContain('projectWorkspaceKey: "main-repo"');
     expect(extension).not.toContain("/Users/dotta/paperclip");
     expect(extension).not.toContain("workspace-1");
+    expect(extension).not.toContain("environmentId");
     expect(exported.warnings).toContain("Project launch workspace Local Scratch was omitted from export because it does not have a portable repoUrl.");
 
     companySvc.create.mockResolvedValue({

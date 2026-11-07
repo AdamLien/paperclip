@@ -1091,6 +1091,27 @@ describe("realizeExecutionWorkspace", () => {
     expect(await readGit(workspace.cwd, ["rev-parse", "HEAD"])).toBe(originHead);
   });
 
+  // The primary checkout may be left on a previous task's branch. A fresh
+  // worktree must still start from origin's default branch and leave that
+  // branch alone.
+  it("bases a fresh worktree on origin/master while the primary checkout sits on another task branch", async () => {
+    const { repoRoot } = await createClonedRepoWithRemote();
+    const originHead = await readGit(repoRoot, ["rev-parse", "origin/master"]);
+
+    await runGit(repoRoot, ["checkout", "-b", "feat/previous-task"]);
+    await fs.writeFile(path.join(repoRoot, "previous-task.txt"), "earlier task\n", "utf8");
+    await runGit(repoRoot, ["add", "previous-task.txt"]);
+    await runGit(repoRoot, ["commit", "-m", "Earlier task work"]);
+    const previousTaskHead = await readGit(repoRoot, ["rev-parse", "HEAD"]);
+
+    const workspace = await realizeWorktreeForTest(repoRoot, null);
+
+    expect(workspace.baseRefSha).toBe(originHead);
+    expect(await readGit(workspace.cwd, ["rev-parse", "HEAD"])).toBe(originHead);
+    expect(await readGit(repoRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/previous-task");
+    expect(await readGit(repoRoot, ["rev-parse", "feat/previous-task"])).toBe(previousTaskHead);
+  });
+
   it("maps a configured local branch base ref to origin/<branch> for fresh worktrees", async () => {
     const { repoRoot } = await createClonedRepoWithRemote();
     const originHead = await readGit(repoRoot, ["rev-parse", "origin/master"]);
