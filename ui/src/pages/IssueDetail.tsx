@@ -1,3 +1,4 @@
+import { IssueApprovalBanner } from "../components/IssueApprovalBanner";
 import { TextAttachmentContext } from "../context/TextAttachmentContext";
 import { useTaskBrowsers, useBrowserArrivals } from "@/hooks/useTaskBrowsers";
 import { WorkspaceExportRecovery } from "../components/WorkspaceExportRecovery";
@@ -7567,6 +7568,14 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         >
           {/* Parent chain breadcrumb (redesign: rendered inside the thread viewport) */}
           {taskChatShellEnabled ? null : ancestorsNav}
+
+          <IssueApprovalBanner
+            key={`approval:${issue.id}:${issue.executionState?.currentStageId ?? ""}`}
+            issue={issue}
+            currentUserId={currentUserId}
+            userLabels={userLabelMap}
+            onDecision={(data) => updateIssue.mutateAsync(data)}
+          />
 
           <ExternallyConnectedTaskBanner
             key={issue.id}

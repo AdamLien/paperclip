@@ -1063,10 +1063,13 @@ export function IssueProperties({
     const participantLabel = participant
       ? (participant.type === "agent"
         ? agentName(participant.agentId ?? null)
-        : userLabel(participant.userId ?? null))
+        : actualUserLabel(participant.userId ?? null))
       : null;
     if (issue.executionState.status === "changes_requested") {
       return `${stageLabel} requested changes${participantLabel ? ` by ${participantLabel}` : ""}`;
+    }
+    if (i18n.resolvedLanguage === "zh-TW" && participantLabel) {
+      return `等待 ${participantLabel} ${issue.executionState.currentStageType === "approval" ? "核准" : "審查"}`;
     }
     return `${stageLabel} pending${participantLabel ? ` with ${participantLabel}` : ""}`;
   })();
